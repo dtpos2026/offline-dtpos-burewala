@@ -595,6 +595,22 @@ export interface RestaurantSettings {
   receiptShowFooter?: boolean;
   receiptShowPoweredBy?: boolean;
   receiptCompactMode?: boolean;
+  /**
+   * FAST BILLING MODE — one switch for the whole shop.
+   *
+   * ON  : every slip (bill, KOT, token, shift report) is built as raw ESC/POS
+   *       text and goes straight to the printer. No logo, no designed
+   *       template, no render step — the fastest path to paper.
+   * OFF : every slip prints its designed template (logo, QR, premium layouts)
+   *       and still goes out as one silent RAW job with no dialog.
+   *
+   * Shops genuinely split on this: some want their branding on the bill,
+   * others want the counter to move as fast as possible. The mode is global
+   * precisely because a shop that chooses speed wants it on EVERYTHING —
+   * having the bill print raw and the token print rendered is the worst of
+   * both. A per-printer override still exists for mixed hardware.
+   */
+  fastRawPrintMode?: boolean;
   /** Turn OFF direct ESC/POS printing (falls back to the older layout print).
    *  Default: direct printing is ON in the Windows desktop app. */
   directPrintDisabled?: boolean;

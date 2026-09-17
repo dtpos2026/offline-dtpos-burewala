@@ -122,7 +122,9 @@ export class EscposDoc {
   bold(on: boolean) { return this.raw(ESC, 0x45, on ? 1 : 0); }
   /** width/height multipliers 1..4 */
   size(w = 1, h = 1) {
-    const n = ((Math.min(4, Math.max(1, w)) - 1) << 4) | (Math.min(4, Math.max(1, h)) - 1);
+    const width = Math.min(4, Math.max(1, w));
+    const n = ((width - 1) << 4) | (Math.min(4, Math.max(1, h)) - 1);
+    this.widthMul = width;
     return this.raw(GS, 0x21, n);
   }
   underline(on: boolean) { return this.raw(ESC, 0x2d, on ? 1 : 0); }
@@ -134,6 +136,30 @@ export class EscposDoc {
   }
 
   line(s = '') { return this.text(s).raw(LF); }
+
+  /**
+   * Current width multiplier, tracked so wrapping knows the real column count.
+   *
+   * `GS !` doubles the glyph width, which halves how many characters fit. The
+   * builder did not track this, so a 25-character shop name printed at double
+   * width ran past the 24 columns an 80mm roll actually has and the printer
+   * hard-wrapped it mid-word: "FIRST CHEF PIZZA & BUR / GER".
+   */
+  private widthMul = 1;
+
+  /** Columns available at the CURRENT size. */
+  get effectiveCols(): number {
+    return Math.max(1, Math.floor(this.cols / this.widthMul));
+  }
+
+  /**
+   * A line that wraps on word boundaries at the current size.
+   *
+   * Use this for anything the shop types in — names, addresses, footers —
+   * because their length is not under our control and a hard wrap mid-word
+   * looks like a broken receipt.
+   */
+  fit(s: string) { return this.wrap(s, this.effectiveCols); }
 
   /** Word-wrapped paragraph at the current column width. */
   wrap(s: string, width = this.cols) {
@@ -223,7 +249,7 @@ export function buildReceiptBytes(order: Order, settings: RestaurantSettings): n
   if (compact) d.lineSpacing(20);
 
   d.center();
-  if (s.name) { d.size(2, 2).bold(true).line(s.name).size(1, 1).bold(false); }
+  if (s.name) { d.size(2, 2).bold(true).fit(s.name).size(1, 1).bold(false); }
   if (!compact && s.address) d.wrap(s.address);
   const phones = [s.phone1, s.phone2].filter(Boolean).join(' / ');
   if (phones) d.line(phones);
@@ -358,6 +384,106 @@ export function buildTokenBytes(data: TokenData, settings: RestaurantSettings): 
   d.size(3, 3).bold(true).line(String(data.orderNumber)).size(1, 1).bold(false);
   d.line('TOKEN NUMBER');
   d.line('Hand over to the tandoor counter');
+  d.cut(4);
+  return d.bytes();
+}
+
+// ------------------------------------------------------------
+// SHIFT REPORT
+// ------------------------------------------------------------
+/**
+ * The shift report as raw ESC/POS.
+ *
+ * The report was the one slip with no raw builder at all, so turning on Fast
+ * Billing printed a raw receipt, a raw KOT and a raw token — and then a
+ * rendered report. Every slip type now has both renderers.
+ *
+ * Typed loosely on purpose: this consumes `buildShiftReportData`'s return
+ * value, which is inferred rather than declared, and duplicating that shape
+ * here would be a second source of truth that could drift.
+ */
+export function buildShiftReportBytes(data: any, settings: RestaurantSettings): number[] {
+  const s: any = settings || data?.settings || {};
+  const sym = s.currencySymbol || 'Rs ';
+  const d = new EscposDoc(paperOf(s), docOptionsOf(s));
+  const m = (n: number) => money(n, sym);
+
+  d.center().bold(true).size(2, 2).fit(s.name || 'SHIFT REPORT').size(1, 1);
+  d.line('SHIFT REPORT').bold(false);
+  const r = data?.range || {};
+  if (r.from) d.line(`From: ${when(new Date(r.from).toISOString())}`);
+  if (r.to) d.line(`To:   ${when(new Date(r.to).toISOString())}`);
+  d.left().rule('=');
+
+  const sum = data?.summary || {};
+  d.bold(true).line('SUMMARY').bold(false);
+  d.lr('Product amount', m(sum.productAmount));
+  if (sum.discount) d.lr('Discount', '-' + m(sum.discount));
+  if (sum.serviceCharge) d.lr('Service charge', m(sum.serviceCharge));
+  if (sum.rounding) d.lr('Rounding', m(sum.rounding));
+  d.lr('Sub total', m(sum.subTotal));
+  if (sum.refundAmount) d.lr('Refund', '-' + m(sum.refundAmount));
+  d.bold(true).lr('Actual sales', m(sum.actualSales)).bold(false);
+  d.rule();
+
+  const tax = data?.tax || {};
+  if (tax.taxAmount) {
+    d.bold(true).line('TAX').bold(false);
+    d.lr(`Taxable (${tax.taxPct || 0}%)`, m(tax.taxable));
+    d.lr('Tax amount', m(tax.taxAmount));
+    d.rule();
+  }
+
+  const tr = data?.transactions || {};
+  d.bold(true).line('TRANSACTIONS').bold(false);
+  d.lr('Checked out', String(tr.checkedOut ?? 0));
+  d.lr('Average income', m(tr.avgIncome));
+  d.lr('Sold products', String(tr.soldProducts ?? 0));
+  if (tr.refunded) d.lr('Refunded', String(tr.refunded));
+  d.rule();
+
+  const dr = data?.drawer || {};
+  d.bold(true).line('CASH DRAWER').bold(false);
+  d.lr('Starting cash', m(dr.startingCash));
+  d.lr('Order income', m(dr.orderIncome));
+  if (dr.refund) d.lr('Refund', '-' + m(dr.refund));
+  d.lr('Expected cash', m(dr.expectedCash));
+  d.lr('Actual ending cash', m(dr.actualEndingCash));
+  d.rule();
+
+  const payments: any[] = Array.isArray(data?.payments) ? data.payments : [];
+  if (payments.length) {
+    d.bold(true).line('PAYMENT REPORT').bold(false);
+    for (const p of payments) {
+      d.lr(String(p.method || '').toUpperCase(), `${m(p.amount)}  ${Number(p.percent || 0).toFixed(0)}%`);
+    }
+    d.rule();
+  }
+
+  const types: any[] = Array.isArray(data?.types) ? data.types : [];
+  if (types.length) {
+    d.bold(true).line('ORDER TYPES').bold(false);
+    for (const t of types) d.lr(String(t.type || ''), `${t.orders || 0}  ${m(t.amount)}`);
+    d.rule();
+  }
+
+  const cats: any[] = Array.isArray(data?.categories) ? data.categories : [];
+  if (cats.length) {
+    d.bold(true).line('SOLD CATEGORIES').bold(false);
+    for (const c of cats) d.lr(String(c.name || '').slice(0, d.cols - 16), `${c.qty || 0}  ${m(c.amount)}`);
+    d.rule();
+  }
+
+  const prods: any[] = Array.isArray(data?.products) ? data.products : [];
+  if (prods.length) {
+    d.bold(true).line('SOLD PRODUCTS').bold(false);
+    for (const p of prods) d.lr(String(p.name || '').slice(0, d.cols - 16), `${p.qty || 0}  ${m(p.amount)}`);
+    d.rule('=');
+  }
+
+  const tot = data?.totals || {};
+  d.bold(true).lr('TOTAL', `${tot.catQty || 0}  ${m(tot.catAmt)}`).bold(false);
+  d.center().line(`Printed ${when()}`);
   d.cut(4);
   return d.bytes();
 }

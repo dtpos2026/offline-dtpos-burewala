@@ -9,6 +9,7 @@ import { Order, RestaurantSettings } from '@/lib/types';
 import { getMenuItems } from '@/lib/store';
 import { printNode } from '@/printing';
 import { printDirect } from '@/printing/directPrint';
+import { resolvePrintMode } from '@/printing/printMode';
 import { loadPrinterSettings, resolvePrinterForRole } from '@/lib/printerSettings';
 import { getDeviceId } from '@/lib/tenant';
 import { appendTokenEntry } from '@/lib/tokenLedger';
@@ -83,7 +84,7 @@ export default function TokenReceipt({ order, settings, autoPrint = false, onAut
         // The token printer's own print mode decides the order, the same way
         // it does for the receipt and the KOT, so one setting governs every
         // slip instead of receipts alone.
-        const tokenPrintMode: string = tokenCfg?.printMode || 'auto';
+        const tokenPrintMode = resolvePrintMode({ printerConfig: tokenCfg, settings });
         if (tokenPrintMode === 'raw' && !(tokenCfg?.connection === 'lan' && tokenCfg?.lanHost)) {
           try {
             const direct = await printDirect({

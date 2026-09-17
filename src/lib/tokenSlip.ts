@@ -9,6 +9,7 @@
 // ============================================================
 import { printNode } from '@/printing';
 import { loadPrinterSettings, resolvePrinterForRole } from '@/lib/printerSettings';
+import { resolvePrintMode } from '@/printing/printMode';
 import { getDeviceId } from '@/lib/tenant';
 import { appendTokenEntry, getTokenSummary, todayKey } from '@/lib/tokenLedger';
 
@@ -349,7 +350,7 @@ export async function printTokenDirect(
       paperWidth, printerName, silent: true, copies: 1,
       // The token printer's own mode and geometry, so this slip is positioned
       // by the same numbers as every other one.
-      printMode: tokenCfg?.printMode,
+      printMode: resolvePrintMode({ printerConfig: tokenCfg, settings: settingsAny }),
       compact: !!settingsAny?.receiptCompactMode,
       compactFontSize: settingsAny?.receiptCompactFontSize,
       compactLineHeight: settingsAny?.receiptCompactLineHeight,

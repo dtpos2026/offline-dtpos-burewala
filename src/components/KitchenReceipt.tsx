@@ -6,6 +6,7 @@ import { Printer } from 'lucide-react';
 import { isElectron, printReceiptNative } from '@/lib/electron';
 import { fastPrintHtml, isFastPrintAvailable } from '@/printing/fastPrint';
 import { printDirect } from '@/printing/directPrint';
+import { resolvePrintMode } from '@/printing/printMode';
 import { beginThermalPrintDomSession, getEffectiveReceiptMargins, getThermalPaperWidthMicrons, getThermalPrintJobHeightMm, shouldUsePrinterDefaultPageSize, waitForThermalPrintLayout } from '@/lib/thermal-print';
 import { StandardInfoGrid, StandardInfoRows, getOrderTypeLabel } from '@/lib/standardOrderInfo';
 
@@ -142,7 +143,7 @@ export default function KitchenReceipt({ order: rawOrder, settings, showPrintBut
     // receipts only, so a printer set to Raw ESC/POS still had its KOT
     // rendered, and one set to driver-only still had every KOT pushed at the
     // RAW path first and fail.
-    const kotPrintMode: string = hoistedKitchenCfg?.printMode || 'auto';
+    const kotPrintMode = resolvePrintMode({ printerConfig: hoistedKitchenCfg, settings });
 
     if (kotPrintMode === 'raw' && isElectron() && settings.silentPrint
         && !(hoistedKitchenCfg?.connection === 'lan' && hoistedKitchenCfg?.lanHost)) {

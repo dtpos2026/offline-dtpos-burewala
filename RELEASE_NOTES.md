@@ -1,5 +1,52 @@
 # DT POS Enterprise — Release Notes
 
+## v1.3.0 — Fast Billing Mode: one switch for every slip
+
+Shops split on this. Some want their logo and their chosen receipt design on
+every bill; others want the counter to move and do not care what the slip looks
+like. Fast Billing is now a single shop-wide switch in Printer Settings.
+
+- **On** — the bill, the KOT, the token and the shift report are all built as
+  raw ESC/POS text and go straight to the printer. No render step at all, so
+  no logo, no QR and no premium layout.
+- **Off** — all four print their designed template and still go out as one
+  silent RAW job with no dialog.
+
+Margins stay equal on both sides either way.
+
+The switch is global on purpose: a raw bill followed by a rendered token is the
+worst of both, two looks and two speeds. A single printer can still override it
+in Printer Settings → Print Mode, for hardware whose driver refuses raw bytes.
+
+### Print mode is now decided in one place
+
+Four components print slips and each decided this for itself, which is how they
+drifted: the bill honoured the printer's mode while the KOT and the token
+ignored it, and the shift report had no raw path at all. All four now call one
+resolver, with precedence: the printer's own mode, then the shop switch, then
+the rendered default.
+
+### The shift report gained a raw renderer
+
+It was the only slip with no ESC/POS builder, so turning on Fast Billing
+produced a raw bill, a raw KOT, a raw token — and then a rendered report.
+
+### Enlarged text no longer breaks mid-word
+
+`GS !` doubles the glyph width, which halves how many characters fit on a line.
+The builder did not track that, so a shop name longer than 24 characters ran
+past the columns an 80mm roll has and the printer hard-wrapped it inside the
+word: the client's slip read `FIRST CHEF PIZZA & BUR` / `GER`. Enlarged lines
+now wrap on word boundaries at the real column count for the current size.
+
+### Known: the printer driver can add its own asymmetry
+
+The FIT FP-1100 driver ships with **Left 3.0 mm and Right 5.0 mm** under
+Properties → Custom Paper → Margin. Those are applied by the driver itself, on
+top of anything the POS sends, so they skew the Windows-driver path by 2 mm no
+matter how the app is configured. Set both to the same value there. Fast
+Billing bypasses the driver entirely, so it is unaffected.
+
 ## v1.2.1 — The margin fix that actually reaches the machine
 
 v1.2.0 corrected the equal-margin logic and still printed lopsided on the

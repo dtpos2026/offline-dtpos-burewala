@@ -8,6 +8,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { isElectron, printReceiptNative } from '@/lib/electron';
 import { fastPrintHtml, isFastPrintAvailable } from '@/printing/fastPrint';
 import { printDirect, prewarmDirectPrint } from '@/printing/directPrint';
+import { resolvePrintMode } from '@/printing/printMode';
 import { beginThermalPrintDomSession, getEffectiveReceiptMargins, getThermalPaperWidthMicrons, getThermalPrintJobHeightMm, shouldUsePrinterDefaultPageSize, waitForThermalPrintLayout } from '@/lib/thermal-print';
 import { StandardInfoGrid, StandardInfoRows, getOrderTypeLabel } from '@/lib/standardOrderInfo';
 import PremiumReceipt from '@/components/PremiumReceipt';
@@ -200,7 +201,7 @@ export default function ReceiptPreview({ order, settings, showPrintButton = true
     // Never hard-fail before the whole chain has run. Each step logs which
     // path it took, so a support call can tell from the log whether the slip
     // went out raw, rendered or through the driver.
-    const printMode: string = counterCfg?.printMode || 'auto';
+    const printMode = resolvePrintMode({ printerConfig: counterCfg, settings });
 
     // Text ESC/POS: no Chromium render at all, so this is the fastest path to
     // paper. Opt-in per printer, because it prints a plain text slip rather

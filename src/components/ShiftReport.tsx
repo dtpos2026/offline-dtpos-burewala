@@ -12,6 +12,7 @@ import { isPaidSale, isPartialSale, isVoidish, paidRevenue } from '@/lib/sales';
 import type { Order } from '@/lib/types';
 import { printNode } from '@/printing';
 import { loadPrinterSettings, resolvePrinterForRole } from '@/lib/printerSettings';
+import { wantsRaw } from '@/printing/printMode';
 import { getDeviceId } from '@/lib/tenant';
 
 export interface ShiftReportRange {
@@ -203,6 +204,7 @@ export async function printShiftReport(range: ShiftReportRange): Promise<{ succe
   const paperWidth = (settings.paperSize as '58mm' | '80mm') || '80mm';
 
   let printerName: string | undefined;
+  let counterCfg: any = undefined;
   let printMode: string | undefined;
   let marginLeftMm: number | undefined;
   let marginRightMm: number | undefined;
@@ -210,6 +212,7 @@ export async function printShiftReport(range: ShiftReportRange): Promise<{ succe
   try {
     const pset = await loadPrinterSettings();
     const cfg: any = resolvePrinterForRole(pset, 'counter', getDeviceId());
+    counterCfg = cfg;
     if (cfg && (cfg.connection || 'system') === 'system' && cfg.printerName) printerName = cfg.printerName;
     printMode = cfg?.printMode;
     marginLeftMm = cfg?.leftMarginMm;
@@ -217,6 +220,27 @@ export async function printShiftReport(range: ShiftReportRange): Promise<{ succe
     contentWidthMm = cfg?.printWidthMm;
   } catch {}
   if (!printerName) printerName = settings.defaultPrinter || undefined;
+
+  // ===== FAST BILLING =====
+  // The report is a slip like any other. Without this the shop-wide switch
+  // produced a raw bill, a raw KOT, a raw token — and a rendered report.
+  if (wantsRaw({ printerConfig: counterCfg, settings })) {
+    try {
+      const { buildShiftReportBytes } = await import('@/printing/escposBuilder');
+      const bytes = buildShiftReportBytes(data, settings);
+      const api: any = (window as any).electronAPI;
+      if (api?.printRaw && bytes.length > 40) {
+        const res = await api.printRaw({ printerName, data: bytes, copies: 1 });
+        if (res?.success) {
+          console.info('[DT-Print] shift report path=raw-escpos', { printer: printerName });
+          return { success: true };
+        }
+        console.warn('[DT-Print] raw shift report unavailable, falling back to the rendered path:', res?.error);
+      }
+    } catch (e: any) {
+      console.warn('[DT-Print] raw shift report threw, falling back to the rendered path:', e?.message || e);
+    }
+  }
 
   const portal = document.createElement('div');
   portal.className = 'receipt-print-portal';
@@ -238,7 +262,7 @@ export async function printShiftReport(range: ShiftReportRange): Promise<{ succe
     // and a full-length shift report.
     return await printNode(portal, {
       paperWidth, printerName, silent: true, copies: 1,
-      printMode: printMode as any,
+      printMode: (printMode || (settings.fastRawPrintMode ? 'raw' : undefined)) as any,
       compact: !!settings.receiptCompactMode,
       compactFontSize: settings.receiptCompactFontSize,
       compactLineHeight: settings.receiptCompactLineHeight,

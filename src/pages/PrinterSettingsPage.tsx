@@ -1,6 +1,7 @@
 import PrinterSettingsPanel from '@/components/PrinterSettingsPanel';
 import PrintMarginsCard from '@/components/PrintMarginsCard';
 import PrintAlignmentTestCard from '@/components/PrintAlignmentTestCard';
+import FastBillingModeCard from '@/components/FastBillingModeCard';
 import PrintQualityCard from '@/components/PrintQualityCard';
 import TestPrintCard from '@/components/TestPrintCard';
 import TokenSettingsCard from '@/components/TokenSettingsCard';
@@ -20,6 +21,7 @@ export default function PrinterSettingsPage() {
         </p>
       </div>
       <PrinterHealthCard />
+      <FastBillingModeCard />
       <ReceiptTemplateCard />
       <PremiumTemplateGallery />
       <PrintMarginsCard />
