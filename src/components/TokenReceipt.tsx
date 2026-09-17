@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom';
 import { Order, RestaurantSettings } from '@/lib/types';
 import { getMenuItems } from '@/lib/store';
 import { printNode } from '@/printing';
+import { printDirect } from '@/printing/directPrint';
 import { loadPrinterSettings, resolvePrinterForRole } from '@/lib/printerSettings';
 import { getDeviceId } from '@/lib/tenant';
 import { appendTokenEntry } from '@/lib/tokenLedger';
@@ -65,23 +66,62 @@ export default function TokenReceipt({ order, settings, autoPrint = false, onAut
         if (!el) { onAutoPrintComplete?.({ success: false, error: 'token portal missing' }); return; }
         // Printer: override → role 'token' → role 'kitchen' → legacy settings
         let printerName: string | undefined = printerOverride;
+        let tokenCfg: any = undefined;
         try {
-          if (!printerName) {
-            const pset = await loadPrinterSettings();
-            const dev = getDeviceId();
-            const tok: any = resolvePrinterForRole(pset, 'token' as any, dev);
-            const kit: any = resolvePrinterForRole(pset, 'kitchen', dev);
-            const cfg = tok || kit;
-            if (cfg && (cfg.connection || 'system') === 'system' && cfg.printerName) printerName = cfg.printerName;
+          const pset = await loadPrinterSettings();
+          const dev = getDeviceId();
+          const tok: any = resolvePrinterForRole(pset, 'token' as any, dev);
+          const kit: any = resolvePrinterForRole(pset, 'kitchen', dev);
+          tokenCfg = tok || kit;
+          if (!printerName && tokenCfg && (tokenCfg.connection || 'system') === 'system' && tokenCfg.printerName) {
+            printerName = tokenCfg.printerName;
           }
         } catch {}
         if (!printerName) printerName = (settings as any).tokenPrinter || (settings as any).kotPrinter || (settings as any).defaultPrinter || undefined;
+
+        // ===== PRINT PATH ORDER: RAW -> rendered RAW -> driver -> error =====
+        // The token printer's own print mode decides the order, the same way
+        // it does for the receipt and the KOT, so one setting governs every
+        // slip instead of receipts alone.
+        const tokenPrintMode: string = tokenCfg?.printMode || 'auto';
+        if (tokenPrintMode === 'raw' && !(tokenCfg?.connection === 'lan' && tokenCfg?.lanHost)) {
+          try {
+            const direct = await printDirect({
+              slip: 'token',
+              settings,
+              token: {
+                orderNumber: tokenMeta.tokenNumber,
+                items: items.map(i => ({ name: i.name, qty: i.qty })),
+                restaurantName: (settings as any).name,
+                when: new Date(),
+              },
+              copies: tokenCfg?.copies || 1,
+              printerOverride: printerName,
+              billNumber: String(order.orderNumber ?? ''),
+            });
+            if (direct.success) {
+              console.info('[DT-Print] token path=raw-escpos', { printer: direct.printerName, ms: direct.durationMs });
+              try { issueToken({ order, settings, source: 'auto' }); } catch (e) { console.warn('[token] record failed', e); }
+              try { appendTokenEntry({ orderNumber: order.orderNumber, items, source: 'auto' }); } catch {}
+              onAutoPrintComplete?.({ success: true });
+              return;
+            }
+            console.warn('[DT-Print] raw token unavailable, falling back to the rendered path:', direct.error);
+          } catch (e: any) {
+            console.warn('[DT-Print] raw token threw, falling back to the rendered path:', e?.message || e);
+          }
+        }
+
         const res = await printNode(el, {
           paperWidth, printerName, silent: true, copies: 1,
+          printMode: tokenPrintMode as any,
           compact: !!(settings as any).receiptCompactMode,
           compactFontSize: (settings as any).receiptCompactFontSize,
           compactLineHeight: (settings as any).receiptCompactLineHeight,
           autoCut: settings.autoCut !== false,
+          marginLeftMm: tokenCfg?.leftMarginMm,
+          marginRightMm: tokenCfg?.rightMarginMm,
+          contentWidthMm: tokenCfg?.printWidthMm,
         });
         if (res.success) {
           // The token's business record. issueToken returns the EXISTING

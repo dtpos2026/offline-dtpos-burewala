@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
 import { isElectron, printReceiptNative } from '@/lib/electron';
 import { fastPrintHtml, isFastPrintAvailable } from '@/printing/fastPrint';
+import { printDirect } from '@/printing/directPrint';
 import { beginThermalPrintDomSession, getEffectiveReceiptMargins, getThermalPaperWidthMicrons, getThermalPrintJobHeightMm, shouldUsePrinterDefaultPageSize, waitForThermalPrintLayout } from '@/lib/thermal-print';
 import { StandardInfoGrid, StandardInfoRows, getOrderTypeLabel } from '@/lib/standardOrderInfo';
 
@@ -135,10 +136,49 @@ export default function KitchenReceipt({ order: rawOrder, settings, showPrintBut
     } catch {}
 
     // ===== FAST PATH (v1.0.41) =====
-    // Kitchen slip ka HTML chhupi hui print window ko de kar foran wapas.
-    // POS screen print mode me jati hi nahi — cashier agla bill turant shuru
-    // kar sakta hai. Naakami ki soorat me neeche wala purana raasta chalta hai.
-    if (isElectron() && settings.silentPrint && isFastPrintAvailable()
+    // ===== PRINT PATH ORDER: RAW -> rendered RAW -> driver -> error =====
+    // The kitchen printer's own print mode decides the order, exactly as it
+    // does for the customer receipt. Before this the setting applied to
+    // receipts only, so a printer set to Raw ESC/POS still had its KOT
+    // rendered, and one set to driver-only still had every KOT pushed at the
+    // RAW path first and fail.
+    const kotPrintMode: string = hoistedKitchenCfg?.printMode || 'auto';
+
+    if (kotPrintMode === 'raw' && isElectron() && settings.silentPrint
+        && !(hoistedKitchenCfg?.connection === 'lan' && hoistedKitchenCfg?.lanHost)) {
+      try {
+        const direct = await printDirect({
+          slip: 'kot',
+          order,
+          settings,
+          kot: {
+            updateMode: !!updateMode,
+            diffDeltas: diffDeltas as any,
+            cancelDeltas: cancelDeltas as any,
+            cancelNames: cancelNames as any,
+          },
+          copies: hoistedKitchenCfg?.copies || 1,
+          printerOverride:
+            printerOverride
+            || (((hoistedKitchenCfg?.connection || 'system') === 'system' && hoistedKitchenCfg?.printerName)
+              ? hoistedKitchenCfg.printerName : undefined),
+          billNumber: String(order.orderNumber ?? ''),
+        });
+        if (direct.success) {
+          console.info('[DT-Print] KOT path=raw-escpos', { printer: direct.printerName, ms: direct.durationMs });
+          return { success: true };
+        }
+        console.warn('[DT-Print] raw KOT unavailable, falling back to the rendered path:', direct.error);
+      } catch (e: any) {
+        console.warn('[DT-Print] raw KOT threw, falling back to the rendered path:', e?.message || e);
+      }
+    }
+
+    // Rendered fast path: the kitchen slip's HTML goes to a hidden print
+    // window and returns at once, so the POS screen never enters print mode
+    // and the cashier can start the next bill immediately. On failure the
+    // older window path below runs.
+    if (kotPrintMode !== 'driver' && isElectron() && settings.silentPrint && isFastPrintAvailable()
         && !(hoistedKitchenCfg?.connection === 'lan' && hoistedKitchenCfg?.lanHost)) {
       const fastRoot = (printRef.current || measureEl) as HTMLElement | null;
       applyPrinterMarginVars(fastRoot, hoistedKitchenCfg, margins);

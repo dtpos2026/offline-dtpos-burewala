@@ -314,13 +314,14 @@ export async function printTokenDirect(
 
   // Printer resolve: role token → kitchen → legacy
   let printerName: string | undefined;
+  let tokenCfg: any = undefined;
   try {
     const pset = await loadPrinterSettings();
     const dev = getDeviceId();
     const tok: any = resolvePrinterForRole(pset, 'token' as any, dev);
     const kit: any = resolvePrinterForRole(pset, 'kitchen', dev);
-    const cfg = tok || kit;
-    if (cfg && (cfg.connection || 'system') === 'system' && cfg.printerName) printerName = cfg.printerName;
+    tokenCfg = tok || kit;
+    if (tokenCfg && (tokenCfg.connection || 'system') === 'system' && tokenCfg.printerName) printerName = tokenCfg.printerName;
   } catch {}
   if (!printerName) printerName = settingsAny?.tokenPrinter || settingsAny?.kotPrinter || settingsAny?.defaultPrinter || undefined;
 
@@ -346,9 +347,15 @@ export async function printTokenDirect(
     // Compact Print Mode is GLOBAL — token slips follow it too.
     const res = await printNode(portal, {
       paperWidth, printerName, silent: true, copies: 1,
+      // The token printer's own mode and geometry, so this slip is positioned
+      // by the same numbers as every other one.
+      printMode: tokenCfg?.printMode,
       compact: !!settingsAny?.receiptCompactMode,
       compactFontSize: settingsAny?.receiptCompactFontSize,
       compactLineHeight: settingsAny?.receiptCompactLineHeight,
+      marginLeftMm: tokenCfg?.leftMarginMm,
+      marginRightMm: tokenCfg?.rightMarginMm,
+      contentWidthMm: tokenCfg?.printWidthMm,
       logType: 'other',
     });
     if (res.success) {

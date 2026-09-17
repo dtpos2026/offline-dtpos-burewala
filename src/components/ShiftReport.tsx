@@ -203,10 +203,18 @@ export async function printShiftReport(range: ShiftReportRange): Promise<{ succe
   const paperWidth = (settings.paperSize as '58mm' | '80mm') || '80mm';
 
   let printerName: string | undefined;
+  let printMode: string | undefined;
+  let marginLeftMm: number | undefined;
+  let marginRightMm: number | undefined;
+  let contentWidthMm: number | undefined;
   try {
     const pset = await loadPrinterSettings();
     const cfg: any = resolvePrinterForRole(pset, 'counter', getDeviceId());
     if (cfg && (cfg.connection || 'system') === 'system' && cfg.printerName) printerName = cfg.printerName;
+    printMode = cfg?.printMode;
+    marginLeftMm = cfg?.leftMarginMm;
+    marginRightMm = cfg?.rightMarginMm;
+    contentWidthMm = cfg?.printWidthMm;
   } catch {}
   if (!printerName) printerName = settings.defaultPrinter || undefined;
 
@@ -224,7 +232,19 @@ export async function printShiftReport(range: ShiftReportRange): Promise<{ succe
   portal.appendChild(inner);
   document.body.appendChild(portal);
   try {
-    return await printNode(portal, { paperWidth, printerName, silent: true, copies: 1 });
+    // The shift report is a slip like any other: Paper Save and the printer's
+    // own geometry apply to it too. It used to pass neither, so a shop with
+    // Paper Save on got a compact receipt, a compact KOT, a compact token —
+    // and a full-length shift report.
+    return await printNode(portal, {
+      paperWidth, printerName, silent: true, copies: 1,
+      printMode: printMode as any,
+      compact: !!settings.receiptCompactMode,
+      compactFontSize: settings.receiptCompactFontSize,
+      compactLineHeight: settings.receiptCompactLineHeight,
+      marginLeftMm, marginRightMm, contentWidthMm,
+      logType: 'other',
+    });
   } catch (e: any) {
     return { success: false, error: e?.message || String(e) };
   } finally {

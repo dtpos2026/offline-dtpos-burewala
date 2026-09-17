@@ -58,6 +58,17 @@ interface PrintNodeOpts {
   marginRightMm?: number;
   /** Calibrated content width (mm); 0/undefined = derive from the margins. */
   contentWidthMm?: number;
+  /**
+   * The target printer's configured print mode.
+   *
+   * 'driver' means the user has deliberately taken this printer off the RAW
+   * path (usually because its driver refuses raw bytes), so the fast window
+   * path must be skipped rather than tried and failed on every slip. This
+   * setting previously applied to customer receipts only, so a printer set to
+   * driver-only still had its KOT, tokens and reports pushed through the RAW
+   * path first.
+   */
+  printMode?: 'auto' | 'raw' | 'driver';
 }
 
 export type PrintNodeResult = { success: boolean; error?: string } & Partial<PrintResult>;
@@ -85,7 +96,8 @@ export async function printNode(portalEl: HTMLElement, opts: PrintNodeOpts = {})
   // ===== FAST PATH =====
   // A hidden print window prints the slip's HTML, so the POS's own window
   // never enters print mode: the screen does not freeze and nothing waits.
-  const wantsFast = opts.preferElectron !== false && (opts.silent ?? true) && !opts.lan?.host;
+  const wantsFast = opts.preferElectron !== false && (opts.silent ?? true)
+    && !opts.lan?.host && opts.printMode !== 'driver';
   if (wantsFast && isFastPrintAvailable()) {
     const guard = await ensurePrintAllowedFast();
     if (!guard.allowed) {
