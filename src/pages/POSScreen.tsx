@@ -1186,7 +1186,7 @@ export default function POSScreen() {
     } else if (status === 'hold') {
       toast.info(`Order #${order.orderNumber} on hold`);
     } else if (isOrderTaker) {
-      toast.success(`Order #${order.orderNumber} kitchen ko bhej diya gaya ✅`);
+      toast.success(`Order #${order.orderNumber} sent to the kitchen.`);
     } else {
       toast.info(`Order #${order.orderNumber} saved as ${status}`);
     }

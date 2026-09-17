@@ -57,7 +57,7 @@ export default function BillReprintPage() {
       enqueueReceipt(o, { force: true });
       const entry = logReprint({ orderId: o.id, billNumber: o.orderNumber, orderStatus: o.status, type: 'receipt' });
       setLog(prev => [entry, ...prev]);
-      toast.success(`Bill #${o.orderNumber} — customer receipt printer ko bhej diya`);
+      toast.success(`Bill #${o.orderNumber} — customer receipt sent to the printer.`);
     } catch {
       toast.error('Print failed');
     }

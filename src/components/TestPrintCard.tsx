@@ -1,6 +1,6 @@
 // ============================================================
-// Test Print Card — prints a sample receipt with a single button
-// taake silent print + margins ek hi baar me verify ho jayen.
+// Test Print Card — prints a sample receipt with a single button so that
+// silent printing and the configured margins can be verified in one step.
 // ============================================================
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -11,6 +11,7 @@ import { printNode, isElectronPrintAvailable } from '@/printing';
 import { directTestPrint, isDirectPrintAvailable, prewarmDirectPrint } from '@/printing/directPrint';
 import { getSettings } from '@/lib/store';
 import { loadPrintMargins } from '@/lib/printMargins';
+import { columnsOf } from '@/printing/paperProfile';
 import { loadPrinterSettings, resolvePrinterForRole, type PrinterConfig } from '@/lib/printerSettings';
 import { getDeviceId } from '@/lib/tenant';
 
@@ -27,8 +28,8 @@ export default function TestPrintCard() {
     setBusy(true);
     try {
       const res = await directTestPrint(getSettings());
-      if (res.success) toast.success(`Direct print bhej diya${res.printerName ? ` → ${res.printerName}` : ''}`);
-      else toast.error('Direct print fail: ' + (res.error || 'unknown'));
+      if (res.success) toast.success(`Direct print sent${res.printerName ? ` to ${res.printerName}` : ''}.`);
+      else toast.error('Direct print failed: ' + (res.error || 'unknown error'));
     } finally {
       setTimeout(() => setBusy(false), 500);
     }
@@ -37,12 +38,16 @@ export default function TestPrintCard() {
   const now = new Date();
   const stamp = now.toLocaleString();
   const m = loadPrintMargins();
-  const cols = paper === '58mm' ? 32 : 42;
+  // Characters per line comes from the shared paper profile. This was
+  // hard-coded to 42 on 80mm paper where Font A actually fits 48, so the
+  // ruler stopped ~6 characters short of the right edge and made a correctly
+  // aligned slip look as though it had a wide right margin.
+  const cols = columnsOf(paper, 'A');
   const ruler = Array.from({ length: cols }, (_, i) => String((i + 1) % 10)).join('');
   const digits = '1234567890'.repeat(Math.ceil(cols / 10)).slice(0, cols);
 
-  // Apply the configured counter printer's margins to the portal — so the test
-  // print BILKUL waise hi nikle jaise asal receipt.
+  // Apply the configured counter printer's margins to the portal, so the test
+  // print comes out with exactly the geometry a real receipt would use.
   const applyCfgMargins = (el: HTMLElement, cfg?: PrinterConfig) => {
     const root = el.querySelector('.print-receipt') as HTMLElement | null;
     if (!root) return;
@@ -89,8 +94,8 @@ export default function TestPrintCard() {
             bottomFeedLines: Math.max(3, Math.round((counter.bottomFeedMm || 0) / 3) + 3),
           });
           const r = await api.printLanEscpos({ host: counter.lanHost, port: counter.lanPort || 9100, data: bytes });
-          if (r?.success) toast.success(`LAN test print bhej diya (${counter.lanHost})`);
-          else toast.error('LAN test print fail: ' + (r?.error || 'unknown'));
+          if (r?.success) toast.success(`Network test print sent to ${counter.lanHost}.`);
+          else toast.error('Network test print failed: ' + (r?.error || 'unknown error'));
           return;
         } finally {
           el.removeAttribute('data-active-print');
@@ -116,10 +121,10 @@ export default function TestPrintCard() {
       });
       if (res.success) {
         toast.success(silent
-          ? `Silent test print bhej diya${printerName ? ` → ${printerName}` : ' (default printer)'}`
-          : 'Browser print dialog open ho gaya');
+          ? `Silent test print sent${printerName ? ` to ${printerName}` : ' to the default printer'}.`
+          : 'The browser print dialog has opened.');
       } else {
-        toast.error('Test print fail: ' + (res.error || 'unknown'));
+        toast.error('Test print failed: ' + (res.error || 'unknown error'));
       }
     } catch (e: any) {
       toast.error('Test print error: ' + (e?.message || String(e)));
@@ -133,8 +138,9 @@ export default function TestPrintCard() {
       <div>
         <h3 className="text-lg font-semibold">Printer Test Print</h3>
         <p className="text-xs text-muted-foreground mt-1">
-          Ek sample receipt print kar ke silent print, margins (T:{m.top} R:{m.right} B:{m.bottom} L:{m.left} mm)
-          and verify the printable width ({m.contentWidthMm || 'auto'}mm).
+          Prints a sample receipt to verify silent printing, the margins
+          (T:{m.top} R:{m.right} B:{m.bottom} L:{m.left} mm) and the printable
+          width ({m.contentWidthMm || 'auto'}mm).
         </p>
       </div>
 

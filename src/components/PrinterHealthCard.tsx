@@ -156,7 +156,7 @@ export default function PrinterHealthCard() {
         <div className="flex items-center justify-between gap-3 border-t pt-3">
           <div>
             <p className="text-sm font-semibold">Auto retry on print failure</p>
-            <p className="text-xs text-muted-foreground">Printer busy / abhi reconnect hua ho to itni baar dobara koshish hogi.</p>
+            <p className="text-xs text-muted-foreground">How many times a job is retried when the printer is busy or has just reconnected.</p>
           </div>
           <div className="flex gap-1">
             {[0, 1, 2, 3].map(n => (

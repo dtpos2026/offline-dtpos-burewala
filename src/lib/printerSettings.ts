@@ -65,7 +65,11 @@ function readLocal(): PrinterSettingsDoc {
     if (!raw) return EMPTY;
     const data = JSON.parse(raw) as PrinterSettingsDoc;
     return {
-      printers: Array.isArray(data.printers) ? data.printers : [],
+      // Machines deployed before the equal-margin fix still hold the old
+      // lopsided 3mm/10mm default on disk, so repairing only the factory
+      // default would leave every existing client printing lopsided. The
+      // repair is applied on read and persists on the next save.
+      printers: repairLegacyMargins(Array.isArray(data.printers) ? data.printers : []),
       deviceAssignments: data.deviceAssignments || {},
     };
   } catch (e) {
@@ -100,7 +104,7 @@ export async function loadPrinterSettings(): Promise<PrinterSettingsDoc> {
       if (snap.exists()) {
         const data = snap.data() as PrinterSettingsDoc;
         const merged = {
-          printers: data.printers || [],
+          printers: repairLegacyMargins(data.printers || []),
           deviceAssignments: data.deviceAssignments || {},
         };
         try { writeLocal(merged); } catch {}
@@ -146,7 +150,7 @@ export function subscribePrinterSettings(
         if (!snap.exists()) return;
         const data = snap.data() as PrinterSettingsDoc;
         const merged = {
-          printers: data.printers || [],
+          printers: repairLegacyMargins(data.printers || []),
           deviceAssignments: data.deviceAssignments || {},
         };
         try { writeLocal(merged); } catch {}
@@ -163,6 +167,43 @@ export function subscribePrinterSettings(
   };
 }
 
+/**
+ * Equal side margins, in mm, for a newly added printer.
+ *
+ * 2mm a side is the commercial-POS look: a visible but narrow blank band on
+ * both edges of an 80mm slip. It sits on top of the ~4mm each side the
+ * thermal head physically cannot mark.
+ */
+export const DEFAULT_SIDE_MARGIN_MM = 2;
+
+/**
+ * The lopsided pair shipped before the equal-margin fix. Saved configurations
+ * on deployed machines still carry it, so it is repaired on load — see
+ * repairLegacyMargins.
+ */
+const LEGACY_LOPSIDED_MARGINS = { left: 3, right: 10 };
+
+/**
+ * Repair printers still carrying the old asymmetric default.
+ *
+ * Only the EXACT old pair is touched. A shop that deliberately calibrated its
+ * printer to, say, 4mm/1mm is compensating for that specific machine and must
+ * keep its numbers — silently re-centring those would be a second bug, not a
+ * fix.
+ */
+export function repairLegacyMargins(printers: PrinterConfig[]): PrinterConfig[] {
+  let changed = false;
+  const out = printers.map((p) => {
+    if (Number(p.leftMarginMm) === LEGACY_LOPSIDED_MARGINS.left
+      && Number(p.rightMarginMm) === LEGACY_LOPSIDED_MARGINS.right) {
+      changed = true;
+      return { ...p, leftMarginMm: DEFAULT_SIDE_MARGIN_MM, rightMarginMm: DEFAULT_SIDE_MARGIN_MM };
+    }
+    return p;
+  });
+  return changed ? out : printers;
+}
+
 export function defaultPrinterConfig(): PrinterConfig {
   return {
     id: `prn_${Date.now().toString(36)}`,
@@ -173,8 +214,15 @@ export function defaultPrinterConfig(): PrinterConfig {
     lanPort: 9100,
     role: 'counter',
     paperSize: '80mm',
-    leftMarginMm: 3,
-    rightMarginMm: 10,
+    // ===== EQUAL BY DEFAULT =====
+    // These shipped as left 3mm / right 10mm — a built-in 7mm asymmetry on
+    // every printer anyone added. ReceiptPreview feeds them straight into the
+    // print path as marginLeftMm/marginRightMm, so the slip printed tight to
+    // the left with a wide blank band down the right: the reported fault,
+    // configured rather than computed. A calibration the user sets by hand is
+    // still honoured; only the default is equal now.
+    leftMarginMm: DEFAULT_SIDE_MARGIN_MM,
+    rightMarginMm: DEFAULT_SIDE_MARGIN_MM,
     topFeedMm: 0,
     bottomFeedMm: 0,
     autoCut: true,

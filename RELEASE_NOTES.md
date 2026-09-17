@@ -1,5 +1,87 @@
 # DT POS Enterprise — Release Notes
 
+## v1.2.0 — Receipt alignment, Paper Save parity, raw ESC/POS geometry
+
+### Receipt margins are now equal on every print path
+
+The right margin printed much wider than the left: the slip sat hard against
+the paper's left edge and boxes, table borders and separator lines stopped
+short of the right edge. Two independent causes, both fixed.
+
+**1. Lopsided default margins (the dominant cause in the field).**
+`defaultPrinterConfig()` created every printer with `leftMarginMm: 3` and
+`rightMarginMm: 10` — a built-in 7&nbsp;mm asymmetry. `ReceiptPreview` feeds
+those two numbers straight into the print path, so a slip printed lopsided by
+configuration on any machine whose printer was added through Printer Settings
+or the calibration panel. Both defaults are now an equal 2&nbsp;mm. Machines
+already holding the old pair are repaired when settings load; a calibration a
+shop set by hand is never overwritten.
+
+**2. No horizontal centring on the driver path.**
+The Electron driver/HTML fallback laid the document out at the *content* width
+inside a *full roll* page and left it block-aligned, so all the slack landed on
+the right. Measured on an 80&nbsp;mm roll at the 2&nbsp;mm defaults: 0&nbsp;mm
+left against 11.9&nbsp;mm right. The ESC/POS raster path was already symmetric,
+which is why earlier attempts looked correct in code — only one of the two
+paths had ever been measured. Both paths now resolve their geometry through one
+shared layout module and are verified to print 6.0&nbsp;mm left against
+5.8&nbsp;mm right (0.3&nbsp;mm worst case, against a 1&nbsp;mm bar).
+
+New `src/printing/paperProfile.ts` holds the only copy of the paper numbers —
+printable width, dot count and characters per line for 58/80/110&nbsp;mm.
+`printCss.ts` previously carried its own table whose 110&nbsp;mm printable
+width (100&nbsp;mm) disagreed with the 104&nbsp;mm used everywhere else, and
+the Test Print ruler was hard-coded to 42 columns on 80&nbsp;mm paper where
+Font A fits 48 — so a correctly aligned slip looked short on the right.
+
+### Print Alignment Test
+
+Printer Settings has a **Print Alignment Test** card. It prints a calibration
+slip through either Raw ESC/POS or the Windows driver, carrying a full-width
+`=` ruler, a full-width box, `LEFT`/`RIGHT` on one line, and the active paper
+profile, printable dot width and print strategy. Pass condition: both blank
+edges match within about 1&nbsp;mm and the ruler does not wrap. A wrapped ruler
+means the characters-per-line constant is wrong — fix the constant, not the
+font size.
+
+### Paper Save now applies in the packaged app
+
+`printNode` accepted a `compact` option, forwarded it to the desktop fast path,
+and then called `injectPrintCss(paperWidth)` without it on its own window path,
+never setting `thermal-compact` on the body. Paper Save therefore did nothing
+for every slip that prints through `printNode` — KOT, tokens, the shift report
+and test prints — whenever the fast path was unavailable. Both paths now share
+one options object, including the compact font size and line height. Compact
+mode measures a 31–34% shorter slip.
+
+On the raw path, Paper Save now also tightens line spacing (`ESC 3`), which is
+where the paper is physically saved.
+
+### Raw ESC/POS printing
+
+- `GS L` (left margin) and `GS W` (print area width) are now set on **every**
+  job, on both the raw and raster paths. Both settings persist in printer NVRAM
+  and are *not* cleared by `ESC @` on many models, so a printer left with a
+  non-zero left margin or a narrowed print area printed every later job shifted
+  and short regardless of what the POS sent.
+- The raw path now resolves the printer through the same name matcher as the
+  driver path. It previously handed the stored name straight to winspool, so a
+  printer installed as `... (Copy 1)`, or one carrying a non-breaking space,
+  failed to open on the raw path while the same printer printed fine through
+  the driver. There is one matcher in the main process now, not two.
+- The raw job timeout is 5&nbsp;s (was 10&nbsp;s), so a stalled or unplugged
+  printer surfaces an error quickly and the POS stays responsive.
+- The ESC/POS builder gained Font B, line spacing and cash-drawer kick.
+
+### Notes
+
+- Printer settings remain machine-local; no cross-device sync behaviour changed.
+- The KOT quantity fix, the three-strategy driver fallback chain, `printerMatch`
+  name matching and the weighing-scale COM port logic are unchanged.
+- 235 automated tests pass, including 27 new regression locks covering the
+  equal-margin invariant, the sticky ESC/POS geometry commands and the margin
+  repair.
+
 ## v1.0.40 — Digital Target build (offline, branded, fast)
 
 A maintenance and hardening release. No module was removed and no workflow was

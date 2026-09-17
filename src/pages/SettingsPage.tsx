@@ -3371,7 +3371,7 @@ export default function SettingsPage() {
                   if (k === 'year') { from = sod(new Date(now.getFullYear(), 0, 1)); label = 'This Year'; }
                   toast.info(`Printing ${label} Shift Report…`);
                   const r = await printShiftReport({ from, to, label, startingCash: Number((settings as any).startingCash || 0) });
-                  r.success ? toast.success('Report printer pe bhej diya') : toast.error('Print fail: ' + (r.error || 'unknown'));
+                  r.success ? toast.success('Report sent to the printer.') : toast.error('Print fail: ' + (r.error || 'unknown'));
                 }}>{lbl}</Button>
               ))}
               <Button size="sm" onClick={() => navigate('/sales-report')}>📊 Full Sales Report</Button>
@@ -3389,7 +3389,7 @@ export default function SettingsPage() {
                 const to = eod(new Date(dcTo || dcFrom));
                 toast.info('Report print ho rahi…');
                 const r = await printShiftReport({ from, to, label: `${dcFrom} → ${dcTo || dcFrom}`, startingCash: Number((settings as any).startingCash || 0) });
-                r.success ? toast.success('Report printer pe bhej diya') : toast.error('Print fail: ' + (r.error || 'unknown'));
+                r.success ? toast.success('Report sent to the printer.') : toast.error('Print fail: ' + (r.error || 'unknown'));
               }}>🖨️ Print selected dates</Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
@@ -3565,7 +3565,7 @@ export default function SettingsPage() {
                 autoPrint
                 autoPrintDelayMs={80}
                 showPrintButton={false}
-                onAutoPrintComplete={() => { setTestPrintKind(null); toast.success('Test KOT print bhej diya'); }}
+                onAutoPrintComplete={() => { setTestPrintKind(null); toast.success('Test KOT sent to the printer.'); }}
               />
             ) : (
               <ReceiptPreview

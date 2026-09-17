@@ -21,6 +21,7 @@ import {
   loadPrinterSettings,
   savePrinterSettings,
   subscribePrinterSettings,
+  DEFAULT_SIDE_MARGIN_MM,
   type PrinterConfig,
   type PrinterSettingsDoc,
 } from '@/lib/printerSettings';
@@ -32,9 +33,12 @@ import {
 
 type Offsets = Pick<PrinterConfig, 'leftMarginMm' | 'rightMarginMm' | 'topFeedMm' | 'bottomFeedMm'>;
 
+// Equal by default. This panel shipped seeding 3mm left against 10mm right,
+// which is the lopsided slip the client reported — configured, not computed.
+// A hand-tuned calibration is still honoured; only the starting point is even.
 const DEFAULT_OFFSETS: Offsets = {
-  leftMarginMm: 3,
-  rightMarginMm: 10,
+  leftMarginMm: DEFAULT_SIDE_MARGIN_MM,
+  rightMarginMm: DEFAULT_SIDE_MARGIN_MM,
   topFeedMm: 0,
   bottomFeedMm: 0,
 };

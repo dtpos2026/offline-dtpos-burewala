@@ -166,7 +166,7 @@ export default function RetrayPage() {
                     </Button>
                     <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => {
                       enqueueReceipt(o, { force: true });
-                      toast.success(`Receipt #${o.orderNumber} printer ko bhej diya`);
+                      toast.success(`Receipt #${o.orderNumber} sent to the printer.`);
                     }}>
                       <Printer className="h-3 w-3 mr-1" /> Reprint
                     </Button>
@@ -176,7 +176,7 @@ export default function RetrayPage() {
                       className={`h-8 text-xs ${!o.kotPrinted ? 'border-status-warning text-status-warning hover:bg-status-warning/10' : ''}`}
                       onClick={() => {
                         enqueueKot(o, { force: true });
-                        toast.success(`KOT #${o.orderNumber} kitchen ko bhej diya`);
+                        toast.success(`KOT #${o.orderNumber} sent to the kitchen.`);
                         setTimeout(refresh, 500);
                       }}
                     >
