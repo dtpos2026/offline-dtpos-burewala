@@ -1,5 +1,54 @@
 # DT POS Enterprise — Release Notes
 
+## v1.4.1 — Counter fixes: Retrieve KOT, CRM freeze, duplicate menu, bolder slips
+
+### "Reprint KOT from Retrieve does nothing"
+
+Two faults stacked. The de-duplication guard that stops a double-click
+producing two KOTs matched **any** pending or printing job for that order,
+regardless of age — and a job can sit in `printing` forever when the app closed
+mid-print, the spooler never answered, or the printer was unplugged. From then
+on every KOT for that order was dropped. On top of that, the Retrieve screen
+showed a success toast without looking at the result, so a dropped job looked
+exactly like a printed one.
+
+Jobs older than 60 seconds no longer block, and the screen now reports when a
+print was not queued and why. The receipt reprint had the same unconditional
+toast and is fixed with it.
+
+### Customers → CRM froze on opening
+
+The page called `getCustomers()`, `getBranches()` and `getOrders().filter()`
+directly in the render body and listed the results as `useMemo` dependencies.
+Each returns a **new array**, so the memo's inputs changed identity on every
+render and it never once hit its cache: opening the page re-scanned the whole
+order and customer history — a filter, a reduce, three passes over the
+customers and a full sort — on every render, and again for every chart
+re-render underneath. Those sources are memoised now, so the work happens once.
+
+### Two menu entries called Retrieve
+
+The `retray` entry directly under Void is retired. The POS screen's own
+Retrieve Bills dialog is the one cashiers use, and two identically named menu
+items was a standing source of confusion. The page and its route remain, so an
+existing bookmark still works — only the duplicate menu entry is gone.
+
+### Bolder raw slips, and margins you can nudge
+
+- **Bold text on raw slips**, on by default. A thermal head fades with age and
+  a compact slip fades first because its strokes are thinner; bold costs no
+  extra paper. Switchable in Printer Settings.
+- **Side margin nudge** in the Print Alignment Test card: −0.5 mm / +0.5 mm and
+  a "Full width" reset, applied to **both** edges together. Letting the two
+  drift apart is what produced the lopsided slips, so a genuine per-machine
+  head offset stays on the calibration screen where it belongs.
+
+### Cancel KOT
+
+Checked and unchanged: cancelling or voiding an order still sends a KOT built
+from what was already printed, with each line marked `CANCEL`, so the kitchen
+stops cooking. Covered by tests now so it cannot quietly regress.
+
 ## v1.4.0 — Automatic fills the roll; Windows driver stops freezing the POS
 
 Three print modes photographed side by side settled both faults at once:

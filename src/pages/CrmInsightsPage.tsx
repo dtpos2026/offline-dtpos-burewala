@@ -6,11 +6,30 @@ import { getCustomers, getOrders, getBranches } from '@/lib/store';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function CrmInsightsPage() {
-  const customers = getCustomers();
-  const branches = getBranches();
   const [branchId, setBranchId] = useState<string>('all');
-  const allOrders = getOrders().filter(o => o.status === 'paid' || o.status === 'credit_received');
-  const orders = branchId === 'all' ? allOrders : allOrders.filter(o => o.branchId === branchId);
+
+  // ===== WHY THESE ARE MEMOISED =====
+  // getCustomers(), getBranches() and getOrders().filter() each return a NEW
+  // array on every render. The insights useMemo below listed `customers` and
+  // `orders` as dependencies, so its inputs changed identity every single
+  // render and it never once hit the cache: opening this page re-scanned the
+  // whole order and customer history — a filter, a reduce, three passes over
+  // the customers and a full sort — on every render, and then again for every
+  // chart re-render underneath it.
+  //
+  // On a shop with real history that is the freeze when Customers -> CRM is
+  // clicked, and the delay before the window appears. Memoising the sources
+  // gives the arrays stable identity, so the work happens once per change.
+  const customers = useMemo(() => getCustomers(), []);
+  const branches = useMemo(() => getBranches(), []);
+  const allOrders = useMemo(
+    () => getOrders().filter(o => o.status === 'paid' || o.status === 'credit_received'),
+    [],
+  );
+  const orders = useMemo(
+    () => (branchId === 'all' ? allOrders : allOrders.filter(o => o.branchId === branchId)),
+    [allOrders, branchId],
+  );
 
   const insights = useMemo(() => {
     const totalCustomers = customers.length;

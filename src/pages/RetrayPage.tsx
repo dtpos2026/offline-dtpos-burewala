@@ -165,8 +165,9 @@ export default function RetrayPage() {
                       <Eye className="h-3 w-3 mr-1" /> View
                     </Button>
                     <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => {
-                      enqueueReceipt(o, { force: true });
-                      toast.success(`Receipt #${o.orderNumber} sent to the printer.`);
+                      const job = enqueueReceipt(o, { force: true });
+                      if (job) toast.success(`Receipt #${o.orderNumber} sent to the printer.`);
+                      else toast.warning(`Receipt #${o.orderNumber} was not queued — a reprint may already be in progress.`);
                     }}>
                       <Printer className="h-3 w-3 mr-1" /> Reprint
                     </Button>
@@ -175,8 +176,19 @@ export default function RetrayPage() {
                       variant="outline"
                       className={`h-8 text-xs ${!o.kotPrinted ? 'border-status-warning text-status-warning hover:bg-status-warning/10' : ''}`}
                       onClick={() => {
-                        enqueueKot(o, { force: true });
-                        toast.success(`KOT #${o.orderNumber} sent to the kitchen.`);
+                        // The enqueue can legitimately refuse (KOT disabled, a
+                        // job already queued for this order). It used to be
+                        // ignored and a success toast shown regardless, so a
+                        // refused KOT looked exactly like a printed one — the
+                        // "I press Reprint KOT and nothing comes out" report.
+                        const job = enqueueKot(o, { force: true });
+                        if (job) {
+                          toast.success(`KOT #${o.orderNumber} sent to the kitchen.`);
+                        } else {
+                          toast.warning(
+                            `KOT #${o.orderNumber} was not queued. A KOT for this order may already be printing, or KOT printing is turned off in Settings.`,
+                          );
+                        }
                         setTimeout(refresh, 500);
                       }}
                     >

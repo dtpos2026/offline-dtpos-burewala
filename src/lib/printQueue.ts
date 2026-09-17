@@ -163,11 +163,22 @@ export function enqueuePrint(order: Order, printType: PrintType, opts: EnqueueOp
     //   • rejects the same request again within 3 seconds (double-click)
     // (the real purpose of force is to bypass `order.kotPrinted`, not to print two slips.)
     {
+      // ===== STALE JOBS MUST NOT BLOCK FOREVER =====
+      // This guard exists to stop a double-click producing two KOTs. But it
+      // matched ANY pending/printing job regardless of age, and a job can be
+      // left in 'printing' indefinitely — the app closed mid-print, the
+      // spooler never answered, the printer was unplugged. From then on EVERY
+      // KOT for that order was dropped silently, which is why "Reprint KOT"
+      // from Retrieve did nothing at all.
+      //
+      // A job older than this is treated as dead and no longer blocks.
+      const STALE_JOB_MS = 60_000;
       const dupPending = getPrintQueue().some(j =>
         j.orderId === order.id
         && j.printType === 'kot'
         && !!j.updateMode === !!opts.updateMode
         && (j.status === 'pending' || j.status === 'printing')
+        && Date.now() - new Date(j.createdAt || 0).getTime() < STALE_JOB_MS
       );
       if (dupPending) {
         try { console.log('%c[DT-Print]', 'color:#f59e0b;font-weight:700', 'dedup-skip KOT (already queued)', { no: order.orderNumber }); } catch {}

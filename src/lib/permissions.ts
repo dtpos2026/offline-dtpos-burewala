@@ -27,7 +27,12 @@ export const PAGES: PageDef[] = [
   { key: 'credits',    path: '/credits',    title: 'Credits / Udhaar', group: 'Operations', defaultRoles: ['admin', 'manager', 'cashier'] },
   { key: 'credit-customers', path: '/credit-customers', title: 'Credit Customers (Ledger)', group: 'Operations', defaultRoles: ['admin', 'manager', 'cashier'] },
   { key: 'void-bills', path: '/void-bills', title: 'Void / Comp / Cancel', group: 'Operations', defaultRoles: ['admin', 'manager'] },
-  { key: 'retray',     path: '/retray',     title: 'Retray (Reprint/Pay)', group: 'Operations', defaultRoles: ['admin', 'manager', 'cashier'] },
+  // 'retray' (the second "Retrieve" entry, directly under Void) is retired.
+  // The POS screen's own Retrieve Bills dialog is the one cashiers actually
+  // use, and carrying two menu items with the same name was a standing source
+  // of confusion about which one to open. The page and its route remain, so
+  // /retray still works for anyone with a bookmark and nothing is lost —
+  // only the duplicate menu entry is gone.
   { key: 'pending-payments', path: '/pending-payments', title: 'Pending Payments', group: 'Operations', defaultRoles: ['admin', 'manager', 'cashier'] },
   { key: 'bill-reprint', path: '/bill-reprint', title: 'Bill Reprint (Read-only)', group: 'Operations', defaultRoles: ['admin', 'manager', 'cashier'] },
   { key: 'foodpanda-orders', path: '/foodpanda-orders', title: 'Foodpanda Orders', group: 'Operations', defaultRoles: ['admin', 'manager', 'cashier'] },

@@ -101,6 +101,36 @@ export default function PrintAlignmentTestCard() {
     }
   };
 
+  /**
+   * Nudge both side margins together, in 0.5mm steps.
+   *
+   * Together, not separately: a shop tuning this is deciding how much blank
+   * paper it wants on each edge, and letting the two drift apart is what
+   * produced the lopsided slips in the first place. A genuine per-machine
+   * head offset is a different setting, on the calibration screen.
+   */
+  const nudge = async (delta: number) => {
+    if (busy) return;
+    const next = Math.max(0, Math.min(20, Math.round((Math.min(leftMm, rightMm) + delta) * 10) / 10));
+    setBusy(true);
+    try {
+      equaliseSideMargins(next);
+      if (counter) {
+        const all = await loadPrinterSettings();
+        await savePrinterSettings({
+          ...all,
+          printers: all.printers.map(p => (p.id === counter.id ? equalisePrinterMargins(p, next) : p)),
+        });
+        setCounter(equalisePrinterMargins(counter, next));
+      }
+      setMarginTick(t => t + 1);
+    } catch (e: any) {
+      toast.error(`Could not update the margins: ${e?.message || String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const run = async (mode: Mode) => {
     if (busy) return;
     setBusy(true);
@@ -208,6 +238,21 @@ export default function PrintAlignmentTestCard() {
           </Button>
         </div>
       )}
+
+      <div className="space-y-2">
+        <Label className="text-xs">Side margins (both edges)</Label>
+        <div className="flex items-center gap-2">
+          <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => nudge(-0.5)}>-0.5 mm</Button>
+          <span className="font-mono text-sm w-20 text-center">{Math.min(leftMm, rightMm)} mm</span>
+          <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => nudge(0.5)}>+0.5 mm</Button>
+          <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => nudge(-99)}>Full width</Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          0&nbsp;mm uses everything the head can mark — the paper's own unprintable
+          edge (about {((layout.paperMm - layout.printableMm) / 2).toFixed(1)}&nbsp;mm a side on
+          this profile) is already the visible margin. Print the slip after each change.
+        </p>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => run('raw')} disabled={busy || !rawAvailable}>

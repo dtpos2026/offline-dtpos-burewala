@@ -24,6 +24,7 @@ import { getSettings, saveSettings } from '@/lib/store';
 export default function FastBillingModeCard() {
   const [on, setOn] = useState(false);
   const [size, setSize] = useState<'normal' | 'large'>('large');
+  const [bold, setBold] = useState(true);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -31,6 +32,7 @@ export default function FastBillingModeCard() {
       const s: any = getSettings();
       setOn(!!s.fastRawPrintMode);
       setSize(s.receiptRawTextSize === 'normal' ? 'normal' : 'large');
+      setBold(s.receiptRawBold !== false);
     } catch { /* settings not ready — leave the defaults */ }
     setReady(true);
   }, []);
@@ -44,6 +46,18 @@ export default function FastBillingModeCard() {
         ? 'Raw slips will print at the larger size.'
         : 'Raw slips will print at the compact size.');
     } catch (e: any) {
+      toast.error(`Could not save the setting: ${e?.message || String(e)}`);
+    }
+  };
+
+  const toggleBold = (next: boolean) => {
+    setBold(next);
+    try {
+      const s: any = getSettings();
+      saveSettings({ ...s, receiptRawBold: next });
+      toast.success(next ? 'Raw slips will print in bold.' : 'Raw slips will print in normal weight.');
+    } catch (e: any) {
+      setBold(!next);
       toast.error(`Could not save the setting: ${e?.message || String(e)}`);
     }
   };
@@ -114,6 +128,16 @@ export default function FastBillingModeCard() {
           slip reads close to the designed template. The line width does not change,
           so the same number of characters still fits. Applies to the bill and the KOT.
         </p>
+      </div>
+
+      <div className="flex items-center justify-between rounded-md border p-3">
+        <div className="space-y-0.5 pr-4">
+          <Label htmlFor="raw-bold" className="text-sm">Bold text on raw slips</Label>
+          <p className="text-xs text-muted-foreground">
+            Keeps an ageing print head legible. Costs no extra paper.
+          </p>
+        </div>
+        <Switch id="raw-bold" checked={bold} onCheckedChange={toggleBold} disabled={!ready} />
       </div>
 
       <div className="rounded-md bg-muted/50 p-3 text-xs space-y-1">

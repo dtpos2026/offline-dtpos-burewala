@@ -622,6 +622,14 @@ export interface RestaurantSettings {
   receiptRawTextSize?: 'normal' | 'large';
   /** Same, for the KOT. Falls back to receiptRawTextSize when unset. */
   kotRawTextSize?: 'normal' | 'large';
+  /**
+   * Print the raw slip's body in bold.
+   *
+   * Thermal heads fade as they age and as the paper ages, and a compact slip
+   * fades first because its strokes are thinner. Bold is on by default: it
+   * costs nothing and keeps an old printer legible.
+   */
+  receiptRawBold?: boolean;
   /** Turn OFF direct ESC/POS printing (falls back to the older layout print).
    *  Default: direct printing is ON in the Windows desktop app. */
   directPrintDisabled?: boolean;

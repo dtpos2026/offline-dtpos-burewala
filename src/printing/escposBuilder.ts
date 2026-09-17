@@ -315,6 +315,9 @@ export function buildReceiptBytes(order: Order, settings: RestaurantSettings): n
   // what shops mean when they say the raw bill looks smaller than before.
   const large = s.receiptRawTextSize !== 'normal';
   const itemSize: 1 | 2 = large ? 2 : 1;
+  // Bold body text. A thermal head fades with age and a compact slip fades
+  // first, because its strokes are thinner. On by default.
+  const bodyBold = s.receiptRawBold !== false;
   // Paper Save on the raw path: tighter line spacing is where the paper is
   // actually saved. 24 dots is the printer default. 20 measured cramped on a
   // 203 DPI head, so 22 is the floor — still a visible saving over a long
@@ -323,6 +326,7 @@ export function buildReceiptBytes(order: Order, settings: RestaurantSettings): n
 
   d.center();
   if (s.name) { d.size(2, 2).bold(true).fit(s.name).size(1, 1).bold(false); }
+  if (bodyBold) d.bold(true);
   if (!compact && s.address) d.wrap(s.address);
   const phones = [s.phone1, s.phone2].filter(Boolean).join(' / ');
   if (phones) d.line(phones);
@@ -370,11 +374,13 @@ export function buildReceiptBytes(order: Order, settings: RestaurantSettings): n
   if (order.changeReturned) d.lr('Change', money(order.changeReturned, sym));
   d.rule();
 
-  d.center();
+  d.bold(false).center();
+  if (bodyBold) d.bold(true);
   if (s.thankYouText !== '') d.line(s.thankYouText || 'Thank You!');
   if (!compact && (s.visitAgainText || '') !== '') d.line(s.visitAgainText || 'Please Visit Again');
   if (!compact && s.receiptFooter) d.wrap(s.receiptFooter);
   if (!compact && s.marketingFooter) d.wrap(s.marketingFooter);
+  d.bold(false);
   // Compact saves paper in the BODY. The clearance the blade needs is
   // physical and identical in both modes, so it is not reduced here.
   d.cut();
