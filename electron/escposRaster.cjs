@@ -170,7 +170,24 @@ function wrapRasterCommands(packed, autoCut = true, opts = {}) {
   if (!Number.isFinite(height) || height < 1 || !data || data.length < rowBytes) {
     throw new Error('Rendered receipt is empty — refusing to send a blank raster');
   }
-  const init = Buffer.from([0x1b, 0x40, 0x1b, 0x61, 0x00]);
+  // ===== STICKY GEOMETRY RESET =====
+  // `GS L` (left margin) and `GS W` (print area width) persist in the
+  // printer's NVRAM between jobs and are NOT cleared by `ESC @` on many
+  // models. A printer left with a non-zero left margin, or a print-area
+  // width below its full dot count, shifts and clips every later job — the
+  // slip prints tight to the left with a wide blank band down the right.
+  //
+  // This path already positions the slip itself: packDots writes the bitmap
+  // at `leftDots` across the full paper width. So the printer's own margin
+  // must be ZERO and its print area the FULL width, or the two offsets add
+  // up and the content is pushed off the right edge.
+  const paperDots = Math.max(1, Math.min(65535, rowBytes * 8));
+  const init = Buffer.from([
+    0x1b, 0x40,                                             // ESC @  initialize
+    0x1d, 0x4c, 0x00, 0x00,                                 // GS L   left margin = 0
+    0x1d, 0x57, paperDots & 0xff, (paperDots >> 8) & 0xff,  // GS W   full print area
+    0x1b, 0x61, 0x00,                                       // ESC a  left align
+  ]);
   const raster = Buffer.from([
     0x1d, 0x76, 0x30, 0x00,
     rowBytes & 0xff, (rowBytes >> 8) & 0xff,

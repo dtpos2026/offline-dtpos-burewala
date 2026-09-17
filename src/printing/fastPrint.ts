@@ -18,7 +18,7 @@ import { buildPrintCss } from './printCss';
 import type { PaperSize } from './printConfig';
 import { effectivePrintQuality } from '@/lib/printQuality';
 import { loadPrintMargins } from '@/lib/printMargins';
-import { resolvePrintGeometry, type PrintGeometry } from './printGeometry';
+import { resolveReceiptLayout, layoutCss, type ReceiptLayout } from './receiptLayout';
 
 function api(): any {
   return (window as any).electronAPI;
@@ -93,19 +93,21 @@ type DocumentMode = 'raster' | 'html';
 // ~240 KB of CSS on every single print. This is a large part of the old delay.
 const headCache = new Map<string, string>();
 
-function buildHead(args: FastPrintArgs, geom: PrintGeometry, mode: DocumentMode): string {
+function buildHead(args: FastPrintArgs, mode: DocumentMode): string {
   const width = args.paperWidth || '80mm';
   // Compact mode stays readable: 11px on an 80mm slip is around 7pt, which
   // prints grey and cramped on a 203 DPI head. 12px is the floor now, and
   // the paper saving comes from spacing (see buildCompactOverrides).
   const compactFontSize = Math.max(10, Math.min(16, Number(args.compactFontSize) || 12));
   const compactLineHeight = Math.max(1, Math.min(2, Number(args.compactLineHeight) || 1.12));
-  // The document is laid out at the content width on BOTH paths; only the
-  // side padding differs, so it is part of the cache key.
-  const padLeft = mode === 'html' ? geom.leftMm : 0;
-  const padRight = mode === 'html' ? geom.rightMm : 0;
-  const bodyMm = mode === 'html' ? geom.paperMm : geom.contentMm;
-  const key = `${width}|${mode}|${geom.contentMm}|${padLeft}|${padRight}|${args.compact ? 1 : 0}|${compactFontSize}|${compactLineHeight}|${args.rootStyle || ''}`;
+  // ===== EQUAL MARGINS =====
+  // Both modes now get their page box and their content offset from the
+  // shared layout module, which centres the slip on the printable area
+  // instead of letting it sit flush left. See receiptLayout.ts for the
+  // measurement that showed this path printing 0mm left against 11.9mm
+  // right on an 80mm roll.
+  const layout = layoutFor(args);
+  const key = `${width}|${mode}|${layout.contentMm}|${layout.leftMm}|${layout.rightMm}|${args.compact ? 1 : 0}|${compactFontSize}|${compactLineHeight}|${args.rootStyle || ''}`;
   const hit = headCache.get(key);
   if (hit) return hit;
 
@@ -129,12 +131,8 @@ function buildHead(args: FastPrintArgs, geom: PrintGeometry, mode: DocumentMode)
 <style>${appCss}</style>
 <style>${buildPrintCss(width, !!args.compact)}</style>
 <style>
-  html,body{margin:0!important;background:#fff!important;color:#000!important;}
-  /* On the raster path the page IS the content, so there is no padding to
-     add. On the driver path the page is the full roll and the margins are
-     applied here, once. */
-  body{width:${bodyMm}mm;padding:0 ${padRight}mm 0 ${padLeft}mm!important;box-sizing:border-box!important;}
-   .dt-fast-root{width:${geom.contentMm}mm;max-width:${geom.contentMm}mm;background:#fff;color:#000;--dt-compact-font-size:${compactFontSize}px;--dt-compact-line-height:${compactLineHeight};${args.rootStyle || ''}}
+${layoutCss(layout, mode)}
+  .dt-fast-root{--dt-compact-font-size:${compactFontSize}px;--dt-compact-line-height:${compactLineHeight};${args.rootStyle || ''}}
   /* ===== GEOMETRY AUTHORITY =====
      The snapshot carries whatever margin variables the live component wrote
      onto its own elements as INLINE styles, and an inline value beats an
@@ -149,7 +147,7 @@ function buildHead(args: FastPrintArgs, geom: PrintGeometry, mode: DocumentMode)
     --dt-print-padding-right:0mm!important;
     --dt-print-offset-left:0mm!important;
     --dt-print-offset-right:0mm!important;
-    --dt-print-content-width:${geom.contentMm}mm!important;
+    --dt-print-content-width:${layout.contentMm}mm!important;
   }
   /* CRITICAL (blank 1-inch slip fix): the snapshot carries the live slip's own
      .receipt-print-portal wrapper. buildPrintCss hides every portal that is not
@@ -181,20 +179,27 @@ function buildHead(args: FastPrintArgs, geom: PrintGeometry, mode: DocumentMode)
   return head;
 }
 
-function buildDocument(args: FastPrintArgs, geom: PrintGeometry, mode: DocumentMode): string {
+function buildDocument(args: FastPrintArgs, mode: DocumentMode): string {
   // Every copied portal must count as "active", otherwise the shared print CSS
   // hides it and the printer feeds a blank strip.
   const body = args.html.replace(
     /class=("|')([^"']*receipt-print-portal[^"']*)\1/g,
     (m) => (/data-active-print/.test(m) ? m : `${m} data-active-print="true"`),
   );
-  return `${buildHead(args, geom, mode)}<body class="thermal-printing${args.compact ? ' thermal-compact' : ''}"><div class="dt-fast-root receipt-print-portal" data-active-print="true">${body}</div></body></html>`;
+  return `${buildHead(args, mode)}<body class="thermal-printing${args.compact ? ' thermal-compact' : ''}"><div class="dt-fast-root receipt-print-portal" data-active-print="true">${body}</div></body></html>`;
 }
 
-/** Resolve the slip's geometry from the call and the device's settings. */
-function geometryFor(args: FastPrintArgs): PrintGeometry {
+/**
+ * Resolve the slip's layout from the call and the device's settings.
+ *
+ * This is the ONLY place the fast path decides its geometry, and it is the
+ * same resolver the ESC/POS builder and the alignment test use. Two resolvers
+ * disagreeing about the content width is what let the raster path measure
+ * correctly while the driver path printed lopsided.
+ */
+function layoutFor(args: FastPrintArgs): ReceiptLayout {
   const saved = loadPrintMargins();
-  return resolvePrintGeometry({
+  return resolveReceiptLayout({
     paper: (args.paperWidth || '80mm') as PaperSize,
     leftMm: args.marginLeftMm ?? saved.left,
     rightMm: args.marginRightMm ?? saved.right,
@@ -229,9 +234,9 @@ export async function fastPrintHtml(args: FastPrintArgs): Promise<FastPrintResul
     // This keeps the visual template intact; the older text-only raw builder did
     // not, and was the source of simplified / short slips.
     const quality = effectivePrintQuality();
-    const geom = geometryFor(args);
+    const layout = layoutFor(args);
     const payload = {
-      html: buildDocument(args, geom, 'raster'),
+      html: buildDocument(args, 'raster'),
       printerName: args.printerName,
       copies: Math.max(1, args.copies || 1),
       silent: true,
@@ -247,11 +252,11 @@ export async function fastPrintHtml(args: FastPrintArgs): Promise<FastPrintResul
       boldPrint: quality.bold,
       qualityScale: quality.scale,
       // The raster stage inserts these as whole printer dots. The document
-      // above was laid out at exactly geom.contentMm with no side padding,
+      // above was laid out at exactly layout.contentMm with no side padding,
       // so this is the ONE place the margins are applied on this path.
-      marginLeftMm: geom.leftMm,
-      marginRightMm: geom.rightMm,
-      contentWidthMm: geom.contentMm,
+      marginLeftMm: layout.leftMm,
+      marginRightMm: layout.rightMm,
+      contentWidthMm: layout.contentMm,
       // Safe distance between the final receipt line and the physical cutter.
       // This does not alter/truncate the selected receipt template.
       bottomFeedLines: 6,
@@ -269,7 +274,7 @@ export async function fastPrintHtml(args: FastPrintArgs): Promise<FastPrintResul
     // this document carries the margins as real page padding instead.
     const res = await bridge.printHtml({
       ...payload,
-      html: buildDocument(args, geom, 'html'),
+      html: buildDocument(args, 'html'),
     });
     return { success: !!res?.success, error: res?.error, warning: res?.warning };
   } catch (e: any) {
@@ -285,8 +290,8 @@ export async function fastPrintHtml(args: FastPrintArgs): Promise<FastPrintResul
  * whole point of the simulation is that it is not a separate implementation.
  */
 export function buildWorkerDocument(args: FastPrintArgs, mode: DocumentMode = 'raster') {
-  const geom = geometryFor(args);
-  return { html: buildDocument(args, geom, mode), geometry: geom };
+  const layout = layoutFor(args);
+  return { html: buildDocument(args, mode), geometry: layout, layout };
 }
 
 /** Read the CSS custom properties the receipt root carries (margins/offsets). */

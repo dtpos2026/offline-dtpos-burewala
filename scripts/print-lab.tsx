@@ -157,4 +157,19 @@ function Slips() {
   };
 };
 
+// Mode-aware build — lets the simulator exercise the driver/HTML fallback
+// path as well as the raster path. Both must satisfy the equal-margin rule.
+(window as any).__printLabBuildMode = (id: string, mode: 'raster' | 'html') => {
+  const portal = document.querySelector(`[data-slip="${id}"]`) as HTMLElement | null;
+  if (!portal) throw new Error(`no slip ${id}`);
+  const { html, geometry } = buildWorkerDocument({
+    html: portal.outerHTML,
+    paperWidth: '80mm',
+    compact: COMPACT,
+    marginLeftMm: MARGIN_LEFT,
+    marginRightMm: MARGIN_RIGHT,
+  }, mode);
+  return { html, paperLabel: '80mm', marginLeftMm: geometry.leftMm, marginRightMm: geometry.rightMm };
+};
+
 createRoot(document.getElementById('root')!).render(<Slips />);

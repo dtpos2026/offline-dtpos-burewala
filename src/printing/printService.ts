@@ -129,17 +129,41 @@ export async function printNode(portalEl: HTMLElement, opts: PrintNodeOpts = {})
     console.warn('[DT-Print] fast window path unavailable, using window print:', fast.error);
   }
 
+  // ===== SAME OPTIONS OBJECT ON BOTH PATHS =====
+  // The fast path above is handed `opts.compact` and honours it. This window
+  // path used to call injectPrintCss(paperWidth) with no second argument and
+  // never set `thermal-compact` on the body, so Paper Save silently did
+  // nothing for every slip that prints through printNode — KOT, tokens, the
+  // shift report and test prints. The compact stylesheet was emitted only
+  // when the desktop fast path happened to be available, which is exactly
+  // the "works in the browser, not in the app" divergence.
+  const compact = !!opts.compact;
+
   // Mark active
   portalEl.setAttribute('data-active-print', 'true');
   document.body.classList.add('thermal-printing');
+  if (compact) document.body.classList.add('thermal-compact');
   document.body.dataset.printActive = 'true';
 
-  const removeStyle = injectPrintCss(paperWidth);
+  // Compact tuning travels with the flag, so the window path lays out at the
+  // same size as the fast path rather than falling back to the defaults.
+  const rootStyle = document.documentElement.style;
+  if (compact) {
+    if (Number.isFinite(Number(opts.compactFontSize))) {
+      rootStyle.setProperty('--dt-compact-font-size', `${Math.max(10, Math.min(16, Number(opts.compactFontSize)))}px`);
+    }
+    if (Number.isFinite(Number(opts.compactLineHeight))) {
+      rootStyle.setProperty('--dt-compact-line-height', `${Math.max(1, Math.min(2, Number(opts.compactLineHeight)))}`);
+    }
+  }
+
+  const removeStyle = injectPrintCss(paperWidth, compact);
 
   const cleanup = () => {
     removeStyle();
     portalEl.removeAttribute('data-active-print');
     document.body.classList.remove('thermal-printing');
+    document.body.classList.remove('thermal-compact');
     delete document.body.dataset.printActive;
   };
 

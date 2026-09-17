@@ -14,15 +14,18 @@
 //  10. Density-friendly: tighter line-height, no anti-alias bleed
 // ============================================================
 import type { PaperSize } from './printConfig';
+// ONE source of truth for paper widths. This file used to carry its own copy
+// of the numbers, and its 110mm printable width (100mm) disagreed with the
+// 104mm every other module used — a 4mm drift that landed straight on the
+// right margin of a wide slip.
+import { paperMmOf as profilePaperMm, printableMmOf as profilePrintableMm } from './paperProfile';
 
 // Browser print uses CSS pixels at 96 DPI (1mm = 3.7795 CSS px), NOT the
 // printer's 203 DPI. If we lock width in 203-DPI pixels (e.g. 576px for 80mm)
 // the browser prints ~152mm wide on 80mm paper — content explodes off the
 // roll. Always express width in mm; the printer driver maps mm -> dots.
 function widthMm(paper: PaperSize): number {
-  if (paper === '58mm') return 58;
-  if (paper === '110mm') return 110;
-  return 80;
+  return profilePaperMm(paper);
 }
 // Printable area (subtract head margins). Used only as a CSS-px cap so very
 // long words wrap and tables don't overflow the paper.
@@ -34,7 +37,7 @@ function printableWidthCssPx(paper: PaperSize): number {
 // 80mm roll it's ~72mm, on 58mm it's ~48mm). Sending full paper-width content
 // used to cut off ~8mm on the right side (Issue: right margin cut).
 function printableMmOf(paper: PaperSize): number {
-  return paper === '58mm' ? 48 : paper === '110mm' ? 100 : 72;
+  return profilePrintableMm(paper);
 }
 
 export function buildPrintCss(paperWidth: PaperSize, compact: boolean = false): string {

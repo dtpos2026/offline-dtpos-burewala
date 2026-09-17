@@ -5,6 +5,8 @@
 // starts immediately, then cuts. One builder for every slip type.
 // ============================================================
 import type { Order, RestaurantSettings } from '@/lib/types';
+import { resolveReceiptLayout, type ReceiptLayout } from './receiptLayout';
+import { columnsOf } from './paperProfile';
 
 const ESC = 0x1b;
 const GS = 0x1d;
@@ -12,11 +14,27 @@ const LF = 0x0a;
 
 export type Paper = '58mm' | '80mm' | '110mm';
 
-/** Characters per line in font A. */
+/**
+ * Characters per line in Font A.
+ *
+ * Reads the shared paper profile rather than a local table. The old local
+ * copy claimed 64 columns on 110mm paper where the profile says 69; the
+ * ruler in the alignment test is exactly this many characters wide, so a
+ * wrong constant here wraps the ruler and misreports the margins.
+ */
 export function columnsFor(paper: Paper): number {
-  if (paper === '58mm') return 32;
-  if (paper === '110mm') return 64;
-  return 48;
+  return columnsOf(paper, 'A');
+}
+
+export interface EscposDocOptions {
+  /** Left margin (mm) — becomes `GS L`. */
+  leftMm?: number;
+  /** Right margin (mm) — narrows `GS W`. */
+  rightMm?: number;
+  /** Calibrated content width (mm). */
+  contentWidthMm?: number;
+  /** Font A (default) or the narrower Font B. */
+  font?: 'A' | 'B';
 }
 
 const encoder = new TextEncoder();
@@ -34,15 +52,70 @@ function asciify(s: string): string {
 export class EscposDoc {
   private buf: number[] = [];
   readonly cols: number;
+  /** The resolved geometry this document is positioned by. */
+  readonly layout: ReceiptLayout;
 
-  constructor(readonly paper: Paper = '80mm') {
-    this.cols = columnsFor(paper);
-    this.raw(ESC, 0x40);        // initialize
-    this.raw(ESC, 0x74, 0x00);  // codepage CP437
+  /**
+   * @param paper  paper profile
+   * @param opts   margins (mm) from Printer Settings. Left/right are applied
+   *               ONCE here, as `GS L` and `GS W`.
+   */
+  constructor(readonly paper: Paper = '80mm', opts: EscposDocOptions = {}) {
+    this.layout = resolveReceiptLayout({
+      paper,
+      leftMm: opts.leftMm,
+      rightMm: opts.rightMm,
+      contentWidthMm: opts.contentWidthMm,
+    });
+    this.cols = opts.font === 'B' ? this.layout.columnsFontB : this.layout.columnsFontA;
+
+    this.raw(ESC, 0x40);        // ESC @  — initialize
+    this.raw(ESC, 0x74, 0x00);  // ESC t  — codepage CP437
+
+    // ===== STICKY GEOMETRY (the lopsided-slip trap) =====
+    // `GS L` (left margin) and `GS W` (print area width) live in the
+    // printer's NVRAM and SURVIVE between jobs and power cycles. A printer
+    // that was ever left with a non-zero left margin, or a print-area width
+    // below the head's full dot count, prints every later job shifted and
+    // short — content tight to the left with a wide blank band on the right,
+    // no matter what the POS sends. ESC @ does NOT reset them on many
+    // models, so they must be stated explicitly on EVERY job. That is the
+    // whole reason this is unconditional rather than "only when non-zero".
+    this.setLeftMargin(this.layout.leftDots);
+    this.setPrintAreaWidth(this.layout.contentDots);
+
+    if (opts.font === 'B') this.fontB(true);
     this.left();
   }
 
   raw(...b: number[]) { this.buf.push(...b); return this; }
+
+  /** `GS L nL nH` — left margin, in dots from the printable area's edge. */
+  setLeftMargin(dots: number) {
+    const n = Math.max(0, Math.min(65535, Math.round(dots) || 0));
+    return this.raw(GS, 0x4c, n & 0xff, (n >> 8) & 0xff);
+  }
+
+  /** `GS W nL nH` — print area width, in dots. */
+  setPrintAreaWidth(dots: number) {
+    const n = Math.max(1, Math.min(65535, Math.round(dots) || 1));
+    return this.raw(GS, 0x57, n & 0xff, (n >> 8) & 0xff);
+  }
+
+  /** `ESC M` — Font A (12x24) or Font B (9x17). Font B fits more columns. */
+  fontB(on: boolean) { return this.raw(ESC, 0x4d, on ? 1 : 0); }
+
+  /** `ESC 3 n` — line spacing in dots. Compact mode's real paper saving. */
+  lineSpacing(dots: number) {
+    return this.raw(ESC, 0x33, Math.max(0, Math.min(255, Math.round(dots))));
+  }
+
+  /** `ESC 2` — restore the printer's default line spacing. */
+  defaultLineSpacing() { return this.raw(ESC, 0x32); }
+
+  /** `ESC p` — cash-drawer kick on the given pin. */
+  drawerKick(pin: 0 | 1 = 0) { return this.raw(ESC, 0x70, pin, 0x19, 0xfa); }
+
   left() { return this.raw(ESC, 0x61, 0x00); }
   center() { return this.raw(ESC, 0x61, 0x01); }
   right() { return this.raw(ESC, 0x61, 0x02); }
@@ -120,6 +193,22 @@ function paperOf(settings: any): Paper {
   return p === '58mm' || p === '110mm' ? p : '80mm';
 }
 
+/**
+ * Margin/geometry options for a slip, read from the shop settings.
+ *
+ * The raw path gets its margins from the SAME numbers as the HTML path, so a
+ * receipt printed raw and the same receipt printed through the driver land in
+ * the same place on the paper.
+ */
+function docOptionsOf(settings: any, font?: 'A' | 'B'): EscposDocOptions {
+  return {
+    leftMm: Number(settings?.receiptMarginLeft) || 0,
+    rightMm: Number(settings?.receiptMarginRight) || 0,
+    contentWidthMm: Number(settings?.receiptPrintWidthMm) || undefined,
+    font,
+  };
+}
+
 // ------------------------------------------------------------
 // CUSTOMER RECEIPT
 // ------------------------------------------------------------
@@ -127,7 +216,11 @@ export function buildReceiptBytes(order: Order, settings: RestaurantSettings): n
   const s: any = settings || {};
   const compact = !!s.receiptCompactMode;
   const sym = s.currencySymbol || 'Rs ';
-  const d = new EscposDoc(paperOf(s));
+  const d = new EscposDoc(paperOf(s), docOptionsOf(s));
+  // Paper Save on the raw path: tighter line spacing is where the paper is
+  // actually saved. 24 dots is the printer default; 20 is noticeably denser
+  // and still legible on a 203 DPI head.
+  if (compact) d.lineSpacing(20);
 
   d.center();
   if (s.name) { d.size(2, 2).bold(true).line(s.name).size(1, 1).bold(false); }
@@ -195,7 +288,7 @@ export interface KotOpts {
 
 export function buildKotBytes(order: Order, settings: RestaurantSettings, opts: KotOpts = {}): number[] {
   const s: any = settings || {};
-  const d = new EscposDoc(paperOf(s));
+  const d = new EscposDoc(paperOf(s), docOptionsOf(s));
 
   d.center().bold(true).size(2, 2);
   d.line(opts.updateMode ? 'KOT UPDATE' : 'KITCHEN ORDER');
@@ -245,7 +338,7 @@ export interface TokenData {
 
 export function buildTokenBytes(data: TokenData, settings: RestaurantSettings): number[] {
   const s: any = settings || {};
-  const d = new EscposDoc(paperOf(s));
+  const d = new EscposDoc(paperOf(s), docOptionsOf(s));
   const total = (data.items || []).reduce((a, i) => a + (i.qty || 0), 0);
 
   d.center();

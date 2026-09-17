@@ -502,6 +502,81 @@ ipcMain.handle('set-auto-start', async (_event, enabled) => {
   }
 });
 
+// ============================================================
+// PRINTER NAME MATCHING — ONE implementation, used by every path.
+//
+// Mirrors src/printing/printerMatch.ts so the renderer's "is this printer
+// installed?" answer and the main process's "which device do I print to?"
+// answer can never disagree. Both the driver path (runPrintJob) and the RAW
+// ESC/POS path call this; the raw path used to hand the stored name straight
+// to winspool, so a printer installed as "BIXOLON SRP-352plusIII (Copy 1)"
+// failed to open while the same printer printed fine through the driver.
+//
+// Windows reasons a name fails to match exactly:
+//   • "(Copy 1)" / "(Copy 2)"   — duplicate driver install
+//   • "(redirected 2)"          — RDP / session printers
+//   • double spaces, non-breaking space (\u00A0), trailing space
+//   • `name` vs `displayName`
+//   • the printer was renamed after the setting was saved
+// ============================================================
+function normalizePrinterName(s) {
+  return String(s || '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function stripPrinterSuffix(s) {
+  return normalizePrinterName(s)
+    .replace(/\s*\((?:copy|redirected)\s*\d*\)\s*$/i, '')
+    .trim();
+}
+
+/**
+ * Resolve a requested printer name against the installed list, strictest
+ * match first. Never hard-fails: an unmatched name is passed through to
+ * Windows, which often resolves names Electron's list does not carry.
+ */
+function matchPrinterName(requested, printers) {
+  const raw = String(requested || '').replace(/\u00A0/g, ' ').trim();
+  const list = Array.isArray(printers) ? printers : [];
+  if (!raw) return { name: '', stage: 'none' };
+  if (list.length === 0) return { name: raw, stage: 'passthrough' };
+
+  const cand = list.map(p => ({ name: String(p.name || ''), display: String(p.displayName || '') }));
+  const reqN = normalizePrinterName(raw);
+  const reqS = stripPrinterSuffix(raw);
+
+  const stages = [
+    ['exact',       c => c.name === raw || c.display === raw],
+    ['normalized',  c => normalizePrinterName(c.name) === reqN || normalizePrinterName(c.display) === reqN],
+    ['no-suffix',   c => stripPrinterSuffix(c.name) === reqS || stripPrinterSuffix(c.display) === reqS],
+    ['starts-with', c => !!reqS && (normalizePrinterName(c.name).startsWith(reqS) || normalizePrinterName(c.display).startsWith(reqS))],
+    ['contains',    c => reqS.length >= 4 && (normalizePrinterName(c.name).includes(reqS) || normalizePrinterName(c.display).includes(reqS))],
+    ['reverse',     c => {
+      if (reqS.length < 4) return false;
+      const n = normalizePrinterName(c.name);
+      const d = normalizePrinterName(c.display);
+      return (!!n && reqS.includes(n)) || (!!d && reqS.includes(d));
+    }],
+  ];
+  for (const [stage, fn] of stages) {
+    const hit = cand.find(fn);
+    if (hit) return { name: hit.name, stage };
+  }
+  return { name: raw, stage: 'passthrough' };
+}
+
+/** Installed printers, or an empty list when enumeration fails. */
+async function listSystemPrinters() {
+  try {
+    const wc = (mainWindow && !mainWindow.isDestroyed()) ? mainWindow.webContents : null;
+    if (wc) return (await wc.getPrintersAsync()) || [];
+  } catch { /* fall through */ }
+  return [];
+}
+
 // ===== IPC HANDLERS =====
 
 // Get list of available printers
@@ -1066,34 +1141,18 @@ async function runPrintJob(targetContents, options = {}) {
   };
 
   // ============================================================
-  // PRINTER NAME RESOLUTION (v1.0.39b)
+  // PRINTER NAME RESOLUTION
   //
-  // Client error: Printer "BIXOLON SRP-352plusIII (Copy 1)" not found —
-  // halanke printer Windows me mojood tha. Purani matching sirf EXACT
-  // equality karti thi, aur na milne par HARD FAIL kar deti thi — yani
-  // print ki koshish hi nahi hoti thi (fallback chain bhi bekar).
+  // Reported fault: the app said printer "BIXOLON SRP-352plusIII (Copy 1)"
+  // was not found although Windows had it installed. The old code compared
+  // names for EXACT equality and hard-failed on a miss, so it never even
+  // attempted the print and the fallback chain never ran.
   //
-  // Windows par naam match na hone ki asal wajahen:
-  //   • "(Copy 1)" / "(Copy 2)" — duplicate driver install
-  //   • Redirected/session printers: "Name (redirected 2)"
-  //   • Double spaces, non-breaking space (\u00A0), trailing space
-  //   • name vs displayName ka farq
-  //   • Settings me purana naam save reh jana (printer rename ho gaya)
-  //
-  // Ab: 6-marhala matching, aur aakhir me BHI fail nahi karte —
-  // requested naam waise hi Windows ko de dete hain (Windows khud resolve
-  // kar leta hai), warna default printer par chala jata hai.
+  // Resolution is delegated to matchPrinterName (the single shared matcher),
+  // which never hard-fails: an unmatched name is handed to Windows as-is,
+  // because the spooler frequently knows names Electron's list does not
+  // carry. If that fails too, the job falls back to the default printer.
   // ============================================================
-  const normalizeName = (s) => String(s || '')
-    .replace(/\u00A0/g, ' ')          // non-breaking space → normal space
-    .replace(/\s+/g, ' ')             // multiple spaces → single
-    .trim()
-    .toLowerCase();
-  // "(Copy 1)", "(copy 2)", "(redirected 3)" jaise suffix hata do
-  const stripSuffix = (s) => normalizeName(s)
-    .replace(/\s*\((?:copy|redirected)\s*\d*\)\s*$/i, '')
-    .trim();
-
   let deviceName = '';
   let printerList = [];
   let matchStage = 'none';
@@ -1101,34 +1160,14 @@ async function runPrintJob(targetContents, options = {}) {
     const requested = String(options.printerName).replace(/\u00A0/g, ' ').trim();
     try {
       printerList = (await targetContents.getPrintersAsync()) || [];
-      const cand = printerList.map(p => ({
-        p,
-        name: String(p.name || ''),
-        display: String(p.displayName || ''),
-      }));
-      const reqN = normalizeName(requested);
-      const reqS = stripSuffix(requested);
-
-      const stages = [
-        ['exact',        c => c.name === requested || c.display === requested],
-        ['normalized',   c => normalizeName(c.name) === reqN || normalizeName(c.display) === reqN],
-        ['no-suffix',    c => stripSuffix(c.name) === reqS || stripSuffix(c.display) === reqS],
-        ['starts-with',  c => normalizeName(c.name).startsWith(reqS) || normalizeName(c.display).startsWith(reqS)],
-        ['contains',     c => reqS.length >= 4 && (normalizeName(c.name).includes(reqS) || normalizeName(c.display).includes(reqS))],
-        ['reverse',      c => reqS.length >= 4 && (reqS.includes(normalizeName(c.name)) || reqS.includes(normalizeName(c.display)))],
-      ];
-      for (const [stage, fn] of stages) {
-        const hit = cand.find(fn);
-        if (hit) { deviceName = hit.name; matchStage = stage; break; }
-      }
-
-      if (!deviceName) {
-        // AB BHI FAIL NAHI KARTE — Windows ko naam waise hi de kar dekhte hain.
-        // Kai dafa Electron ki list adhoori hoti hai lekin spooler naam jaanta hai.
-        deviceName = requested;
-        matchStage = 'passthrough';
+      // ONE matcher for the whole app — see matchPrinterName above. This used
+      // to be a second, inline copy of the same six stages.
+      const hit = matchPrinterName(requested, printerList);
+      deviceName = hit.name;
+      matchStage = hit.stage;
+      if (matchStage === 'passthrough') {
         appendLog('WARN', 'DT-Print printer-not-in-list',
-          `requested="${requested}" available="${cand.map(c => c.name).join(' | ')}" → passthrough`);
+          `requested="${requested}" available="${printerList.map(p => p.name).join(' | ')}" → passthrough`);
       }
     } catch (e) {
       deviceName = requested;
@@ -1786,15 +1825,22 @@ function getRawWorker() {
   return rawWorkerReady;
 }
 
+/** How long one RAW job may take before the printer is declared stalled. */
+const RAW_PRINT_TIMEOUT_MS = 5000;
+
 let rawPrintChain = Promise.resolve();
 function sendRawWithWarmWorker(printerName, buffer, copies) {
   const task = () => getRawWorker().then(worker => new Promise((resolve) => {
     const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+    // A stalled printer must never hold the cashier. Five seconds is well
+    // past a healthy USB thermal job (which answers in well under one) and
+    // short enough that an unplugged printer surfaces an error while the POS
+    // stays responsive. The caller falls back to the driver path on timeout.
     const timer = setTimeout(() => {
       if (rawPending?.id === id) rawPending = null;
       resolve({ success: false, error: 'Direct print timed out' });
       stopRawWorker();
-    }, 10000);
+    }, RAW_PRINT_TIMEOUT_MS);
     rawPending = {
       id,
       resolve: (result) => { clearTimeout(timer); resolve(result); },
@@ -1825,9 +1871,30 @@ ipcMain.handle('print-raw', async (_event, options = {}) => {
     if (!buffer || buffer.length < 8) return { success: false, error: 'No data' };
 
     const copies = Math.max(1, Number(options.copies) || 1);
-    const printerName = String(options.printerName || '').trim();
+    const requested = String(options.printerName || '').trim();
+
+    // ===== SHARED NAME MATCHING =====
+    // winspool's OpenPrinter wants the exact Windows device name. Handing it
+    // the stored setting verbatim meant a printer installed as
+    // "BIXOLON SRP-352plusIII (Copy 1)", or one carrying a non-breaking
+    // space, failed to open on the raw path while the very same printer
+    // printed fine through the driver. Same matcher as runPrintJob.
+    let printerName = requested;
+    let matchStage = 'none';
+    if (requested) {
+      const hit = matchPrinterName(requested, await listSystemPrinters());
+      printerName = hit.name || requested;
+      matchStage = hit.stage;
+    }
+
     const result = await sendRawWithWarmWorker(printerName, buffer, copies);
-    return { ...result, durationMs: Date.now() - started };
+    if (!result.success) {
+      try {
+        appendLog('WARN', 'DT-Print raw failed',
+          `requested="${requested}" resolved="${printerName}" match=${matchStage} error=${result.error || 'unknown'}`);
+      } catch {}
+    }
+    return { ...result, matchStage, printerName, durationMs: Date.now() - started };
   } catch (e) {
     return { success: false, error: String((e && e.message) || e) };
   }
