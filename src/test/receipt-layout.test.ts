@@ -96,13 +96,34 @@ describe('equal margins', () => {
     expect(layout.leftMm).toBeCloseTo(layout.rightMm, 1);
   });
 
-  it('keeps an explicit asymmetric margin asymmetric', () => {
-    // Equal-by-default must not become equal-by-force: a user who deliberately
-    // types 6mm left and 1mm right is compensating for their own printer.
-    const layout = resolveReceiptLayout({ paper: '80mm', leftMm: 6, rightMm: 1 });
+  it('equalises an asymmetric pair unless the caller opts in', () => {
+    // Asymmetric values reached this resolver from an old shipped default, a
+    // stale migration and a restored backup, and every one printed a slip hard
+    // against the left edge with a wide band down the right. Equalising here
+    // means no stored value, however it got there, can do that again.
+    const fixed = resolveReceiptLayout({ paper: '80mm', leftMm: 3, rightMm: 10 });
+    expect(fixed.leftMm).toBe(fixed.rightMm);
+    // The SMALLER side wins: widening both would eat printable width.
+    expect(fixed.leftMm).toBe(3);
+  });
+
+  it('honours an explicit calibration when asymmetry is opted into', () => {
+    // Compensating for one machine's head offset is the one legitimate reason
+    // for the two sides to differ.
+    const layout = resolveReceiptLayout({ paper: '80mm', leftMm: 6, rightMm: 1, allowAsymmetric: true });
     expect(layout.leftMm).toBe(6);
     expect(layout.rightMm).toBe(1);
     expect(layout.contentMm).toBe(65);
+  });
+
+  it('fills the full printable width when no margin is set', () => {
+    // The head already cannot mark ~4mm of each edge, and that inset IS the
+    // visual margin. Subtracting more made the raw slip narrower than the
+    // same bill printed through the Windows driver.
+    const layout = resolveReceiptLayout({ paper: '80mm' });
+    expect(layout.contentMm).toBe(72);
+    expect(layout.contentDots).toBe(576);
+    expect(layout.columnsFontA).toBe(48);
   });
 });
 

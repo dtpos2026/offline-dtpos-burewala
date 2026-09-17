@@ -62,6 +62,21 @@ const MAX_MARGIN_MM = 20;
 
 export interface ReceiptLayoutInput {
   paper: PaperProfileId | string;
+  /**
+   * Allow left and right to differ.
+   *
+   * Off by default, and that default is load-bearing. Asymmetric values have
+   * reached this resolver from several directions — an old shipped default, a
+   * stale migration, a restored backup, a half-finished calibration — and
+   * every one of them printed a slip hard against the left edge with a wide
+   * band down the right. Equalising here means no stored value, however it
+   * got there, can produce a lopsided slip again.
+   *
+   * A caller that is deliberately compensating for one machine's head offset
+   * — a calibration preview, or a future per-printer override — passes `true`.
+   * Routine printing does not, so a bad stored pair cannot reach the paper.
+   */
+  allowAsymmetric?: boolean;
   /** Left margin (mm) from Printer Settings. */
   leftMm?: number;
   /** Right margin (mm) from Printer Settings. */
@@ -124,6 +139,15 @@ export function resolveReceiptLayout(input: ReceiptLayoutInput): ReceiptLayout {
 
   let leftMm = toMm(input.leftMm, 0);
   let rightMm = toMm(input.rightMm, 0);
+
+  // ===== SYMMETRY IS THE DEFAULT =====
+  // Take the SMALLER side: the larger one is the inflated value that created
+  // the wide band, and widening both would eat printable width the slip needs.
+  if (!input.allowAsymmetric && Math.abs(leftMm - rightMm) > 0.05) {
+    const side = Math.min(leftMm, rightMm);
+    leftMm = side;
+    rightMm = side;
+  }
 
   const finish = (contentMm: number, left: number, right: number): ReceiptLayout => {
     const contentDots = Math.round(contentMm * DOTS_PER_MM);

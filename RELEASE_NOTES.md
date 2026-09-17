@@ -1,5 +1,38 @@
 # DT POS Enterprise — Release Notes
 
+## v1.3.2 — RAW printing now matches the Windows driver, edge for edge
+
+Reported precisely: **Windows Driver Only prints with correct equal margins but
+is slow; RAW / ESC-POS / Automatic prints fast but leaves about 10 mm extra on
+the right, and comes out slightly narrower.** That is exactly what the geometry
+was doing, and the arithmetic shows why:
+
+| stored margins | content width | left gap | right gap |
+|---|---|---|---|
+| L3 / R10 | 59 mm | 7.0 mm | **14.5 mm** |
+| L0 / R0 | **72 mm** | 4.0 mm | 4.0 mm |
+
+Two separate mistakes, both now fixed.
+
+**1. The raw path subtracted margins from an area that is already inset.**
+On an 80 mm roll the head can only mark the middle ~72 mm, so roughly 4 mm of
+each edge is already blank paper that no setting can print on. The Windows
+driver fills that full 72 mm. The raw path took the configured side margins off
+it as well, so the slip came out narrower than the same bill through the driver
+— the "width kam" half of the report. Side margins now default to **0**: the
+paper's own unprintable edge is the margin, and both paths produce the same
+72 mm, 48 characters per line.
+
+**2. Asymmetric stored values could still reach the paper.**
+Lopsided pairs arrived from an old shipped default, a stale migration and a
+restored backup. The layout resolver now equalises left and right by default,
+taking the smaller of the two so a repair never narrows the slip. A caller that
+is genuinely compensating for one machine's head offset opts in explicitly.
+No stored value, however it got there, can print a lopsided slip again.
+
+Verified across every way a machine can arrive in a bad state — clean install,
+3/10, 0/3, 3/0 — all now print with equal gaps.
+
 ## v1.3.1 — The margin repair now survives, and the cut stops eating text
 
 ### The 10 mm right margin came back because the repair never saved

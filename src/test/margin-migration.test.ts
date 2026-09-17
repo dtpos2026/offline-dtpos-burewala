@@ -22,6 +22,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const KEY = 'dtpos-print-margins';
 const V3 = 'dtpos-print-geometry-v3';
 const V4 = 'dtpos-print-geometry-v4';
+const V5 = 'dtpos-print-geometry-v5';
 
 /** Load printMargins.ts fresh so its module-level migration runs again. */
 async function importFresh() {
@@ -43,7 +44,7 @@ describe('a machine that already ran a v3 build', () => {
 
     const m = loadPrintMargins();
     expect(m.left, 'left margin was not repaired').toBe(m.right);
-    expect(localStorage.getItem(V4)).toBe('1');
+    expect(localStorage.getItem(V5)).toBe('1');
   });
 
   it('repairs the wide-right-band values too', async () => {
@@ -54,13 +55,14 @@ describe('a machine that already ran a v3 build', () => {
     expect(loadPrintMargins().left).toBe(loadPrintMargins().right);
   });
 
-  it('clears the superseded flag so a downgrade and upgrade migrates again', async () => {
+  it('clears every superseded flag so a downgrade and upgrade migrates again', async () => {
     // A machine that rolls back and forward must not be skipped a second time.
     localStorage.setItem(V3, '1');
     localStorage.setItem(KEY, JSON.stringify({ top: 0, right: 0, bottom: 0, left: 3, contentWidthMm: 0 }));
 
     await importFresh();
     expect(localStorage.getItem(V3)).toBeNull();
+    expect(localStorage.getItem(V4)).toBeNull();
   });
 });
 
@@ -73,7 +75,7 @@ describe('once migrated', () => {
     // The migration is a one-time repair of a bad default, not a standing
     // override. A shop compensating for its own printer keeps its numbers.
     const { savePrintMargins } = await importFresh();
-    expect(localStorage.getItem(V4)).toBe('1');
+    expect(localStorage.getItem(V5)).toBe('1');
 
     savePrintMargins({ top: 0, right: 1, bottom: 0, left: 4, contentWidthMm: 0 });
 

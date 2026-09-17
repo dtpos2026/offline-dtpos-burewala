@@ -22,7 +22,20 @@ const KEY = 'dtpos-print-margins';
  * width, so 2mm a side is genuinely 2mm of blank paper on each edge rather
  * than a guess that the driver may or may not honour.
  */
-export const DEFAULT_MARGINS: PrintMargins = { top: 0, right: 2, bottom: 0, left: 2, contentWidthMm: 0 };
+/**
+ * Zero side margins by default.
+ *
+ * On an 80mm roll the head can only mark the middle ~72mm, so roughly 4mm of
+ * each edge is ALREADY blank paper that no setting can print on. That inset is
+ * the visual margin. Adding 2mm on top of it narrowed the slip to 68mm while
+ * the Windows driver path was filling the full 72mm — which is why the raw
+ * slip came out both lopsided AND narrower than the driver's.
+ *
+ * Zero here means: use everything the head can reach, and let the paper's own
+ * unprintable edge be the margin. It is also what makes the raw path and the
+ * driver path produce the same width.
+ */
+export const DEFAULT_MARGINS: PrintMargins = { top: 0, right: 0, bottom: 0, left: 0, contentWidthMm: 0 };
 // ============================================================
 // ONE-TIME GEOMETRY MIGRATION
 //
@@ -43,10 +56,10 @@ export const DEFAULT_MARGINS: PrintMargins = { top: 0, right: 2, bottom: 0, left
 //
 // Only the device's print margins are touched; no shop or sales data.
 // ============================================================
-const GEOM_FLAG = 'dtpos-print-geometry-v4';
+const GEOM_FLAG = 'dtpos-print-geometry-v5';
 // Flags from superseded migrations. They are cleared so that a machine which
 // later downgrades and upgrades again is migrated rather than skipped.
-const SUPERSEDED_FLAGS = ['dtpos-print-geometry-v2', 'dtpos-print-geometry-v3'];
+const SUPERSEDED_FLAGS = ['dtpos-print-geometry-v2', 'dtpos-print-geometry-v3', 'dtpos-print-geometry-v4'];
 
 try {
   if (typeof localStorage !== 'undefined' && !localStorage.getItem(GEOM_FLAG)) {

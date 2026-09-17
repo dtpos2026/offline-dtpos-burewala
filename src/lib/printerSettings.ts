@@ -180,11 +180,12 @@ export function subscribePrinterSettings(
 /**
  * Equal side margins, in mm, for a newly added printer.
  *
- * 2mm a side is the commercial-POS look: a visible but narrow blank band on
- * both edges of an 80mm slip. It sits on top of the ~4mm each side the
- * thermal head physically cannot mark.
+ * Zero, because the thermal head already cannot mark roughly 4mm of each
+ * edge — that inset IS the visible blank band, on every 80mm slip. Adding
+ * more only narrows the printable content, and it was what made the raw slip
+ * come out narrower than the same bill printed through the Windows driver.
  */
-export const DEFAULT_SIDE_MARGIN_MM = 2;
+export const DEFAULT_SIDE_MARGIN_MM = 0;
 
 /**
  * One-time flag for the equal-margin repair.
