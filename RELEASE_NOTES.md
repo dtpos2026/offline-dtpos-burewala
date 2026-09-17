@@ -1,5 +1,54 @@
 # DT POS Enterprise — Release Notes
 
+## v1.4.0 — Automatic fills the roll; Windows driver stops freezing the POS
+
+Three print modes photographed side by side settled both faults at once:
+Windows Driver Only filled the roll with correct margins but took seconds and
+stuck the screen; Raw ESC/POS was fast and correct; Automatic was fast but
+printed noticeably narrow with a wide band down the right.
+
+### 1. Automatic (rendered template, sent as RAW) — narrow slip fixed
+
+Only Automatic goes through a screen capture. The slip is captured from the
+print worker's **viewport**, and the viewport is exactly the slip only when
+everything lines up: `setContentSize` not clamped by Windows, the zoom factor
+mapping CSS pixels as expected, and no child overflowing the authored width. On
+a real machine any one of those leaves blank space beside the content — and
+because the capture is then downscaled so its **full width** fills the
+printable dots, that blank steals room from the receipt.
+
+The raster stage now trims blank columns from the sides **before** the
+downscale, so the receipt itself is what fills the paper, whatever the capture
+picked up around it. A capture whose ink covers too small a fraction is left
+alone: enlarging it that far would be a guess, not a fix. Template layout and
+print quality are untouched — only the blank margin is removed.
+
+### 2. Windows Driver Only — the seconds-long stall and the stuck screen
+
+Driver-only switched the fast path off entirely, which sent the job to the
+`print-receipt` handler — and that handler prints `mainWindow.webContents`,
+**the whole POS window**. Chromium laid the entire application out for the
+printer and blocked the renderer until the spooler answered: several seconds
+per bill, the screen frozen meanwhile, and the slip appearing well after the
+bill had been saved.
+
+The driver's *rendering* is what the shop wants to keep; printing the POS
+window was never part of it. Driver mode now keeps the hidden print worker and
+skips only the raster stage, so the same driver output arrives with the fast
+path's responsiveness and the POS screen never enters print mode at all.
+
+### 3. Raw ESC/POS — deliberately untouched
+
+Already fast and correct, so nothing in that path was modified.
+
+### Verified
+
+291 tests. The raster path measures 0.0 mm worst left/right difference and
+100% ink coverage across all 20 templates. The crop is driven by tests that
+reproduce the exact squeeze: a capture with a wide blank band restores to full
+width, a healthy capture is left byte-identical, and a genuinely narrow slip is
+refused rather than blown up.
+
 ## v1.3.4 — The slip was not mis-margined, it was being squeezed
 
 A silent test print came back printing its own margins on the paper —

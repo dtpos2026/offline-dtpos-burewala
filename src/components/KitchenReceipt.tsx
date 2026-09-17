@@ -179,7 +179,7 @@ export default function KitchenReceipt({ order: rawOrder, settings, showPrintBut
     // window and returns at once, so the POS screen never enters print mode
     // and the cashier can start the next bill immediately. On failure the
     // older window path below runs.
-    if (kotPrintMode !== 'driver' && isElectron() && settings.silentPrint && isFastPrintAvailable()
+    if (isElectron() && settings.silentPrint && isFastPrintAvailable()
         && !(hoistedKitchenCfg?.connection === 'lan' && hoistedKitchenCfg?.lanHost)) {
       const fastRoot = (printRef.current || measureEl) as HTMLElement | null;
       applyPrinterMarginVars(fastRoot, hoistedKitchenCfg, margins);
@@ -203,6 +203,8 @@ export default function KitchenReceipt({ order: rawOrder, settings, showPrintBut
         marginLeftMm: hoistedKitchenCfg?.leftMarginMm ?? margins.left,
         marginRightMm: hoistedKitchenCfg?.rightMarginMm ?? margins.right,
         contentWidthMm: hoistedKitchenCfg?.printWidthMm,
+        // Driver mode keeps the hidden worker; only the raster is skipped.
+        preferDriver: kotPrintMode === 'driver',
       };
       const fast = await fastPrintHtml(fastArgs);
       if (fast.success) {

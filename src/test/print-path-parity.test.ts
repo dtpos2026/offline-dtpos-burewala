@@ -106,9 +106,31 @@ describe('raw ESC/POS is reachable for each slip the builder supports', () => {
 });
 
 describe('the print service honours the mode it is given', () => {
-  it('skips the fast path when the printer is set to driver-only', () => {
-    const src = read('printing/printService.ts');
-    expect(src).toMatch(/printMode !== 'driver'/);
+  it('keeps the hidden worker even in driver-only mode', () => {
+    // Driver-only used to switch the fast path off entirely, which sent the
+    // job to `print-receipt` — and that handler prints mainWindow.webContents,
+    // i.e. the WHOLE POS WINDOW. Chromium laid the entire app out for the
+    // printer and blocked the renderer until the spooler answered: several
+    // seconds per bill with the screen stuck, and the slip appearing long
+    // after the bill was saved. The driver's RENDERING is what the shop
+    // wants; printing the POS window was never part of it.
+    const code = read('printing/printService.ts')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(code).not.toMatch(/printMode !== 'driver'/);
+    expect(code).toMatch(/preferDriver:\s*opts\.printMode === 'driver'/);
+  });
+
+  it('routes driver mode past the raster stage, not past the worker', () => {
+    const src = read('printing/fastPrint.ts');
+    expect(src).toMatch(/!args\.preferDriver/);
+    // It must still reach printHtml, which is the worker's driver render.
+    expect(src).toMatch(/bridge\.printHtml\(/);
+  });
+
+  it('applies the same routing on the receipt and the KOT', () => {
+    for (const file of ['components/ReceiptPreview.tsx', 'components/KitchenReceipt.tsx']) {
+      expect(/preferDriver:/.test(read(file)), `${file} does not pass preferDriver`).toBe(true);
+    }
   });
 
   it('passes compact into the stylesheet on the window path', () => {

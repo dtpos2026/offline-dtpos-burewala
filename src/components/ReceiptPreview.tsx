@@ -235,7 +235,9 @@ export default function ReceiptPreview({ order, settings, showPrintButton = true
     // The slip's HTML goes to a hidden print window, so the POS screen never
     // enters print mode and the next bill can be started immediately. If this
     // fails the older window path below runs.
-    if (printMode !== 'driver' && isElectron() && settings.silentPrint && isFastPrintAvailable()
+    // Driver mode keeps the worker and only skips the raster stage — see
+    // printService for why printing the POS window itself was the stall.
+    if (isElectron() && settings.silentPrint && isFastPrintAvailable()
         && !(counterCfg?.connection === 'lan' && counterCfg?.lanHost)) {
       const fastRoot = (printReceiptRef.current || measureEl) as HTMLElement | null;
       applyPrinterMarginVars(fastRoot, counterCfg, margins);
@@ -260,6 +262,7 @@ export default function ReceiptPreview({ order, settings, showPrintButton = true
         marginLeftMm: counterCfg?.leftMarginMm ?? margins.left,
         marginRightMm: counterCfg?.rightMarginMm ?? margins.right,
         contentWidthMm: counterCfg?.printWidthMm,
+        preferDriver: printMode === 'driver',
       });
       if (fast.success) return { success: true };
       console.warn('[DT-Print] fast receipt path unavailable, using window print:', fast.error);

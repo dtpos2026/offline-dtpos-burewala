@@ -205,11 +205,90 @@ function wrapRasterCommands(packed, autoCut = true, opts = {}) {
 }
 
 /**
+ * Find the first and last columns that carry ink in an RGBA bitmap.
+ *
+ * Returns null when the bitmap is blank, so the caller leaves it alone and
+ * the existing empty-slip guard handles it.
+ */
+function inkColumns(pixels, width, height, cutoff = 200) {
+  let first = -1, last = -1;
+  // Every 4th row is plenty to locate the edges and keeps this cheap on a
+  // long bill, where the bitmap can be tens of thousands of rows.
+  for (let y = 0; y < height; y += 4) {
+    const row = y * width;
+    for (let x = 0; x < width; x++) {
+      const i = (row + x) * 4;
+      const a = pixels[i + 3] ?? 255;
+      if (a < 8) continue;
+      const lum = (0.299 * pixels[i + 2] + 0.587 * pixels[i + 1] + 0.114 * pixels[i]) * (a / 255)
+        + 255 * (1 - a / 255);
+      if (lum < cutoff) {
+        if (first < 0 || x < first) first = x;
+        if (x > last) last = x;
+      }
+    }
+  }
+  return last < 0 ? null : { first, last };
+}
+
+/**
+ * Trim blank columns from the sides of the capture.
+ *
+ * ===== WHY THIS EXISTS =====
+ * The slip is captured from the print worker's VIEWPORT, and the viewport is
+ * only exactly the slip when every step lines up: setContentSize must not be
+ * clamped, the zoom factor must map CSS pixels to device pixels as expected,
+ * and no child may overflow the authored width. On a real Windows machine any
+ * one of those can leave blank space beside the content — and because the
+ * capture is then downscaled so its FULL width fills the printable dots, that
+ * blank space steals room from the receipt. The slip comes out narrow with a
+ * wide band down one side, which is what "Automatic" was printing while the
+ * Windows driver path, which never goes through a capture, looked perfect.
+ *
+ * Trimming the blank first means the RECEIPT fills the printable width,
+ * whatever the capture picked up around it.
+ *
+ * `maxScaleUp` stops this rescuing a slip that is legitimately narrow: a
+ * capture whose ink covers less than 1/maxScaleUp of its width is left alone,
+ * because enlarging it that far would be a guess, not a fix.
+ */
+function cropBlankSides(image, opts = {}) {
+  const maxScaleUp = Number(opts.maxScaleUp) || 2.2;
+  const size = image.getSize();
+  if (!size.width || !size.height) return { image, trimmedLeft: 0, trimmedRight: 0 };
+
+  const ink = inkColumns(image.toBitmap(), size.width, size.height);
+  if (!ink) return { image, trimmedLeft: 0, trimmedRight: 0 };
+
+  const inkWidth = ink.last - ink.first + 1;
+  const trimmedLeft = ink.first;
+  const trimmedRight = size.width - 1 - ink.last;
+
+  // Nothing worth trimming, or the ink is too small a fraction to trust.
+  if (trimmedLeft + trimmedRight < 2) return { image, trimmedLeft: 0, trimmedRight: 0 };
+  if (inkWidth * maxScaleUp < size.width) return { image, trimmedLeft: 0, trimmedRight: 0 };
+
+  const cropped = image.crop({ x: ink.first, y: 0, width: inkWidth, height: size.height });
+  return { image: cropped, trimmedLeft, trimmedRight };
+}
+
+/**
  * Full pipeline for an Electron NativeImage. Kept as the one entry point
  * main.cjs calls, so the resize step stays in step with the dot packing.
  */
 function escposRasterBytes(image, paperLabel, autoCut = true, opts = {}) {
   const geom = rasterGeometry(paperLabel, opts.marginLeftMm, opts.marginRightMm);
+
+  // Remove any blank the capture picked up beside the slip, so the receipt
+  // itself is what gets scaled to the printable width.
+  let trimmed = { trimmedLeft: 0, trimmedRight: 0 };
+  if (opts.cropBlankSides !== false && typeof image.crop === 'function') {
+    try {
+      const r = cropBlankSides(image, opts);
+      image = r.image;
+      trimmed = r;
+    } catch { /* a failed crop must never stop a print */ }
+  }
 
   const src = image.getSize();
   if (!src.width || !src.height) throw new Error('Rendered receipt is empty');
@@ -234,6 +313,8 @@ function escposRasterBytes(image, paperLabel, autoCut = true, opts = {}) {
         coverage: inkCoverage(packed, geom.contentDots),
         heightRows: packed.height,
         contentDots: geom.contentDots,
+        trimmedLeft: trimmed.trimmedLeft,
+        trimmedRight: trimmed.trimmedRight,
       });
     } catch { /* diagnostics must never break a print */ }
   }
@@ -241,6 +322,8 @@ function escposRasterBytes(image, paperLabel, autoCut = true, opts = {}) {
 }
 
 module.exports = {
+  inkColumns,
+  cropBlankSides,
   trimBlankRows,
   inkCoverage,
   paperDotsOf,

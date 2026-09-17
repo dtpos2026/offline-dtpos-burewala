@@ -70,6 +70,15 @@ export interface FastPrintArgs {
   marginRightMm?: number;
   /** Calibrated content width (mm); 0/undefined = derive from margins. */
   contentWidthMm?: number;
+  /**
+   * Skip the raster attempt and print through the Windows driver directly.
+   *
+   * Still uses the hidden worker window, so the POS screen never enters print
+   * mode. This is what "Windows driver only" now means: the driver's own
+   * rendering (which the shop confirmed has perfect margins and quality) at
+   * the fast path's responsiveness, instead of printing the whole POS window.
+   */
+  preferDriver?: boolean;
 }
 
 /**
@@ -261,9 +270,11 @@ export async function fastPrintHtml(args: FastPrintArgs): Promise<FastPrintResul
       // This does not alter/truncate the selected receipt template.
       bottomFeedLines: 6,
     };
-    const raster = bridge.printHtmlEscpos
+    // 'Windows driver only' skips the raster stage but keeps the worker, so
+    // the job never touches the POS window.
+    const raster = (bridge.printHtmlEscpos && !args.preferDriver)
       ? await bridge.printHtmlEscpos(payload)
-      : { success: false, error: 'rendered ESC/POS unavailable' };
+      : { success: false, error: args.preferDriver ? 'driver mode requested' : 'rendered ESC/POS unavailable' };
     if (raster?.success) {
       return { success: true, warning: raster.warning };
     }

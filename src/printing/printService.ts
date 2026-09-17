@@ -96,8 +96,18 @@ export async function printNode(portalEl: HTMLElement, opts: PrintNodeOpts = {})
   // ===== FAST PATH =====
   // A hidden print window prints the slip's HTML, so the POS's own window
   // never enters print mode: the screen does not freeze and nothing waits.
-  const wantsFast = opts.preferElectron !== false && (opts.silent ?? true)
-    && !opts.lan?.host && opts.printMode !== 'driver';
+  // ===== DRIVER MODE STILL USES THE WORKER =====
+  // 'Windows driver only' used to switch the fast path off entirely, which
+  // sent the job to `print-receipt` — and that handler prints
+  // mainWindow.webContents, i.e. the WHOLE POS WINDOW. Chromium then lays the
+  // entire app out for the printer and blocks the renderer until the spooler
+  // answers: several seconds per bill, and the screen frozen or stuck
+  // meanwhile, with the slip appearing long after the bill was saved.
+  //
+  // The driver's own rendering is what the shop wants to keep; printing the
+  // POS window was never part of it. So the worker stays, and only the raster
+  // stage is skipped.
+  const wantsFast = opts.preferElectron !== false && (opts.silent ?? true) && !opts.lan?.host;
   if (wantsFast && isFastPrintAvailable()) {
     const guard = await ensurePrintAllowedFast();
     if (!guard.allowed) {
@@ -134,6 +144,7 @@ export async function printNode(portalEl: HTMLElement, opts: PrintNodeOpts = {})
       marginLeftMm: opts.marginLeftMm,
       marginRightMm: opts.marginRightMm,
       contentWidthMm: opts.contentWidthMm,
+      preferDriver: opts.printMode === 'driver',
     });
     if (fast.success) {
       return { success: true, transport: 'electron-silent', message: 'Printed.', copies: opts.copies || 1, durationMs: 0, attempts: ['fast-window:ok'], usedDialog: false, printerName: opts.printerName };
