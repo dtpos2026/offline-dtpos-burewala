@@ -17,6 +17,7 @@ import { EscposDoc, columnsFor } from '@/printing/escposBuilder';
 import { buildAlignmentTestBytes } from '@/printing/alignmentTest';
 import { resolveReceiptLayout } from '@/printing/receiptLayout';
 import { repairLegacyMargins, DEFAULT_SIDE_MARGIN_MM, defaultPrinterConfig } from '@/lib/printerSettings';
+import { equaliseSideMargins, hasUnequalSideMargins, savePrintMargins } from '@/lib/printMargins';
 
 /** Find a command's operands in the byte stream, or null. */
 function findCommand(bytes: number[], a: number, b: number): [number, number] | null {
@@ -115,20 +116,70 @@ describe('printer margin defaults', () => {
     expect(cfg.leftMarginMm).toBe(cfg.rightMarginMm);
   });
 
-  it('repairs machines still holding the old lopsided default', () => {
+  it('equalises any asymmetric pair, not just the old default', () => {
+    // The first version of this repair only matched the exact 3/10 pair, on
+    // the assumption that anything else was a deliberate calibration. Real
+    // paper disproved it: deployed machines carried all sorts of asymmetric
+    // pairs and every one printed lopsided on every slip.
+    localStorage.clear();
     const repaired = repairLegacyMargins([
       { ...defaultPrinterConfig(), leftMarginMm: 3, rightMarginMm: 10 },
     ]);
-    expect(repaired[0].leftMarginMm).toBe(DEFAULT_SIDE_MARGIN_MM);
-    expect(repaired[0].rightMarginMm).toBe(DEFAULT_SIDE_MARGIN_MM);
+    expect(repaired[0].leftMarginMm).toBe(repaired[0].rightMarginMm);
+
+    localStorage.clear();
+    const other = repairLegacyMargins([
+      { ...defaultPrinterConfig(), leftMarginMm: 0, rightMarginMm: 3 },
+    ]);
+    expect(other[0].leftMarginMm).toBe(other[0].rightMarginMm);
   });
 
-  it('never overwrites a deliberate calibration', () => {
-    // A shop that tuned its own printer to 4/1 is compensating for that
-    // machine. Re-centring those numbers would be a second bug, not a fix.
+  it('never widens a slip while repairing it', () => {
+    // Equalising upward would eat printable width. Take the smaller side.
+    localStorage.clear();
+    const repaired = repairLegacyMargins([
+      { ...defaultPrinterConfig(), leftMarginMm: 3, rightMarginMm: 10 },
+    ]);
+    expect(repaired[0].leftMarginMm).toBe(3);
+  });
+
+  it('runs once, then leaves a deliberate calibration alone', () => {
+    // After the repair has run, a shop that tunes its printer to 4/1 for its
+    // own machine keeps those numbers for good.
+    localStorage.clear();
+    repairLegacyMargins([{ ...defaultPrinterConfig(), leftMarginMm: 3, rightMarginMm: 10 }]);
+
     const tuned = { ...defaultPrinterConfig(), leftMarginMm: 4, rightMarginMm: 1 };
-    const repaired = repairLegacyMargins([tuned]);
-    expect(repaired[0].leftMarginMm).toBe(4);
-    expect(repaired[0].rightMarginMm).toBe(1);
+    const second = repairLegacyMargins([tuned]);
+    expect(second[0].leftMarginMm).toBe(4);
+    expect(second[0].rightMarginMm).toBe(1);
+  });
+
+  it('leaves already-equal printers untouched', () => {
+    localStorage.clear();
+    const equal = { ...defaultPrinterConfig(), leftMarginMm: 2, rightMarginMm: 2 };
+    const repaired = repairLegacyMargins([equal]);
+    expect(repaired[0].leftMarginMm).toBe(2);
+    expect(repaired[0].rightMarginMm).toBe(2);
+  });
+});
+
+describe('device-local margins', () => {
+  it('equalises the side margins on demand', () => {
+    localStorage.clear();
+    savePrintMargins({ top: 0, right: 10, bottom: 0, left: 3, contentWidthMm: 0 });
+    expect(hasUnequalSideMargins()).toBe(true);
+    const next = equaliseSideMargins(2);
+    expect(next.left).toBe(2);
+    expect(next.right).toBe(2);
+    expect(hasUnequalSideMargins()).toBe(false);
+  });
+
+  it('detects the stale asymmetric values that survived the old migration', () => {
+    // These device values feed the receipt, the KOT, the token and the shift
+    // report alike, which is why a lopsided slip showed up on every one.
+    localStorage.clear();
+    savePrintMargins({ top: 0, right: 0, bottom: 0, left: 3, contentWidthMm: 0 });
+    expect(hasUnequalSideMargins()).toBe(true);
   });
 });

@@ -27,8 +27,8 @@ import {
 } from '@/printing/alignmentTest';
 import { resolveReceiptLayout, expectedMargins } from '@/printing/receiptLayout';
 import { PAPER_PROFILE_LIST, type PaperProfileId } from '@/printing/paperProfile';
-import { loadPrintMargins } from '@/lib/printMargins';
-import { loadPrinterSettings, resolvePrinterForRole, type PrinterConfig } from '@/lib/printerSettings';
+import { loadPrintMargins, equaliseSideMargins } from '@/lib/printMargins';
+import { loadPrinterSettings, savePrinterSettings, resolvePrinterForRole, equalisePrinterMargins, type PrinterConfig } from '@/lib/printerSettings';
 import { getDeviceId } from '@/lib/tenant';
 
 type Mode = 'raw' | 'driver';
@@ -54,9 +54,14 @@ export default function PrintAlignmentTestCard() {
     return () => { alive = false; };
   }, []);
 
-  const device = loadPrintMargins();
+  const [marginTick, setMarginTick] = useState(0);
+  // Re-read after an equalise so the panel and the slip agree immediately.
+  const device = useMemo(() => { void marginTick; return loadPrintMargins(); }, [marginTick]);
   const leftMm = counter?.leftMarginMm ?? device.left;
   const rightMm = counter?.rightMarginMm ?? device.right;
+  // Which of the two stores is actually in force, printed on the slip.
+  const marginSource = counter?.leftMarginMm != null ? `printer: ${counter.name || counter.printerName || 'counter'}` : 'device settings';
+  const unequal = Math.abs(leftMm - rightMm) > 0.05;
   const contentWidthMm = counter?.printWidthMm || device.contentWidthMm || undefined;
 
   const layout = useMemo(
@@ -66,6 +71,35 @@ export default function PrintAlignmentTestCard() {
   const gaps = expectedMargins(layout, 'html');
 
   const rawAvailable = !!(window as any).electronAPI?.printRaw;
+
+  /**
+   * Force both stores equal. A machine can hold an asymmetric pair in the
+   * printer's own configuration OR in this device's settings, and the shop
+   * should not have to work out which one is in force — so both are set.
+   */
+  const equaliseNow = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const side = Math.max(0, Math.min(leftMm, rightMm));
+      equaliseSideMargins(side);
+      if (counter) {
+        const all = await loadPrinterSettings();
+        const next = {
+          ...all,
+          printers: all.printers.map(p => (p.id === counter.id ? equalisePrinterMargins(p, side) : p)),
+        };
+        await savePrinterSettings(next);
+        setCounter(equalisePrinterMargins(counter, side));
+      }
+      setMarginTick(t => t + 1);
+      toast.success(`Margins set to ${side} mm on both sides. Print the alignment slip again to confirm.`);
+    } catch (e: any) {
+      toast.error(`Could not update the margins: ${e?.message || String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const run = async (mode: Mode) => {
     if (busy) return;
@@ -85,7 +119,7 @@ export default function PrintAlignmentTestCard() {
         }
         const bytes = buildAlignmentTestBytes({
           paper, leftMm, rightMm, contentWidthMm,
-          strategy: 'raw-escpos', printerName,
+          strategy: 'raw-escpos', printerName, marginSource,
         });
         const res = await api.printRaw({ printerName, data: bytes, copies: 1 });
         if (res?.success) {
@@ -121,7 +155,7 @@ export default function PrintAlignmentTestCard() {
     }
   };
 
-  const lines = alignmentTestLines({ paper, leftMm, rightMm, contentWidthMm, strategy: 'windows-driver' });
+  const lines = alignmentTestLines({ paper, leftMm, rightMm, contentWidthMm, strategy: 'windows-driver', marginSource });
 
   return (
     <Card className="p-4 md:p-6 space-y-4">
@@ -161,6 +195,19 @@ export default function PrintAlignmentTestCard() {
         <span>Margins (L / R)</span><span className="text-right font-mono">{layout.leftMm} / {layout.rightMm} mm</span>
         <span>Expected paper gap</span><span className="text-right font-mono">{gaps.leftGapMm} / {gaps.rightGapMm} mm</span>
       </div>
+
+      {unequal && (
+        <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 space-y-2">
+          <p className="text-xs">
+            This printer's margins are <b>not equal</b> ({leftMm} mm left vs {rightMm} mm right),
+            so the slip will print off-centre. The values are coming from{' '}
+            <b>{marginSource}</b>.
+          </p>
+          <Button size="sm" onClick={equaliseNow} disabled={busy}>
+            Make margins equal
+          </Button>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => run('raw')} disabled={busy || !rawAvailable}>

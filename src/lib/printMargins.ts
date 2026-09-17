@@ -23,17 +23,38 @@ const KEY = 'dtpos-print-margins';
  * than a guess that the driver may or may not honour.
  */
 export const DEFAULT_MARGINS: PrintMargins = { top: 0, right: 2, bottom: 0, left: 2, contentWidthMm: 0 };
-// One-time geometry migration. v2 reset the old calibration values that
-// created a top gap and a long blank tail. v3 moves to the new equal 2mm
-// defaults now that margins are applied once, in printer dots, instead of
-// being added as page padding on top of a rescaled layout — the old 3mm
-// values were compensating for that double application.
+// ============================================================
+// ONE-TIME GEOMETRY MIGRATION
+//
+// v2 reset calibration values that created a top gap and a long blank tail.
+// v3 moved to equal 2mm defaults.
+//
+// v4 exists because v3 did not actually reach the machines that needed it.
+// The flag is written on FIRST RUN of any build that carries it, so a client
+// already running a v3 build had the flag set with whatever asymmetric values
+// were in storage at the time. The migration then never ran again, and every
+// later release inherited those numbers.
+//
+// That is why the equal-margin work still printed lopsided on real paper:
+// the printer-config default was corrected, but `loadPrintMargins()` kept
+// handing out the stale device values — and it feeds the receipt, the KOT,
+// the token and the shift report alike, which is exactly the "it is on every
+// slip" report. Physical paper was right and the code was wrong.
+//
 // Only the device's print margins are touched; no shop or sales data.
-const GEOM_FLAG = 'dtpos-print-geometry-v3';
+// ============================================================
+const GEOM_FLAG = 'dtpos-print-geometry-v4';
+// Flags from superseded migrations. They are cleared so that a machine which
+// later downgrades and upgrades again is migrated rather than skipped.
+const SUPERSEDED_FLAGS = ['dtpos-print-geometry-v2', 'dtpos-print-geometry-v3'];
+
 try {
   if (typeof localStorage !== 'undefined' && !localStorage.getItem(GEOM_FLAG)) {
     localStorage.setItem(KEY, JSON.stringify(DEFAULT_MARGINS));
     localStorage.setItem(GEOM_FLAG, '1');
+    for (const old of SUPERSEDED_FLAGS) {
+      try { localStorage.removeItem(old); } catch { /* best effort */ }
+    }
   }
 } catch {}
 
@@ -107,4 +128,24 @@ export function applyPrintMargins(m: PrintMargins = loadPrintMargins()) {
 
 export function resetPrintMargins() {
   savePrintMargins({ ...DEFAULT_MARGINS });
+}
+
+/**
+ * Force the side margins equal, keeping top/bottom and any calibrated width.
+ *
+ * Offered as a one-click action because a machine can reach an asymmetric
+ * pair in several ways — an old migration, a hand calibration, a restored
+ * backup — and hunting for which one is not the shop's job.
+ */
+export function equaliseSideMargins(mm: number = DEFAULT_MARGINS.left): PrintMargins {
+  const current = loadPrintMargins();
+  const side = Math.max(0, Math.min(20, Math.round((Number(mm) || 0) * 10) / 10));
+  const next: PrintMargins = { ...current, left: side, right: side };
+  savePrintMargins(next);
+  return next;
+}
+
+/** True when this device's stored side margins are not equal. */
+export function hasUnequalSideMargins(m: PrintMargins = loadPrintMargins()): boolean {
+  return Math.abs((Number(m.left) || 0) - (Number(m.right) || 0)) > 0.05;
 }

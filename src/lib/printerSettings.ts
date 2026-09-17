@@ -187,31 +187,63 @@ export function subscribePrinterSettings(
 export const DEFAULT_SIDE_MARGIN_MM = 2;
 
 /**
- * The lopsided pair shipped before the equal-margin fix. Saved configurations
- * on deployed machines still carry it, so it is repaired on load — see
- * repairLegacyMargins.
+ * One-time flag for the equal-margin repair.
+ *
+ * The first attempt at this repair only touched the EXACT 3mm/10mm pair the
+ * old default shipped, on the reasoning that any other pair must be a
+ * deliberate calibration. Real paper disproved that: deployed machines carried
+ * all sorts of asymmetric pairs, inherited from older builds and from the
+ * device-level margins, and every one of them printed lopsided on every slip.
+ *
+ * So the repair now equalises ANY asymmetric pair — but exactly once, behind
+ * this flag. After it has run, a shop that deliberately calibrates its printer
+ * to 4mm/1mm keeps those numbers for good, because the repair never looks
+ * again. That is the difference between fixing a bad default and overriding
+ * the user.
  */
-const LEGACY_LOPSIDED_MARGINS = { left: 3, right: 10 };
+const MARGIN_REPAIR_FLAG = 'dtpos-printer-margins-equalised-v1';
+
+function repairAlreadyDone(): boolean {
+  try { return localStorage.getItem(MARGIN_REPAIR_FLAG) === '1'; } catch { return false; }
+}
+
+function markRepairDone(): void {
+  try { localStorage.setItem(MARGIN_REPAIR_FLAG, '1'); } catch { /* best effort */ }
+}
+
+/** How far apart the two side margins may be before it counts as lopsided. */
+const MARGIN_TOLERANCE_MM = 0.05;
 
 /**
- * Repair printers still carrying the old asymmetric default.
+ * Equalise printers carrying asymmetric side margins, once per machine.
  *
- * Only the EXACT old pair is touched. A shop that deliberately calibrated its
- * printer to, say, 4mm/1mm is compensating for that specific machine and must
- * keep its numbers — silently re-centring those would be a second bug, not a
- * fix.
+ * Runs on load so a client that never opens Printer Settings is still fixed
+ * by simply installing the update.
  */
 export function repairLegacyMargins(printers: PrinterConfig[]): PrinterConfig[] {
+  if (!printers.length || repairAlreadyDone()) return printers;
+
   let changed = false;
   const out = printers.map((p) => {
-    if (Number(p.leftMarginMm) === LEGACY_LOPSIDED_MARGINS.left
-      && Number(p.rightMarginMm) === LEGACY_LOPSIDED_MARGINS.right) {
-      changed = true;
-      return { ...p, leftMarginMm: DEFAULT_SIDE_MARGIN_MM, rightMarginMm: DEFAULT_SIDE_MARGIN_MM };
-    }
-    return p;
+    const left = Number(p.leftMarginMm) || 0;
+    const right = Number(p.rightMarginMm) || 0;
+    if (Math.abs(left - right) <= MARGIN_TOLERANCE_MM) return p;
+    changed = true;
+    // Take the SMALLER of the two: it is the one the shop actually wanted,
+    // and the larger side is the inflated one that produced the wide band.
+    // Never widen a slip's margins while repairing them.
+    const side = Math.max(0, Math.min(left, right));
+    return { ...p, leftMarginMm: side, rightMarginMm: side };
   });
+
+  markRepairDone();
   return changed ? out : printers;
+}
+
+/** Force one printer's side margins equal, for the Printer Settings action. */
+export function equalisePrinterMargins(p: PrinterConfig, mm = DEFAULT_SIDE_MARGIN_MM): PrinterConfig {
+  const side = Math.max(0, Math.min(20, Math.round((Number(mm) || 0) * 10) / 10));
+  return { ...p, leftMarginMm: side, rightMarginMm: side };
 }
 
 export function defaultPrinterConfig(): PrinterConfig {

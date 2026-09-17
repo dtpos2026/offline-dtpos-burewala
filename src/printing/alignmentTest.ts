@@ -31,6 +31,16 @@ export interface AlignmentTestOptions {
   strategy?: string;
   /** Printer this went to, for the footer. */
   printerName?: string;
+  /**
+   * Where the margin numbers came from: the printer's own configuration or
+   * this device's Printer Settings.
+   *
+   * Printed on the slip because a machine can hold asymmetric margins in
+   * either place, and a photograph of a lopsided slip that does not say which
+   * one is in force turns the next round of diagnosis into guesswork. It
+   * already did once.
+   */
+  marginSource?: string;
 }
 
 /**
@@ -77,6 +87,10 @@ export function alignmentTestLines(opts: AlignmentTestOptions): string[] {
     lr('Characters/line', String(cols)),
     lr('Margin left', `${layout.leftMm} mm`),
     lr('Margin right', `${layout.rightMm} mm`),
+    lr('Margins from', opts.marginSource || 'device settings'),
+    // The single number that decides pass or fail, stated outright so nobody
+    // has to subtract two figures off a photograph.
+    lr('Margins equal?', Math.abs(layout.leftMm - layout.rightMm) <= 0.05 ? 'YES' : 'NO - FIX THIS'),
     lr('Expected gap L', `${gaps.leftGapMm} mm`),
     lr('Expected gap R', `${gaps.rightGapMm} mm`),
     lr('Print strategy', opts.strategy || 'unknown'),

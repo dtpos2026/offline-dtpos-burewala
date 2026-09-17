@@ -1,5 +1,43 @@
 # DT POS Enterprise — Release Notes
 
+## v1.2.1 — The margin fix that actually reaches the machine
+
+v1.2.0 corrected the equal-margin logic and still printed lopsided on the
+client's hardware, on the receipt, the KOT, the token and the shift report
+alike. Physical paper was right and the code was wrong.
+
+**Cause: a migration that could not run.** `loadPrintMargins()` supplies the
+side margins to every slip type. Its one-time reset is guarded by a flag
+written on *first run of any build carrying it* — and the flag it checked,
+`dtpos-print-geometry-v3`, was already set on deployed machines from v1.1.1,
+with whatever asymmetric values were in storage at that moment. The guard saw
+the flag, skipped the reset, and every later release inherited those numbers.
+v1.2.0 fixed the printer-config default but never touched this store, so the
+stale values kept flowing to all four slip types. That is precisely why the
+wide right band appeared on every slip rather than just on bills.
+
+- The migration is now `v4` and clears the superseded v2/v3 flags, so a machine
+  that rolls back and forward is migrated rather than skipped again.
+- The printer-config repair no longer matches only the exact 3mm/10mm pair. It
+  equalises **any** asymmetric pair, taking the smaller of the two so a repair
+  never widens a slip — and it runs **once**, behind its own flag, so a shop
+  that calibrates its printer afterwards keeps its own numbers for good.
+- Printer Settings shows a warning when the active margins are unequal, with a
+  **Make margins equal** button that fixes both stores at once. A machine can
+  hold an asymmetric pair in the printer's configuration *or* in the device
+  settings, and working out which is in force is not the shop's job.
+- The alignment slip now prints **Margins from** (which store the numbers came
+  from) and **Margins equal? YES / NO - FIX THIS**. The previous slip reported
+  the numbers but not their source, which turned the last round of diagnosis
+  into guesswork.
+
+### Test coverage
+
+The test that would have caught this is the one nobody had written: not "does
+a fresh machine get equal margins" — it always did — but "does a machine that
+**already** carries the old flag and bad values get repaired". That case is now
+pinned, along with the one-time contract and the never-widen rule. 253 tests.
+
 ## v1.2.0 — Receipt alignment, Paper Save parity, raw ESC/POS geometry
 
 ### Receipt margins are now equal on every print path
