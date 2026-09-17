@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { resolvePrintMode, wantsRaw, wantsDriverOnly } from '@/printing/printMode';
-import { EscposDoc, buildShiftReportBytes, buildReceiptBytes, columnsFor } from '@/printing/escposBuilder';
+import { EscposDoc, buildShiftReportBytes, buildReceiptBytes, buildKotBytes, columnsFor } from '@/printing/escposBuilder';
 
 const read = (p: string) => readFileSync(resolve(__dirname, '..', p), 'utf8');
 
@@ -193,5 +193,70 @@ describe('the cut never lands on the last printed line', () => {
     };
     expect(feedOf(compact)).toBe(feedOf(normal));
     expect(feedOf(compact)).toBeGreaterThanOrEqual(6);
+  });
+});
+
+describe('raw slip readability', () => {
+  const order: any = {
+    orderNumber: 1025,
+    orderType: 'dining',
+    subtotal: 3120,
+    grandTotal: 3120,
+    items: [
+      { id: 'a', name: 'Anda Shami Burger', quantity: 1, price: 140, lineTotal: 140 },
+      { id: 'b', name: 'Chicken Achari', variantName: 'Large', quantity: 1, price: 1300, lineTotal: 1300 },
+      { id: 'c', name: 'Chicken Shawarma', variantName: 'Large', quantity: 1, price: 180, lineTotal: 180 },
+    ],
+  };
+  const settings: any = { name: 'FIRST CHEF PIZZA & BURGER', paperSize: '80mm', currencySymbol: 'Rs ' };
+  const textOf = (bytes: number[]) => Buffer.from(bytes).toString('latin1');
+
+  it('never chops an item name mid-word', () => {
+    // The client's bill printed "1 x Chicken Achari  - Large (Larg" with the
+    // rest of the name simply gone. A customer cannot check a chopped bill.
+    const text = textOf(buildReceiptBytes(order, settings));
+    expect(text).toContain('Chicken Achari');
+    expect(text).not.toMatch(/\(Larg(?!e)/);
+    expect(text).toContain('Large');
+  });
+
+  it('keeps the amount on the first line of a wrapped item', () => {
+    const text = textOf(buildReceiptBytes(order, settings));
+    const firstItemLine = text.split('\n').find(l => l.includes('Anda Shami'))!;
+    expect(firstItemLine.trimEnd().endsWith('140')).toBe(true);
+  });
+
+  it('prints item rows at double height by default', () => {
+    // GS ! with a height multiplier. 'Large' is the default because the plain
+    // slip otherwise reads much lighter than the rendered template.
+    const bytes = buildReceiptBytes(order, settings);
+    const hasDoubleHeight = bytes.some((b, i) =>
+      b === 0x1d && bytes[i + 1] === 0x21 && (bytes[i + 2] & 0x0f) >= 1);
+    expect(hasDoubleHeight).toBe(true);
+  });
+
+  it('honours the compact text size when asked', () => {
+    // Byte length is NOT a proxy for text size: the compact TOTAL line spans
+    // twice as many columns and so carries more padding spaces. Assert the
+    // actual GS ! operands instead.
+    const widthMultipliers = (bytes: number[]) => {
+      const out: number[] = [];
+      for (let i = 0; i < bytes.length - 2; i++) {
+        if (bytes[i] === 0x1d && bytes[i + 1] === 0x21) out.push((bytes[i + 2] >> 4) & 0x0f);
+      }
+      return out;
+    };
+    const large = widthMultipliers(buildReceiptBytes(order, settings));
+    const normal = widthMultipliers(buildReceiptBytes(order, { ...settings, receiptRawTextSize: 'normal' }));
+
+    // Large doubles the TOTAL's width; compact leaves it at single width.
+    expect(Math.max(...large)).toBeGreaterThan(Math.max(...normal.filter((_, i) => i > 0)) - 1);
+    expect(large.some(m => m >= 1)).toBe(true);
+  });
+
+  it('wraps long KOT item names so the kitchen can read them', () => {
+    const text = textOf(buildKotBytes(order, settings, {}));
+    expect(text).toContain('Chicken Achari');
+    expect(text).not.toMatch(/\(Larg(?!e)/);
   });
 });

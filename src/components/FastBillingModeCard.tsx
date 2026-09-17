@@ -15,6 +15,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Zap } from 'lucide-react';
 import { toast } from 'sonner';
@@ -22,14 +23,30 @@ import { getSettings, saveSettings } from '@/lib/store';
 
 export default function FastBillingModeCard() {
   const [on, setOn] = useState(false);
+  const [size, setSize] = useState<'normal' | 'large'>('large');
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     try {
-      setOn(!!(getSettings() as any).fastRawPrintMode);
-    } catch { /* settings not ready — leave it off */ }
+      const s: any = getSettings();
+      setOn(!!s.fastRawPrintMode);
+      setSize(s.receiptRawTextSize === 'normal' ? 'normal' : 'large');
+    } catch { /* settings not ready — leave the defaults */ }
     setReady(true);
   }, []);
+
+  const setTextSize = (next: 'normal' | 'large') => {
+    setSize(next);
+    try {
+      const s: any = getSettings();
+      saveSettings({ ...s, receiptRawTextSize: next, kotRawTextSize: next });
+      toast.success(next === 'large'
+        ? 'Raw slips will print at the larger size.'
+        : 'Raw slips will print at the compact size.');
+    } catch (e: any) {
+      toast.error(`Could not save the setting: ${e?.message || String(e)}`);
+    }
+  };
 
   const toggle = (next: boolean) => {
     setOn(next);
@@ -72,6 +89,31 @@ export default function FastBillingModeCard() {
           </p>
         </div>
         <Switch id="fast-billing" checked={on} onCheckedChange={toggle} disabled={!ready} />
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs">Raw slip text size</Label>
+        <div className="flex gap-2">
+          <Button
+            type="button" size="sm" disabled={!ready}
+            variant={size === 'large' ? 'default' : 'outline'}
+            onClick={() => setTextSize('large')}
+          >
+            Large (recommended)
+          </Button>
+          <Button
+            type="button" size="sm" disabled={!ready}
+            variant={size === 'normal' ? 'default' : 'outline'}
+            onClick={() => setTextSize('normal')}
+          >
+            Compact
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          <b>Large</b> prints item rows and the total at double height, so the plain
+          slip reads close to the designed template. The line width does not change,
+          so the same number of characters still fits. Applies to the bill and the KOT.
+        </p>
       </div>
 
       <div className="rounded-md bg-muted/50 p-3 text-xs space-y-1">

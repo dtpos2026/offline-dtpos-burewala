@@ -611,6 +611,17 @@ export interface RestaurantSettings {
    * both. A per-printer override still exists for mixed hardware.
    */
   fastRawPrintMode?: boolean;
+  /**
+   * Text size for the raw ESC/POS slip: 'large' (default) or 'normal'.
+   *
+   * 'large' prints item rows and the total at double HEIGHT. The width is
+   * unchanged, so the same number of characters still fits the line — it only
+   * makes the plain slip read closer to the rendered template's weight, which
+   * is what shops mean when they say the raw bill "looks smaller than before".
+   */
+  receiptRawTextSize?: 'normal' | 'large';
+  /** Same, for the KOT. Falls back to receiptRawTextSize when unset. */
+  kotRawTextSize?: 'normal' | 'large';
   /** Turn OFF direct ESC/POS printing (falls back to the older layout print).
    *  Default: direct printing is ON in the Windows desktop app. */
   directPrintDisabled?: boolean;

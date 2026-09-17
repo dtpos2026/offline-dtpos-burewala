@@ -1,5 +1,46 @@
 # DT POS Enterprise — Release Notes
 
+## v1.3.3 — The raw slip reads like the old one again
+
+### Item names are no longer chopped
+
+The bill printed `1 x Chicken Achari  - Large (Larg` with the rest of the name
+simply gone: the row was hard-truncated to the column width. A customer cannot
+check a bill whose item names stop mid-word, and a chef cannot cook from a KOT
+that does the same. Long names now wrap onto an indented continuation line, and
+the amount stays on the first line, flush to the right edge where it is looked
+for. Applies to the bill, the KOT and the token.
+
+### Raw slips print at the larger size by default
+
+The plain ESC/POS slip read much lighter than the rendered template, which is
+what "it was bigger before" meant. Item rows and the total now print at double
+**height** — `GS !` leaves the width alone, so the same 48 characters still fit
+the line; only the weight on paper changes. Printer Settings → Fast Billing Mode
+has a **Large / Compact** choice, applying to the bill and the KOT together.
+
+Sample of the current output, at the full 48-column width:
+
+```
+FIRST CHEF PIZZA &
+BURGER
+EMCO STOP SKP ROAD LAHORE
+------------------------------------------------
+BILL #1025                                DINING
+------------------------------------------------
+1 x Anda Shami Burger                     Rs 140
+1 x Chicken Achari (Large)               Rs 1300
+1 x DONER PIZZA (Large)                  Rs 1500
+------------------------------------------------
+Subtotal                                 Rs 3120
+================================================
+TOTAL            Rs 3120
+```
+
+The shop name also breaks between words rather than inside one — it printed
+`FIRST CHEF PIZZA & BUR` / `GER` before, because double width halves the
+columns that fit and the builder was not tracking that.
+
 ## v1.3.2 — RAW printing now matches the Windows driver, edge for edge
 
 Reported precisely: **Windows Driver Only prints with correct equal margins but

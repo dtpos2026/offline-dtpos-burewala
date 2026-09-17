@@ -196,6 +196,38 @@ export class EscposDoc {
     return this.line(l + ' '.repeat(space) + r);
   }
 
+  /**
+   * One item row: name on the left, amount hard against the right edge.
+   *
+   * The name wraps onto continuation lines instead of being truncated, and
+   * the amount always stays on the FIRST line beside the start of the name,
+   * which is where a customer looks for it.
+   */
+  itemLine(name: string, amount: string, amountW = 10, sizeH: 1 | 2 = 1) {
+    if (sizeH > 1) this.size(1, sizeH);
+    const cols = this.effectiveCols;
+    const nameW = Math.max(8, cols - amountW);
+    const words = asciify(name).split(/\s+/).filter(Boolean);
+
+    const rows: string[] = [];
+    let cur = '';
+    for (const w of words) {
+      if (!cur.length) cur = w;
+      else if (cur.length + 1 + w.length <= nameW) cur += ' ' + w;
+      else { rows.push(cur); cur = w; }
+    }
+    if (cur.length) rows.push(cur);
+    if (!rows.length) rows.push('');
+
+    // First row carries the amount, flush right.
+    const head = rows[0];
+    this.line(head + ' '.repeat(Math.max(1, cols - head.length - amount.length)) + amount);
+    // Continuation rows are indented so they read as part of the same item.
+    for (let i = 1; i < rows.length; i++) this.line('    ' + rows[i]);
+    if (sizeH > 1) this.size(1, 1);
+    return this;
+  }
+
   rule(ch = '-') { return this.line(ch.repeat(this.cols)); }
 
   feed(n = 1) { for (let i = 0; i < n; i++) this.buf.push(LF); return this; }
@@ -276,6 +308,13 @@ export function buildReceiptBytes(order: Order, settings: RestaurantSettings): n
   const compact = !!s.receiptCompactMode;
   const sym = s.currencySymbol || 'Rs ';
   const d = new EscposDoc(paperOf(s), docOptionsOf(s));
+  // ===== RAW TEXT SIZE =====
+  // 'large' prints the item rows and the total at double HEIGHT (GS ! keeps
+  // the width, so the line still fits the same number of characters). The
+  // plain slip reads much closer to the rendered template's weight, which is
+  // what shops mean when they say the raw bill looks smaller than before.
+  const large = s.receiptRawTextSize !== 'normal';
+  const itemSize: 1 | 2 = large ? 2 : 1;
   // Paper Save on the raw path: tighter line spacing is where the paper is
   // actually saved. 24 dots is the printer default. 20 measured cramped on a
   // 203 DPI head, so 22 is the floor — still a visible saving over a long
@@ -302,12 +341,16 @@ export function buildReceiptBytes(order: Order, settings: RestaurantSettings): n
   d.rule();
 
   // Items — name (qty x price) ......... amount
+  //
+  // A long name WRAPS onto a continuation line rather than being cut. It used
+  // to be hard-truncated to the column width, so the client's bill printed
+  // "1 x Chicken Achari  - Large (Larg" with the rest of the name simply gone.
+  // A customer cannot check a bill whose item names are chopped mid-word.
   const amountW = 10;
-  const nameW = d.cols - amountW;
   for (const it of order.items || []) {
     const qty = it.quantity || 0;
     const label = `${qty} x ${it.name}${(it as any).variantName ? ` (${(it as any).variantName})` : ''}`;
-    d.lr(label.slice(0, nameW - 1), money(it.lineTotal ?? qty * (it.price || 0), sym));
+    d.itemLine(label, money(it.lineTotal ?? qty * (it.price || 0), sym), amountW, itemSize);
     if (!compact && it.note) d.line(`   * ${it.note}`);
   }
   d.rule();
@@ -319,7 +362,9 @@ export function buildReceiptBytes(order: Order, settings: RestaurantSettings): n
   if ((order as any).deliveryChargeAmount) d.lr('Delivery', money((order as any).deliveryChargeAmount, sym));
   if ((order as any).roundingAdjust) d.lr('Rounding', money((order as any).roundingAdjust, sym));
   d.rule('=');
-  d.bold(true).size(1, 2).lr('TOTAL', money(order.grandTotal || 0, sym), d.cols).size(1, 1).bold(false);
+  d.bold(true).size(large ? 2 : 1, 2);
+  d.lr('TOTAL', money(order.grandTotal || 0, sym), d.effectiveCols);
+  d.size(1, 1).bold(false);
   if (order.paymentMethod) d.lr('Paid by', String(order.paymentMethod).toUpperCase());
   if (order.cashReceived) d.lr('Cash', money(order.cashReceived, sym));
   if (order.changeReturned) d.lr('Change', money(order.changeReturned, sym));
@@ -372,10 +417,14 @@ export function buildKotBytes(order: Order, settings: RestaurantSettings, opts: 
     if (qty > 0) lines.push({ qty, name: opts.cancelNames?.[id] || id, cancelled: true });
   }
 
-  d.size(1, 2).bold(true);
+  // The kitchen reads this across a counter, so it prints at double height by
+  // default. Names WRAP rather than being cut: a chef cannot cook
+  // "Chicken Achari - Large (Larg".
+  const kotLarge = (s.kotRawTextSize ?? s.receiptRawTextSize) !== 'normal';
+  d.size(1, kotLarge ? 2 : 1).bold(true);
   for (const l of lines) {
-    d.line(`${l.cancelled ? 'CANCEL ' : ''}${l.qty} x ${l.name}`.slice(0, d.cols));
-    if (l.note) { d.size(1, 1).line(`    >> ${l.note}`).size(1, 2); }
+    d.fit(`${l.cancelled ? 'CANCEL ' : ''}${l.qty} x ${l.name}`);
+    if (l.note) { d.size(1, 1).line(`    >> ${l.note}`).size(1, kotLarge ? 2 : 1); }
   }
   d.size(1, 1).bold(false);
 
@@ -411,7 +460,7 @@ export function buildTokenBytes(data: TokenData, settings: RestaurantSettings): 
   d.left().rule();
 
   d.size(1, 2).bold(true);
-  for (const it of data.items || []) d.lr(String(it.name).slice(0, d.cols - 6), String(it.qty));
+  for (const it of data.items || []) d.itemLine(String(it.name), String(it.qty), 6);
   d.size(1, 1).bold(false);
   d.rule();
   if (s.tokenShowTotal !== false) d.bold(true).lr('Total pieces', String(total)).bold(false);
