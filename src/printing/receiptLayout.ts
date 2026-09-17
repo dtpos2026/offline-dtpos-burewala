@@ -277,7 +277,13 @@ export function layoutCss(layout: ReceiptLayout, mode: LayoutMode, rootClass = '
     box-sizing: border-box !important;
     background: #fff !important;
     color: #000 !important;
-    overflow: visible !important;
+    /* Vertical overflow is normal — a slip grows downwards. Horizontal
+       overflow is not: the head cannot print past the paper, and a child
+       wider than the slip used to inflate scrollWidth, which the capture
+       stage took as the real width and then squeezed the whole receipt into
+       part of the roll. Clip it here so it can never happen. */
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
   }
   /* Everything inside the slip is relative to the content width. A
      hard-coded px width cannot line up: Chromium maps CSS mm at 96 DPI

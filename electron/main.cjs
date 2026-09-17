@@ -1017,13 +1017,41 @@ ipcMain.handle('print-html-escpos', async (_event, options = {}) => {
         new Promise(resolve => setTimeout(resolve, 1200)),
       ]);
     }
+    // ===== SQUEEZED-SLIP FIX (narrow content, wide blank right band) =====
+    // The WIDTH must be the slip's AUTHORED width, never scrollWidth.
+    //
+    // This used to take Math.max(rect.width, scrollWidth). The document is
+    // laid out at exactly the content width, so scrollWidth only ever exceeds
+    // rect.width when some child OVERFLOWS — a long unbroken word, a table
+    // whose columns will not compress, an oversized image. That overflow is
+    // blank paper to the right of the real content, and taking it as the
+    // capture width meant the downscale to the printer's dots squeezed the
+    // whole receipt into a fraction of the roll: narrow content with a wide
+    // empty band down the right, on a slip whose margins were already equal.
+    //
+    // Overflow is CLIPPED (the head cannot print past the paper anyway), not
+    // scaled down, and reported so the cause is visible in the log instead of
+    // being guessed at from a photograph. Height still uses scrollHeight,
+    // because a slip legitimately grows downwards.
     const measure = `(() => {
       const root = document.querySelector('.dt-fast-root') || document.body;
       const r = root.getBoundingClientRect();
-      return { width: Math.ceil(Math.max(r.width, root.scrollWidth, 1)), height: Math.ceil(Math.max(r.height, root.scrollHeight, document.body.scrollHeight, 1)) };
+      const authored = Math.ceil(Math.max(r.width, 1));
+      return {
+        width: authored,
+        overflow: Math.max(0, Math.ceil(root.scrollWidth) - authored),
+        height: Math.ceil(Math.max(r.height, root.scrollHeight, document.body.scrollHeight, 1)),
+      };
     })()`;
     let metrics = await win.webContents.executeJavaScript(measure);
     if (!metrics || metrics.width < 20 || metrics.height < 20) throw new Error('Rendered receipt has no printable area');
+    if (metrics.overflow > 2) {
+      try {
+        appendLog('WARN', 'DT-Print slip overflow',
+          `content overflows its ${metrics.width}px box by ${metrics.overflow}px — clipped rather than scaled. ` +
+          `A long unbroken word or a table that will not compress is the usual cause.`);
+      } catch {}
+    }
 
     // HIGH-RESOLUTION CAPTURE (print-quality fix):
     // The slip lays out at ~302 CSS px for 80 mm, but the printer has 576 dots.

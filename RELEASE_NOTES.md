@@ -1,5 +1,37 @@
 # DT POS Enterprise — Release Notes
 
+## v1.3.4 — The slip was not mis-margined, it was being squeezed
+
+A silent test print came back printing its own margins on the paper —
+`Margins T:0 R:2 B:0 L:2 mm`, equal — and yet the content covered only about
+60% of the roll with a wide blank band down the right. The margins were never
+the problem on that slip. The capture was.
+
+`electron/main.cjs` measured the slip as `Math.max(rect.width, scrollWidth)`.
+The document is laid out at exactly the content width, so `scrollWidth` only
+exceeds `rect.width` when a child **overflows** — a long unbroken word, a table
+whose columns will not compress, an oversized image. That overflow is blank
+paper to the right of the real content, and taking it as the capture width
+meant the downscale to the printer's 576 dots squeezed the entire receipt into
+a fraction of the roll.
+
+The arithmetic: a child overflowing by about two thirds of the slip drops ink
+coverage to roughly 60% of the paper — which is what the photographed slip
+showed, on margins that were already equal.
+
+- The capture width is now the slip's **authored** width. Overflow is clipped,
+  which is what the head does with it anyway, rather than scaled down.
+- The overflow is written to the log with its size and the usual causes, so it
+  is visible rather than inferred from a photograph.
+- The layout sets `overflow-x: hidden` on the slip root so it cannot happen in
+  the first place. Vertical overflow stays visible — a slip grows downwards.
+- The Test Print now passes the same geometry a real slip uses. It passed none
+  of it, so it could report one geometry on the paper and print another, which
+  is useless when the slip is the thing you are diagnosing with.
+
+Verified across all 20 templates: 0.0 mm worst margin difference, 0 px
+overflow, 100% ink coverage.
+
 ## v1.3.3 — The raw slip reads like the old one again
 
 ### Item names are no longer chopped

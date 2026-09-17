@@ -12,6 +12,7 @@ import { directTestPrint, isDirectPrintAvailable, prewarmDirectPrint } from '@/p
 import { getSettings } from '@/lib/store';
 import { loadPrintMargins } from '@/lib/printMargins';
 import { columnsOf } from '@/printing/paperProfile';
+import { resolvePrintMode } from '@/printing/printMode';
 import { loadPrinterSettings, resolvePrinterForRole, type PrinterConfig } from '@/lib/printerSettings';
 import { getDeviceId } from '@/lib/tenant';
 
@@ -118,6 +119,16 @@ export default function TestPrintCard() {
         silent,
         preferElectron: silent,
         copies: 1,
+        // The test print exists to show what a real slip will look like, so it
+        // must be positioned by the SAME numbers a real slip uses. It passed
+        // none of them, so it could report one geometry on the slip and print
+        // another — which is no use at all when the slip is what you are
+        // using to diagnose the geometry.
+        printMode: resolvePrintMode({ printerConfig: counter, settings: getSettings() }),
+        marginLeftMm: counter?.leftMarginMm ?? m.left,
+        marginRightMm: counter?.rightMarginMm ?? m.right,
+        contentWidthMm: counter?.printWidthMm || m.contentWidthMm || undefined,
+        logType: 'test',
       });
       if (res.success) {
         toast.success(silent
