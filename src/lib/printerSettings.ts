@@ -1,0 +1,241 @@
+// ============================================================
+// Restaurant-level printer settings.
+// Offline-first: persisted to localStorage (and the cloud when
+// configured, for multi-device sync). This ensures added printers
+// survive app restart even without cloud/tenant.
+// ============================================================
+import { doc, getDoc, setDoc, onSnapshot, Unsubscribe } from '@/lib/offlineNoCloud';
+import { cloudDb, isCloudConfigured } from './offlineNoCloud';
+import { getTenantId } from './tenant';
+import type { CloudPrintRole } from './cloudPrintJobs';
+
+type Unsub = Unsubscribe | (() => void);
+
+const LOCAL_KEY = 'dtpos-printer-settings-v1';
+
+export type PrinterConnection = 'system' | 'lan' | 'bluetooth';
+
+export interface PrinterConfig {
+  id: string;
+  name: string;                 // friendly label
+  connection: PrinterConnection; // system (Windows installed) | lan (network IP) | bluetooth
+  printerName: string;          // exact Windows printer device name (for system)
+  // LAN / network printer (ESC/POS over TCP — usually port 9100)
+  lanHost?: string;             // e.g. 192.168.1.50
+  lanPort?: number;             // default 9100
+  role: CloudPrintRole;         // counter | kitchen | delivery | display
+  paperSize: '58mm' | '80mm';
+  printWidthMm?: number;        // optional override
+  leftMarginMm: number;
+  rightMarginMm: number;
+  topFeedMm: number;
+  bottomFeedMm: number;
+  autoCut: boolean;
+  beep: boolean;
+  copies: number;
+  escposMode: boolean;          // ESC/POS raw mode (forced ON for LAN)
+  browserBackup: boolean;       // allow browser fallback when EXE offline
+  enabled: boolean;
+  /** Fallback print mode when the primary path fails or driver is unknown.
+   *  - html   : Electron webContents.print (HTML/CSS rendering via Windows driver)
+   *  - escpos : Raw ESC/POS bytes (LAN 9100 or driver passthrough)
+   *  - text   : Generic text-only mode (plain UTF-8, no ESC/POS init) — for
+   *             stubborn "Generic / Text Only" drivers that swallow raw bytes. */
+  fallbackMode?: 'html' | 'escpos' | 'text';
+}
+
+export interface PrinterSettingsDoc {
+  printers: PrinterConfig[];
+  // device assignment override: deviceId -> which printer to use for each role
+  deviceAssignments?: Record<string, Partial<Record<CloudPrintRole, string>>>;
+  updatedAt?: any;
+}
+
+const EMPTY: PrinterSettingsDoc = { printers: [], deviceAssignments: {} };
+
+function ref() {
+  const tid = getTenantId();
+  if (!tid) throw new Error('No tenant');
+  return doc(cloudDb(), 'tenants', tid, 'meta', 'printers');
+}
+
+function readLocal(): PrinterSettingsDoc {
+  try {
+    const raw = localStorage.getItem(LOCAL_KEY);
+    if (!raw) return EMPTY;
+    const data = JSON.parse(raw) as PrinterSettingsDoc;
+    return {
+      printers: Array.isArray(data.printers) ? data.printers : [],
+      deviceAssignments: data.deviceAssignments || {},
+    };
+  } catch (e) {
+    console.warn('[printerSettings] local read failed', e);
+    return EMPTY;
+  }
+}
+
+function writeLocal(data: PrinterSettingsDoc) {
+  try {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify({
+      printers: data.printers || [],
+      deviceAssignments: data.deviceAssignments || {},
+      updatedAt: new Date().toISOString(),
+    }));
+    // Notify same-tab subscribers (storage event only fires cross-tab)
+    try { window.dispatchEvent(new CustomEvent('dtpos-printer-settings-changed')); } catch {}
+  } catch (e) {
+    throw new Error('Local save failed: ' + ((e as any)?.message || e));
+  }
+}
+
+export async function loadPrinterSettings(): Promise<PrinterSettingsDoc> {
+  // Prefer local (always available, works offline + in EXE).
+  const local = readLocal();
+  if (local.printers.length > 0) return local;
+
+  // First run — try cloud once and cache locally.
+  if (isCloudConfigured() && getTenantId()) {
+    try {
+      const snap = await getDoc(ref());
+      if (snap.exists()) {
+        const data = snap.data() as PrinterSettingsDoc;
+        const merged = {
+          printers: data.printers || [],
+          deviceAssignments: data.deviceAssignments || {},
+        };
+        try { writeLocal(merged); } catch {}
+        return merged;
+      }
+    } catch (e) {
+      console.warn('[printerSettings] cloud load failed, using local', e);
+    }
+  }
+  return local;
+}
+
+export async function savePrinterSettings(data: PrinterSettingsDoc) {
+  // ALWAYS persist locally so it survives restart even offline.
+  writeLocal(data);
+
+  // Offline build: printer settings stay on this device.
+  if (isCloudConfigured() && getTenantId()) {
+    try {
+      await setDoc(ref(), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
+    } catch (e) {
+      console.warn('[printerSettings] cloud save failed (local saved OK)', e);
+    }
+  }
+}
+
+export function subscribePrinterSettings(
+  handler: (data: PrinterSettingsDoc) => void,
+): Unsub {
+  // Emit initial local snapshot immediately.
+  handler(readLocal());
+
+  const onLocalChange = () => handler(readLocal());
+  window.addEventListener('dtpos-printer-settings-changed', onLocalChange);
+  window.addEventListener('storage', (e) => {
+    if (e.key === LOCAL_KEY) onLocalChange();
+  });
+
+  let cloudUnsub: Unsubscribe | null = null;
+  if (isCloudConfigured() && getTenantId()) {
+    try {
+      cloudUnsub = onSnapshot(ref(), (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data() as PrinterSettingsDoc;
+        const merged = {
+          printers: data.printers || [],
+          deviceAssignments: data.deviceAssignments || {},
+        };
+        try { writeLocal(merged); } catch {}
+        handler(merged);
+      }, (err) => { console.warn('[printerSettings] snapshot error', err); });
+    } catch (e) {
+      console.warn('[printerSettings] subscribe failed', e);
+    }
+  }
+
+  return () => {
+    window.removeEventListener('dtpos-printer-settings-changed', onLocalChange);
+    if (cloudUnsub) try { cloudUnsub(); } catch {}
+  };
+}
+
+export function defaultPrinterConfig(): PrinterConfig {
+  return {
+    id: `prn_${Date.now().toString(36)}`,
+    name: 'New Printer',
+    connection: 'system',
+    printerName: '',
+    lanHost: '',
+    lanPort: 9100,
+    role: 'counter',
+    paperSize: '80mm',
+    leftMarginMm: 3,
+    rightMarginMm: 10,
+    topFeedMm: 0,
+    bottomFeedMm: 0,
+    autoCut: true,
+    beep: false,
+    copies: 1,
+    escposMode: false,
+    browserBackup: true,
+    enabled: true,
+    fallbackMode: 'html',
+  };
+}
+
+/** Pick the best printer for a given role using device override -> first enabled match. */
+export function resolvePrinterForRole(
+  settings: PrinterSettingsDoc,
+  role: CloudPrintRole,
+  deviceId?: string,
+): PrinterConfig | undefined {
+  const printers = settings.printers.filter((p) => p.enabled);
+  if (deviceId) {
+    const override = settings.deviceAssignments?.[deviceId]?.[role];
+    if (override) {
+      const found = printers.find((p) => p.id === override);
+      if (found) return found;
+    }
+  }
+  return printers.find((p) => p.role === role) || printers.find((p) => p.role === 'counter');
+}
+
+// ===== Local "Print Server" toggle (device-level) =====
+// Only the device(s) with this flag will claim & print cloud jobs.
+const PRINT_SERVER_KEY = 'dtpos-print-server-enabled';
+const PRINT_SERVER_DEFAULTED_KEY = 'dtpos-print-server-defaulted';
+
+export function isPrintServerEnabled(): boolean {
+  try {
+    // Phase-1: default ON on Electron (recommended silent-print mode).
+    // Only auto-enable the first time, so the user can toggle it explicitly afterwards.
+    const isElectronEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
+    if (isElectronEnv && !localStorage.getItem(PRINT_SERVER_DEFAULTED_KEY)) {
+      localStorage.setItem(PRINT_SERVER_KEY, '1');
+      localStorage.setItem(PRINT_SERVER_DEFAULTED_KEY, '1');
+    }
+    return localStorage.getItem(PRINT_SERVER_KEY) === '1';
+  } catch { return false; }
+}
+export function setPrintServerEnabled(on: boolean) {
+  try {
+    if (on) localStorage.setItem(PRINT_SERVER_KEY, '1');
+    else localStorage.removeItem(PRINT_SERVER_KEY);
+    localStorage.setItem(PRINT_SERVER_DEFAULTED_KEY, '1');
+    window.dispatchEvent(new CustomEvent('dtpos-print-server-changed'));
+  } catch {}
+}
+
+/** Clear all locally-saved printer configuration (device-level).
+ *  Use this when Windows drivers get re-installed or old duplicate
+ *  printer entries need to be wiped. */
+export function resetLocalPrinterConfig() {
+  try {
+    localStorage.removeItem(LOCAL_KEY);
+    try { window.dispatchEvent(new CustomEvent('dtpos-printer-settings-changed')); } catch {}
+  } catch {}
+}
