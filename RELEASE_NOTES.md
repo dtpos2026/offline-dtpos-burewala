@@ -1,5 +1,35 @@
 # DT POS Enterprise — Release Notes
 
+## v1.3.1 — The margin repair now survives, and the cut stops eating text
+
+### The 10 mm right margin came back because the repair never saved
+
+v1.2.1 added a repair that equalises lopsided printer margins on load. It ran,
+it marked itself done — and it never wrote the corrected values back. The very
+next read saw the "already repaired" flag, skipped the repair, and handed out
+the original 3 mm / 10 mm values again. The fix held for exactly one read and
+then undid itself, which is why the wide right band was still on the paper.
+
+Reproduced as a failing test first (`expected 10 to be 3`), then fixed: the
+corrected list is written to storage **before** the flag is set. If the write
+fails the flag stays clear and the repair is retried on the next load, which is
+the safe direction to fail in.
+
+### The raw slip was being cut through its own last lines
+
+The cutter sits 15-25 mm past the print head, so the paper must advance at
+least that far before the blade closes. The feed was counted in **line feeds**,
+whose height depends on the current line spacing — and Paper Save sets
+`ESC 3 20`, shrinking each feed line from 24 dots to 20, while compact mode also
+asked for fewer lines. Three lines at 20 dots is 7.5 mm of clearance against a
+20 mm gap, so the blade came down on text that had only just printed.
+
+Now the builder restores the default line spacing, feeds an exact distance with
+`ESC d`, and never drops below six lines (about 18 mm). Paper Save saves paper
+in the body of the slip; the clearance the blade needs is physical and is no
+longer traded away for it. Compact line spacing also relaxes from 20 to 22
+dots, which measured cramped on a 203 DPI head.
+
 ## v1.3.0 — Fast Billing Mode: one switch for every slip
 
 Shops split on this. Some want their logo and their chosen receipt design on

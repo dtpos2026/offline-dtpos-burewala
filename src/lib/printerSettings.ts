@@ -236,8 +236,39 @@ export function repairLegacyMargins(printers: PrinterConfig[]): PrinterConfig[] 
     return { ...p, leftMarginMm: side, rightMarginMm: side };
   });
 
-  markRepairDone();
-  return changed ? out : printers;
+  if (!changed) {
+    // Nothing to write, but the pass is done: record it so an intentional
+    // asymmetric calibration made later is never re-centred.
+    markRepairDone();
+    return printers;
+  }
+
+  // ===== PERSIST BEFORE MARKING DONE =====
+  // This is the defect that let the wide right margin survive the fix and
+  // reach the client's paper a second time. The repair ran on read, marked
+  // itself done, and returned the corrected list IN MEMORY without ever
+  // writing it back. The very next read saw the flag, skipped the repair and
+  // handed out the original lopsided values again — so the fix held for one
+  // read and then undid itself.
+  //
+  // The flag is only set once the corrected values are actually on disk. If
+  // the write fails the flag stays clear and the repair is retried next time,
+  // which is the safe direction to fail in.
+  try {
+    const raw = localStorage.getItem(LOCAL_KEY);
+    const existing = raw ? JSON.parse(raw) : {};
+    localStorage.setItem(LOCAL_KEY, JSON.stringify({
+      ...existing,
+      printers: out,
+      updatedAt: new Date().toISOString(),
+    }));
+    markRepairDone();
+    try { window.dispatchEvent(new CustomEvent('dtpos-printer-settings-changed')); } catch { /* no window in tests */ }
+  } catch (e) {
+    console.warn('[printerSettings] margin repair could not be persisted; it will run again', e);
+  }
+
+  return out;
 }
 
 /** Force one printer's side margins equal, for the Printer Settings action. */

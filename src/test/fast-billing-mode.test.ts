@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { resolvePrintMode, wantsRaw, wantsDriverOnly } from '@/printing/printMode';
-import { EscposDoc, buildShiftReportBytes, columnsFor } from '@/printing/escposBuilder';
+import { EscposDoc, buildShiftReportBytes, buildReceiptBytes, columnsFor } from '@/printing/escposBuilder';
 
 const read = (p: string) => readFileSync(resolve(__dirname, '..', p), 'utf8');
 
@@ -139,5 +139,59 @@ describe('enlarged text wraps on word boundaries', () => {
     d.size(2, 2);
     d.size(1, 1);
     expect(d.effectiveCols).toBe(columnsFor('80mm'));
+  });
+});
+
+describe('the cut never lands on the last printed line', () => {
+  // Reported: the raw slip "cuts before some text". The cutter sits 15-25mm
+  // past the print head, and the feed was counted in LINE FEEDS whose height
+  // depends on the current line spacing. Paper Save set ESC 3 20, shrinking
+  // each feed line from 24 dots to 20, and compact also asked for fewer
+  // lines — three lines at 20 dots is 7.5mm of clearance against a 20mm gap.
+  const findAll = (bytes: number[], a: number, b: number) => {
+    const hits: number[] = [];
+    for (let i = 0; i < bytes.length - 2; i++) if (bytes[i] === a && bytes[i + 1] === b) hits.push(i);
+    return hits;
+  };
+
+  it('feeds an exact distance with ESC d rather than bare line feeds', () => {
+    const d = new EscposDoc('80mm');
+    d.line('LAST LINE');
+    d.cut();
+    const bytes = d.bytes();
+    const escD = findAll(bytes, 0x1b, 0x64);
+    expect(escD.length, 'no ESC d feed before the cut').toBeGreaterThan(0);
+    expect(bytes[escD[escD.length - 1] + 2]).toBeGreaterThanOrEqual(6);
+  });
+
+  it('restores the default line spacing before feeding', () => {
+    // Otherwise the feed distance depends on whatever the slip left set.
+    const d = new EscposDoc('80mm');
+    d.lineSpacing(20);
+    d.line('COMPACT BODY');
+    d.cut();
+    const bytes = d.bytes();
+    const esc2 = findAll(bytes, 0x1b, 0x32); // ESC 2 — default spacing
+    const cutAt = findAll(bytes, 0x1d, 0x56)[0];
+    expect(esc2.length, 'default spacing never restored').toBeGreaterThan(0);
+    expect(esc2[esc2.length - 1]).toBeLessThan(cutAt);
+  });
+
+  it('does not shorten the clearance in Paper Save mode', () => {
+    // Compact saves paper in the body; the blade's distance is physical.
+    const normal = buildReceiptBytes(
+      { orderNumber: 1, items: [{ id: 'a', name: 'Item', quantity: 1, price: 100, lineTotal: 100 }], grandTotal: 100, subtotal: 100 } as any,
+      { name: 'SHOP', paperSize: '80mm' } as any,
+    );
+    const compact = buildReceiptBytes(
+      { orderNumber: 1, items: [{ id: 'a', name: 'Item', quantity: 1, price: 100, lineTotal: 100 }], grandTotal: 100, subtotal: 100 } as any,
+      { name: 'SHOP', paperSize: '80mm', receiptCompactMode: true } as any,
+    );
+    const feedOf = (bytes: number[]) => {
+      const hits = findAll(bytes, 0x1b, 0x64);
+      return bytes[hits[hits.length - 1] + 2];
+    };
+    expect(feedOf(compact)).toBe(feedOf(normal));
+    expect(feedOf(compact)).toBeGreaterThanOrEqual(6);
   });
 });

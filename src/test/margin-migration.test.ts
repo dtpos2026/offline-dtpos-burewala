@@ -109,3 +109,43 @@ describe('equalise action', () => {
     expect(next.contentWidthMm).toBe(68);
   });
 });
+
+describe('the repair must survive the read that follows it', () => {
+  // This is the defect that let the wide right margin reach the client's
+  // paper a SECOND time, after it had supposedly been fixed. The repair ran
+  // on read, marked itself done, and returned the corrected list in memory
+  // without writing it back. The very next read saw the flag, skipped the
+  // repair, and handed out the original lopsided values again — so the fix
+  // held for exactly one read and then undid itself.
+  //
+  // Reproduced before the fix as: "expected 10 to be 3".
+  beforeEach(() => localStorage.clear());
+
+  const seed = async (left: number, right: number) => {
+    const { defaultPrinterConfig } = await import('@/lib/printerSettings');
+    localStorage.setItem('dtpos-printer-settings-v1', JSON.stringify({
+      printers: [{ ...defaultPrinterConfig(), leftMarginMm: left, rightMarginMm: right }],
+      deviceAssignments: {},
+    }));
+  };
+
+  it('stays repaired across repeated reads', async () => {
+    const { loadPrinterSettings } = await import('@/lib/printerSettings');
+    await seed(3, 10);
+
+    for (let read = 1; read <= 3; read++) {
+      const s = await loadPrinterSettings();
+      expect(s.printers[0].leftMarginMm, `read ${read} left`).toBe(3);
+      expect(s.printers[0].rightMarginMm, `read ${read} right`).toBe(3);
+    }
+  });
+
+  it('writes the corrected values to storage, not just to memory', async () => {
+    const { loadPrinterSettings } = await import('@/lib/printerSettings');
+    await seed(3, 10);
+    await loadPrinterSettings();
+
+    const onDisk = JSON.parse(localStorage.getItem('dtpos-printer-settings-v1') || '{}');
+    expect(onDisk.printers[0].rightMarginMm, 'storage still holds the old value').toBe(3);
+  });
+});

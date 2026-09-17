@@ -37,6 +37,15 @@ export interface EscposDocOptions {
   font?: 'A' | 'B';
 }
 
+/**
+ * Minimum line feeds between the last printed line and the cut.
+ *
+ * Six 24-dot lines is 144 dots, about 18mm, which clears the cutter on the
+ * models in the field. This is a floor, not a default: a caller asking for
+ * fewer is asking for the blade to cut through its own last line.
+ */
+const MIN_CUT_FEED_LINES = 6;
+
 const encoder = new TextEncoder();
 
 /** Fold characters the thermal codepage cannot show into safe ASCII. */
@@ -191,10 +200,34 @@ export class EscposDoc {
 
   feed(n = 1) { for (let i = 0; i < n; i++) this.buf.push(LF); return this; }
 
-  /** Feed clear of the cutter, then full cut. */
-  cut(feedLines = 4) {
+  /**
+   * Feed clear of the cutter, then full cut.
+   *
+   * ===== WHY THIS IS NOT JUST A FEW LINE FEEDS =====
+   * The cutter sits 15-25mm PAST the print head on most thermal printers, so
+   * the paper has to advance at least that far or the blade comes down on
+   * text that has only just been printed. Two things made that worse here:
+   *
+   *   1. The feed was counted in LINE FEEDS, whose height depends on the
+   *      CURRENT line spacing. Paper Save sets `ESC 3 20`, so each feed line
+   *      shrank from 24 dots to 20 — and compact also asked for fewer lines.
+   *      Three lines at 20 dots is 7.5mm of clearance against a cutter 20mm
+   *      away, which is exactly the "it cuts before the last text" report.
+   *   2. Nothing restored the default spacing first, so the distance varied
+   *      with whatever the slip happened to leave set.
+   *
+   * So: restore the default spacing, then feed an EXACT number of lines with
+   * `ESC d`, then cut. The distance is physical and does not shrink because
+   * the user wants to save paper — compact mode saves paper in the body, not
+   * in the clearance the blade needs.
+   */
+  cut(feedLines = MIN_CUT_FEED_LINES) {
     this.left().size(1, 1).bold(false);
-    this.feed(feedLines);
+    // Back to 24-dot lines so the feed below is a known physical distance.
+    this.defaultLineSpacing();
+    const lines = Math.max(MIN_CUT_FEED_LINES, Math.min(12, Math.round(feedLines) || MIN_CUT_FEED_LINES));
+    // ESC d n — feed exactly n lines, independent of buffered content.
+    this.raw(ESC, 0x64, lines);
     return this.raw(GS, 0x56, 0x00);
   }
 
@@ -244,9 +277,10 @@ export function buildReceiptBytes(order: Order, settings: RestaurantSettings): n
   const sym = s.currencySymbol || 'Rs ';
   const d = new EscposDoc(paperOf(s), docOptionsOf(s));
   // Paper Save on the raw path: tighter line spacing is where the paper is
-  // actually saved. 24 dots is the printer default; 20 is noticeably denser
-  // and still legible on a 203 DPI head.
-  if (compact) d.lineSpacing(20);
+  // actually saved. 24 dots is the printer default. 20 measured cramped on a
+  // 203 DPI head, so 22 is the floor — still a visible saving over a long
+  // bill without the lines closing up on each other.
+  if (compact) d.lineSpacing(22);
 
   d.center();
   if (s.name) { d.size(2, 2).bold(true).fit(s.name).size(1, 1).bold(false); }
@@ -296,7 +330,9 @@ export function buildReceiptBytes(order: Order, settings: RestaurantSettings): n
   if (!compact && (s.visitAgainText || '') !== '') d.line(s.visitAgainText || 'Please Visit Again');
   if (!compact && s.receiptFooter) d.wrap(s.receiptFooter);
   if (!compact && s.marketingFooter) d.wrap(s.marketingFooter);
-  d.cut(compact ? 3 : 4);
+  // Compact saves paper in the BODY. The clearance the blade needs is
+  // physical and identical in both modes, so it is not reduced here.
+  d.cut();
   return d.bytes();
 }
 
@@ -348,7 +384,7 @@ export function buildKotBytes(order: Order, settings: RestaurantSettings, opts: 
   d.center();
   if (s.kotFooterNote !== '') d.line(s.kotFooterNote || 'Please check the order before preparing');
   if (s.kotThankYouText !== '') d.line(s.kotThankYouText || '- Thank You -');
-  d.cut(4);
+  d.cut();
   return d.bytes();
 }
 
@@ -384,7 +420,7 @@ export function buildTokenBytes(data: TokenData, settings: RestaurantSettings): 
   d.size(3, 3).bold(true).line(String(data.orderNumber)).size(1, 1).bold(false);
   d.line('TOKEN NUMBER');
   d.line('Hand over to the tandoor counter');
-  d.cut(4);
+  d.cut();
   return d.bytes();
 }
 
@@ -484,6 +520,6 @@ export function buildShiftReportBytes(data: any, settings: RestaurantSettings): 
   const tot = data?.totals || {};
   d.bold(true).lr('TOTAL', `${tot.catQty || 0}  ${m(tot.catAmt)}`).bold(false);
   d.center().line(`Printed ${when()}`);
-  d.cut(4);
+  d.cut();
   return d.bytes();
 }

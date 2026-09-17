@@ -112,7 +112,7 @@ export function buildAlignmentTestBytes(opts: AlignmentTestOptions): number[] {
   d.bold(true);
   for (const line of alignmentTestLines(opts)) d.line(line);
   d.bold(false);
-  d.cut(4);
+  d.cut();
   return d.bytes();
 }
 

@@ -208,7 +208,7 @@ export async function directTestPrint(settings: RestaurantSettings, slip: Direct
   d.rule();
   d.center().line('If this slip printed and cut,');
   d.line('direct printing is working.');
-  d.cut(4);
+  d.cut();
   const target = resolveTarget(slip, settings as any);
   return send(d.bytes(), target, 1);
 }
