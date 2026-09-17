@@ -1,20 +1,19 @@
 // ============================================================
 // PRINTER NAME MATCHING — shared, robust, testable.
 //
-// Client bug (v1.0.39b): "BIXOLON SRP-352plusIII (Copy 1)" Windows me
-// mojood tha lekin software kehta tha "detect nahi ho raha", aur print ki
-// koshish hi nahi karta tha.
+// Reported fault: "BIXOLON SRP-352plusIII (Copy 1)" was installed in Windows
+// but the app reported it as "not detected" and never even attempted a print.
 //
-// Windows par naam match na hone ki asal wajahen:
+// Why a name fails to match exactly on Windows:
 //   • "(Copy 1)" / "(Copy 2)"      — duplicate driver install
 //   • "(redirected 2)"             — RDP / session printers
 //   • double spaces, non-breaking space (\u00A0), trailing space
-//   • `name` aur `displayName` ka farq
-//   • printer rename ho jaye aur settings me purana naam reh jaye
+//   • `name` vs `displayName`
+//   • the printer was renamed after the setting was saved
 //
-// Yeh module wohi 6-marhala logic rakhta hai jo electron/main.cjs me hai,
-// taake renderer (Settings/Diagnostics) bhi wahi faisla kare aur ghalat
-// "not detected" warning na dikhaye.
+// This module holds the same six-stage logic as electron/main.cjs, so the
+// renderer (Settings / Diagnostics) reaches the same verdict as the print
+// path and cannot show a spurious "not detected" warning.
 // ============================================================
 
 export interface SystemPrinterLike {
@@ -22,7 +21,7 @@ export interface SystemPrinterLike {
   displayName?: string;
 }
 
-/** Spaces normalize + lowercase. */
+/** Collapse whitespace and lowercase. */
 export function normalizePrinterName(s: string | undefined | null): string {
   return String(s ?? '')
     .replace(/\u00A0/g, ' ')
@@ -31,7 +30,7 @@ export function normalizePrinterName(s: string | undefined | null): string {
     .toLowerCase();
 }
 
-/** "(Copy 1)" / "(redirected 2)" jaise suffix hata deta hai. */
+/** Strip a trailing "(Copy 1)" / "(redirected 2)" suffix. */
 export function stripPrinterSuffix(s: string | undefined | null): string {
   return normalizePrinterName(s)
     .replace(/\s*\((?:copy|redirected)\s*\d*\)\s*$/i, '')
@@ -43,14 +42,14 @@ export type PrinterMatchStage =
 
 export interface PrinterMatchResult {
   printer: SystemPrinterLike | null;
-  /** Windows ka asal naam (print ke liye yehi bhejna hai). */
+  /** The real Windows device name — this is what a print job must be sent to. */
   name: string;
   stage: PrinterMatchStage;
 }
 
 /**
- * Requested naam ko installed printers me dhoondo — sakht se narm tak.
- * Pehla marhala jo match kare wohi jeetta hai (sab se zyada bharosemand).
+ * Look the requested name up among the installed printers, strictest match
+ * first. The first stage that matches wins, because it is the most reliable.
  */
 export function matchPrinter(
   requested: string | undefined | null,
@@ -69,7 +68,7 @@ export function matchPrinter(
     ['no-suffix', p => stripPrinterSuffix(p.name) === reqS || stripPrinterSuffix(p.displayName) === reqS],
     ['starts-with', p => !!reqS && (normalizePrinterName(p.name).startsWith(reqS) || normalizePrinterName(p.displayName).startsWith(reqS))],
     ['contains', p => reqS.length >= 4 && (normalizePrinterName(p.name).includes(reqS) || normalizePrinterName(p.displayName).includes(reqS))],
-    // Ulta: settings me chhota naam ho aur Windows ka naam lamba
+    // Reverse: the saved name is shorter than the Windows device name.
     ['reverse', p => {
       if (reqS.length < 4) return false;
       const n = normalizePrinterName(p.name);
@@ -85,7 +84,7 @@ export function matchPrinter(
   return { printer: null, name: '', stage: 'none' };
 }
 
-/** Kya yeh printer Windows me mojood hai (narm matching ke sath)? */
+/** Is this printer present in Windows (using the tolerant matching above)? */
 export function isPrinterInstalled(
   requested: string | undefined | null,
   printers: SystemPrinterLike[] | undefined | null,

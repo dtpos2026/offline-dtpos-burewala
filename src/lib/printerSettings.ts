@@ -24,7 +24,17 @@ export interface PrinterConfig {
   lanHost?: string;             // e.g. 192.168.1.50
   lanPort?: number;             // default 9100
   role: CloudPrintRole;         // counter | kitchen | delivery | display
-  paperSize: '58mm' | '80mm';
+  paperSize: '58mm' | '80mm' | '110mm';
+  /**
+   * How this printer is driven.
+   *  - 'auto'   : rendered template as one RAW ESC/POS job, falling back to
+   *               the Windows driver. Keeps the chosen receipt design.
+   *  - 'raw'    : text ESC/POS built straight from the order — the fastest
+   *               path (no Chromium render at all), but it prints a plain
+   *               text slip, not the designed template.
+   *  - 'driver' : Windows driver render only; skips the raw attempt.
+   */
+  printMode?: 'auto' | 'raw' | 'driver';
   printWidthMm?: number;        // optional override
   leftMarginMm: number;
   rightMarginMm: number;
@@ -214,6 +224,7 @@ export function defaultPrinterConfig(): PrinterConfig {
     lanPort: 9100,
     role: 'counter',
     paperSize: '80mm',
+    printMode: 'auto',
     // ===== EQUAL BY DEFAULT =====
     // These shipped as left 3mm / right 10mm — a built-in 7mm asymmetry on
     // every printer anyone added. ReceiptPreview feeds them straight into the

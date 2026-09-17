@@ -15,7 +15,7 @@ interface ElectronPrintArgs {
 }
 
 export async function electronPrintReceipt(args: ElectronPrintArgs = {}): Promise<{ success: boolean; error?: string }> {
-  // Device-bound licence guard (cached ~60s, fast billing par asar nahi).
+  // Device-bound licence guard (cached ~60s, so fast billing is unaffected).
   const guard = await ensurePrintAllowedFast();
   if (!guard.allowed) return { success: false, error: guard.message || 'License blocked' };
 

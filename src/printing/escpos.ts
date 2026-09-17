@@ -33,10 +33,10 @@ export function htmlToPlainText(html: string): string {
     .replace(/<\/tr>/gi, '\n')
     .replace(/<\/(td|th)>/gi, '  ')
     .replace(/<(tr|td|th)[^>]*>/gi, '')
-    // FIX v1.0.38 (client: "online KOT me qty print nahi hoti"): closing
-    // </span> ko space se separate karo. KOT me item-name aur qty alag
-    // <span> hote hain bina separator ke — flatten hone par "Biryani3"
-    // ban jata tha (qty naam se chipak jati thi). Ab "Biryani  3".
+    // Reported fault: the quantity did not print on the KOT. A closing
+    // </span> needs a separator: the item name and the quantity sit in
+    // adjacent spans with nothing between them, so flattening produced
+    // "Biryani3" — the quantity ran into the name. Now "Biryani  3".
     .replace(/<\/span>/gi, '  ')
     // line-level blocks
     .replace(/<br\s*\/?>(\s*)/gi, '\n')

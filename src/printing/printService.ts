@@ -82,9 +82,9 @@ export async function printNode(portalEl: HTMLElement, opts: PrintNodeOpts = {})
 
   const paperWidth = opts.paperWidth || '80mm';
 
-  // ===== FAST PATH (v1.0.41) =====
-  // Slip ka HTML chhupi hui print window print karti hai: POS ki apni window
-  // print mode me nahi jati, is liye na screen rukti hai na intezar hota hai.
+  // ===== FAST PATH =====
+  // A hidden print window prints the slip's HTML, so the POS's own window
+  // never enters print mode: the screen does not freeze and nothing waits.
   const wantsFast = opts.preferElectron !== false && (opts.silent ?? true) && !opts.lan?.host;
   if (wantsFast && isFastPrintAvailable()) {
     const guard = await ensurePrintAllowedFast();

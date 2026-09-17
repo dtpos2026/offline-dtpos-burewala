@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { Printer, Plus, Trash2, Save, RefreshCw, Server, TestTube, AlertTriangle, Eraser } from 'lucide-react';
 import { toast } from 'sonner';
+import { PAPER_PROFILE_LIST, paperProfileOf } from '@/printing/paperProfile';
 import {
   loadPrinterSettings,
   savePrinterSettings,
@@ -545,17 +546,43 @@ export default function PrinterSettingsPanel() {
                 )}
 
                 <div>
-                  <Label>Paper Size</Label>
+                  <Label>Paper Profile</Label>
                   <Select
                     value={p.paperSize}
-                    onValueChange={(v) => updatePrinter(idx, { paperSize: v as '58mm' | '80mm' })}
+                    onValueChange={(v) => updatePrinter(idx, { paperSize: v as '58mm' | '80mm' | '110mm' })}
                   >
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="58mm">58 mm</SelectItem>
-                      <SelectItem value="80mm">80 mm</SelectItem>
+                      {PAPER_PROFILE_LIST.map((prof) => (
+                        <SelectItem key={prof.id} value={prof.id}>{prof.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {paperProfileOf(p.paperSize).printableMm} mm printable ·{' '}
+                    {paperProfileOf(p.paperSize).dots} dots ·{' '}
+                    {paperProfileOf(p.paperSize).charsFontA} characters per line
+                  </p>
+                </div>
+                <div>
+                  <Label>Print Mode</Label>
+                  <Select
+                    value={p.printMode || 'auto'}
+                    onValueChange={(v) => updatePrinter(idx, { printMode: v as any })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Automatic (rendered template, sent as RAW)</SelectItem>
+                      <SelectItem value="raw">Raw ESC/POS (fastest — plain text slip)</SelectItem>
+                      <SelectItem value="driver">Windows driver only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    <b>Raw ESC/POS</b> skips the render step entirely, so it is the
+                    fastest path — but it prints a plain text slip rather than the
+                    designed template. <b>Automatic</b> keeps the template and still
+                    sends one RAW job with no dialog.
+                  </p>
                 </div>
                 <div>
                   <Label>Copies</Label>

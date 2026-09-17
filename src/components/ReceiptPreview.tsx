@@ -7,6 +7,7 @@ import { Printer } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { isElectron, printReceiptNative } from '@/lib/electron';
 import { fastPrintHtml, isFastPrintAvailable } from '@/printing/fastPrint';
+import { printDirect, prewarmDirectPrint } from '@/printing/directPrint';
 import { beginThermalPrintDomSession, getEffectiveReceiptMargins, getThermalPaperWidthMicrons, getThermalPrintJobHeightMm, shouldUsePrinterDefaultPageSize, waitForThermalPrintLayout } from '@/lib/thermal-print';
 import { StandardInfoGrid, StandardInfoRows, getOrderTypeLabel } from '@/lib/standardOrderInfo';
 import PremiumReceipt from '@/components/PremiumReceipt';
@@ -160,8 +161,16 @@ function resolveCounterPrinterCached(): Promise<any> {
   return _counterCfgPromise;
 }
 
-/** Prewarm — POS ke chalte hi background me load, taake pehla bill bhi fast ho. */
-export function prewarmReceiptPrinting() { void resolveCounterPrinterCached(); }
+/**
+ * Prewarm — loaded in the background as soon as the POS starts, so the very
+ * first bill is as fast as the rest. Warms both the counter printer config
+ * and the direct (raw ESC/POS) printer cache; without the latter the first
+ * raw job pays for a settings read at click time.
+ */
+export function prewarmReceiptPrinting() {
+  void resolveCounterPrinterCached();
+  try { prewarmDirectPrint(); } catch { /* prewarming must never break a print */ }
+}
 
 export default function ReceiptPreview({ order, settings, showPrintButton = true, autoPrint = false, onAutoPrintComplete, printerOverride }: Props) {
   const autoPrintTriggeredRef = useRef(false);
@@ -176,22 +185,56 @@ export default function ReceiptPreview({ order, settings, showPrintButton = true
 
   const handlePrint = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
     const measureEl = printReceiptRef.current || previewReceiptRef.current;
-    // ===== FIX (footer agle page pe girna): printer cfg + padding vars ko
-    // apply BEFORE measurement. Previously padding was applied AFTER measurement
-    // lagta tha → asal content page se lamba → aakhri line page-2 pe =
-    // beech me taqreeban-KHALI slip. =====
+    // Resolve the printer config and apply the padding variables BEFORE the
+    // content is measured. Applying them afterwards made the measured height
+    // shorter than the real content, so the last line spilled onto a second
+    // page and the slip came out almost blank.
     let counterCfg: any = undefined;
     try {
-      // Modules aur printer config pehle hi cache ho chuke hote hain, is liye
-      // click ke waqt koi import/disk intezar nahi — print foran nikalta hai.
+      // The modules and the printer config are already cached, so the click
+      // itself waits on no import or disk read and the print starts at once.
       counterCfg = await resolveCounterPrinterCached();
     } catch {}
 
-    // ===== FAST PATH (v1.0.41) =====
-    // Bill ka HTML chhupi hui print window ko de kar foran wapas — POS screen
-    // print mode me nahi jati, is liye click ke saath hi agla bill shuru ho
-    // sakta hai. Fail ho to neeche purana (window) raasta chalta hai.
-    if (isElectron() && settings.silentPrint && isFastPrintAvailable()
+    // ===== PRINT PATH ORDER: RAW -> rendered RAW -> driver -> error =====
+    // Never hard-fail before the whole chain has run. Each step logs which
+    // path it took, so a support call can tell from the log whether the slip
+    // went out raw, rendered or through the driver.
+    const printMode: string = counterCfg?.printMode || 'auto';
+
+    // Text ESC/POS: no Chromium render at all, so this is the fastest path to
+    // paper. Opt-in per printer, because it prints a plain text slip rather
+    // than the designed template. Urdu/Arabic content is rejected by
+    // printDirect itself (a thermal code page cannot shape it) and falls
+    // through to the rendered path below, which uses the bundled fonts.
+    if (printMode === 'raw' && isElectron() && settings.silentPrint
+        && !(counterCfg?.connection === 'lan' && counterCfg?.lanHost)) {
+      try {
+        const direct = await printDirect({
+          slip: 'receipt',
+          order,
+          settings,
+          copies: counterCfg?.copies || 1,
+          printerOverride:
+            printerOverride ||
+            ((counterCfg && (counterCfg.connection || 'system') === 'system' && counterCfg.printerName) || undefined),
+          billNumber: String(order.orderNumber ?? ''),
+        });
+        if (direct.success) {
+          console.info('[DT-Print] receipt path=raw-escpos', { printer: direct.printerName, ms: direct.durationMs });
+          return { success: true };
+        }
+        console.warn('[DT-Print] raw ESC/POS unavailable, falling back to the rendered path:', direct.error);
+      } catch (e: any) {
+        console.warn('[DT-Print] raw ESC/POS threw, falling back to the rendered path:', e?.message || e);
+      }
+    }
+
+    // ===== RENDERED FAST PATH =====
+    // The slip's HTML goes to a hidden print window, so the POS screen never
+    // enters print mode and the next bill can be started immediately. If this
+    // fails the older window path below runs.
+    if (printMode !== 'driver' && isElectron() && settings.silentPrint && isFastPrintAvailable()
         && !(counterCfg?.connection === 'lan' && counterCfg?.lanHost)) {
       const fastRoot = (printReceiptRef.current || measureEl) as HTMLElement | null;
       applyPrinterMarginVars(fastRoot, counterCfg, margins);
