@@ -1508,6 +1508,112 @@ ipcMain.handle('test-lan-printer', async (_event, options = {}) => {
 
 // ===== Printer Diagnostics IPC =====
 // Generic TCP ping for any host:port (used to verify network printer reachability)
+// ============================================================
+// LAN PRINTER DISCOVERY
+//
+// Network thermal printers listen on TCP 9100 (the "RAW"/JetDirect port).
+// There is no broadcast protocol they all agree on, so the reliable way to
+// find one is to probe that port across the machine's own subnet — which is
+// exactly what a printer setup wizard does.
+//
+// Deliberately narrow and honest about it:
+//   • Only /24 subnets are scanned. Anything larger is thousands of probes,
+//     and a restaurant counter is never on one.
+//   • Only the interfaces this machine actually has, never a guessed range.
+//   • Short timeout, capped concurrency: the scan must not saturate the
+//     network the POS is also using to take orders.
+//   • A host that merely ACCEPTS a connection on 9100 is REPORTED, not
+//     assumed to be a printer. Nothing is auto-configured; the user still
+//     chooses. Claiming certainty we do not have would be worse than a
+//     manual IP box.
+// ============================================================
+function localIpv4Subnets() {
+  const out = [];
+  try {
+    for (const list of Object.values(os.networkInterfaces())) {
+      for (const i of list || []) {
+        if (i.family !== 'IPv4' || i.internal) continue;
+        // Only /24 — see above.
+        if (String(i.netmask) !== '255.255.255.0') continue;
+        const parts = String(i.address).split('.');
+        if (parts.length !== 4) continue;
+        out.push({ base: `${parts[0]}.${parts[1]}.${parts[2]}`, self: i.address });
+      }
+    }
+  } catch { /* no interfaces we can read */ }
+  return out;
+}
+
+/** Probe one host:port. Resolves true only on a completed connection. */
+function probePort(host, port, timeout) {
+  return new Promise((resolve) => {
+    const sock = new net.Socket();
+    let settled = false;
+    const done = (ok) => {
+      if (settled) return;
+      settled = true;
+      try { sock.destroy(); } catch {}
+      resolve(ok);
+    };
+    sock.setTimeout(timeout);
+    sock.once('timeout', () => done(false));
+    sock.once('error', () => done(false));
+    sock.connect(port, host, () => done(true));
+  });
+}
+
+ipcMain.handle('scan-lan-printers', async (_event, options = {}) => {
+  const port = Number(options.port) || 9100;
+  const timeout = Math.max(150, Math.min(2000, Number(options.timeout) || 400));
+  const concurrency = Math.max(8, Math.min(128, Number(options.concurrency) || 64));
+  const started = Date.now();
+
+  const subnets = localIpv4Subnets();
+  if (!subnets.length) {
+    return { success: false, error: 'No IPv4 network with a /24 subnet was found on this machine.', printers: [] };
+  }
+
+  const targets = [];
+  for (const { base, self } of subnets) {
+    for (let n = 1; n <= 254; n++) {
+      const ip = `${base}.${n}`;
+      if (ip !== self) targets.push(ip);
+    }
+  }
+
+  const found = [];
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < targets.length) {
+      const ip = targets[cursor++];
+      if (await probePort(ip, port, timeout)) found.push(ip);
+    }
+  };
+  await Promise.all(Array.from({ length: concurrency }, worker));
+
+  found.sort((a, b) => {
+    const pa = a.split('.').map(Number);
+    const pb = b.split('.').map(Number);
+    for (let i = 0; i < 4; i++) if (pa[i] !== pb[i]) return pa[i] - pb[i];
+    return 0;
+  });
+
+  try {
+    appendLog('INFO', 'DT-Print lan scan',
+      `subnets=${subnets.map(s => s.base + '.0/24').join(',')} port=${port} ` +
+      `found=${found.length} in ${Date.now() - started}ms`);
+  } catch {}
+
+  return {
+    success: true,
+    port,
+    scanned: targets.length,
+    durationMs: Date.now() - started,
+    subnets: subnets.map(s => `${s.base}.0/24`),
+    printers: found.map(host => ({ host, port })),
+  };
+});
+
 ipcMain.handle('ping-host', async (_event, options = {}) => {
   const host = options.host;
   const port = Number(options.port) || 9100;

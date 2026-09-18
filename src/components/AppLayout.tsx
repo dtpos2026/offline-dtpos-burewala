@@ -26,6 +26,7 @@ import HeaderNotificationBar from '@/components/HeaderNotificationBar';
 import BillingStatusBar from '@/components/BillingStatusBar';
 import UpdateAvailableBanner from '@/components/UpdateAvailableBanner';
 import { toast } from 'sonner';
+import { prefetchHeavyRoutes } from '@/lib/routePrefetch';
 
 const NAV_I18N: Record<string, string> = {
   'reports': 'reports', 'reports-center': 'reports', 'settings': 'settings',
@@ -103,6 +104,12 @@ function Sidebar({
     window.addEventListener('pos-plan-changed', h);
     return () => window.removeEventListener('pos-plan-changed', h);
   }, []);
+
+  // Warm the heavy lazy chunks while the machine is idle. Recharts alone is
+  // ~375 KB, and parsing it on first navigation is what froze the screen for
+  // two to three seconds when moving between WhatsApp, Customers and CRM.
+  // See src/lib/routePrefetch.ts — it changes no UI, data or behaviour.
+  useEffect(() => { prefetchHeavyRoutes(); }, []);
 
   const visiblePages = visiblePagesForUser(user, !!settings.costTrackingEnabled);
 

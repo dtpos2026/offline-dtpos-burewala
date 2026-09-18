@@ -9,6 +9,7 @@ import { isElectron, printReceiptNative } from '@/lib/electron';
 import { fastPrintHtml, isFastPrintAvailable } from '@/printing/fastPrint';
 import { printDirect, prewarmDirectPrint } from '@/printing/directPrint';
 import { resolvePrintMode } from '@/printing/printMode';
+import { resolveSlipMargin } from '@/lib/slipMargins';
 import { beginThermalPrintDomSession, getEffectiveReceiptMargins, getThermalPaperWidthMicrons, getThermalPrintJobHeightMm, shouldUsePrinterDefaultPageSize, waitForThermalPrintLayout } from '@/lib/thermal-print';
 import { StandardInfoGrid, StandardInfoRows, getOrderTypeLabel } from '@/lib/standardOrderInfo';
 import PremiumReceipt from '@/components/PremiumReceipt';
@@ -259,8 +260,8 @@ export default function ReceiptPreview({ order, settings, showPrintButton = true
         // Geometry: a printer-specific calibration wins over the device's
         // Left/Right margin settings, exactly as on the window path. These
         // are applied ONCE, inside fastPrintHtml.
-        marginLeftMm: counterCfg?.leftMarginMm ?? margins.left,
-        marginRightMm: counterCfg?.rightMarginMm ?? margins.right,
+        marginLeftMm: resolveSlipMargin('receipt', counterCfg?.leftMarginMm, counterCfg?.rightMarginMm, margins.left, margins.right).left,
+        marginRightMm: resolveSlipMargin('receipt', counterCfg?.leftMarginMm, counterCfg?.rightMarginMm, margins.left, margins.right).right,
         contentWidthMm: counterCfg?.printWidthMm,
         preferDriver: printMode === 'driver',
       });

@@ -10,6 +10,7 @@ import { getMenuItems } from '@/lib/store';
 import { printNode } from '@/printing';
 import { printDirect } from '@/printing/directPrint';
 import { resolvePrintMode } from '@/printing/printMode';
+import { resolveSlipMargin } from '@/lib/slipMargins';
 import { loadPrinterSettings, resolvePrinterForRole } from '@/lib/printerSettings';
 import { getDeviceId } from '@/lib/tenant';
 import { appendTokenEntry } from '@/lib/tokenLedger';
@@ -120,8 +121,8 @@ export default function TokenReceipt({ order, settings, autoPrint = false, onAut
           compactFontSize: (settings as any).receiptCompactFontSize,
           compactLineHeight: (settings as any).receiptCompactLineHeight,
           autoCut: settings.autoCut !== false,
-          marginLeftMm: tokenCfg?.leftMarginMm,
-          marginRightMm: tokenCfg?.rightMarginMm,
+          marginLeftMm: resolveSlipMargin('token', tokenCfg?.leftMarginMm, tokenCfg?.rightMarginMm).left,
+          marginRightMm: resolveSlipMargin('token', tokenCfg?.leftMarginMm, tokenCfg?.rightMarginMm).right,
           contentWidthMm: tokenCfg?.printWidthMm,
         });
         if (res.success) {

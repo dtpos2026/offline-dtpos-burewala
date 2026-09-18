@@ -57,6 +57,8 @@ export default function PrinterSettingsPanel() {
   const [printerPorts, setPrinterPorts] = useState<Record<string, { port?: string; driver?: string }>>({});
   const [serverOn, setServerOn] = useState(isPrintServerEnabled());
   const [saving, setSaving] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanFound, setScanFound] = useState<Array<{ host: string; port: number }>>([]);
   const [pending, setPending] = useState<CloudPrintJob[]>([]);
   const [detecting, setDetecting] = useState(false);
 
@@ -135,6 +137,56 @@ export default function PrinterSettingsPanel() {
 
   function addPrinter() {
     setSettings((s) => ({ ...s, printers: [...s.printers, defaultPrinterConfig()] }));
+  }
+
+  /**
+   * Probe TCP 9100 across this machine's own subnet to find network printers.
+   *
+   * Nothing is configured automatically: a host answering on 9100 is very
+   * likely a thermal printer, but "very likely" is not "is". The scan reports
+   * what it found and the user adds the one they recognise, which is both
+   * honest and faster than typing an IP.
+   */
+  async function scanLan() {
+    const api: any = (window as any).electronAPI;
+    if (!api?.scanLanPrinters) {
+      toast.error('Network scanning is available in the desktop app.');
+      return;
+    }
+    setScanning(true);
+    setScanFound([]);
+    try {
+      const res = await api.scanLanPrinters({ port: 9100 });
+      if (!res?.success) {
+        toast.error(res?.error || 'Network scan failed.');
+        return;
+      }
+      setScanFound(res.printers || []);
+      if (!res.printers?.length) {
+        toast.info(`No printer answered on port 9100 across ${(res.subnets || []).join(', ')}. Check that the printer is powered on and on this network.`);
+      } else {
+        toast.success(`Found ${res.printers.length} device(s) answering on port 9100.`);
+      }
+    } catch (e: any) {
+      toast.error(`Network scan failed: ${e?.message || String(e)}`);
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  /** Add a discovered host as a LAN printer, ready to assign a role. */
+  function addDiscovered(host: string, port: number) {
+    const cfg = {
+      ...defaultPrinterConfig(),
+      name: `Network printer ${host}`,
+      connection: 'lan' as const,
+      lanHost: host,
+      lanPort: port,
+      escposMode: true,
+    };
+    setSettings((s) => ({ ...s, printers: [...s.printers, cfg] }));
+    setScanFound(prev => prev.filter(p => p.host !== host));
+    toast.success(`${host} added. Choose its role below, then Save.`);
   }
 
   function updatePrinter(idx: number, patch: Partial<PrinterConfig>) {
@@ -368,6 +420,10 @@ export default function PrinterSettingsPanel() {
             <Button size="sm" variant="outline" onClick={resetLocal}>
               <Eraser className="h-4 w-4 mr-1 text-destructive" /> Reset Local
             </Button>
+            <Button size="sm" variant="outline" onClick={scanLan} disabled={scanning}>
+              <Server className={`h-4 w-4 mr-1 ${scanning ? 'animate-pulse' : ''}`} />
+              {scanning ? 'Scanning…' : 'Find Network Printers'}
+            </Button>
             <Button size="sm" onClick={addPrinter}>
               <Plus className="h-4 w-4 mr-1" /> Add Printer
             </Button>
@@ -376,6 +432,23 @@ export default function PrinterSettingsPanel() {
             </Button>
           </div>
         </div>
+
+        {scanFound.length > 0 && (
+          <div className="rounded-md border border-status-info/40 bg-status-info/5 p-3 space-y-2">
+            <p className="text-sm font-medium">Devices answering on port 9100</p>
+            <p className="text-xs text-muted-foreground">
+              These are almost certainly network printers, but the scan cannot be
+              certain. Add the one you recognise and send it a test print.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {scanFound.map(f => (
+                <Button key={f.host} size="sm" variant="outline" onClick={() => addDiscovered(f.host, f.port)}>
+                  <Plus className="h-3 w-3 mr-1" /> {f.host}:{f.port}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {settings.printers.length === 0 && (
           <p className="text-sm text-muted-foreground py-6 text-center">

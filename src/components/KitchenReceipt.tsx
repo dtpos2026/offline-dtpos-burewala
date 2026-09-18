@@ -7,6 +7,7 @@ import { isElectron, printReceiptNative } from '@/lib/electron';
 import { fastPrintHtml, isFastPrintAvailable } from '@/printing/fastPrint';
 import { printDirect } from '@/printing/directPrint';
 import { resolvePrintMode } from '@/printing/printMode';
+import { resolveSlipMargin } from '@/lib/slipMargins';
 import { beginThermalPrintDomSession, getEffectiveReceiptMargins, getThermalPaperWidthMicrons, getThermalPrintJobHeightMm, shouldUsePrinterDefaultPageSize, waitForThermalPrintLayout } from '@/lib/thermal-print';
 import { StandardInfoGrid, StandardInfoRows, getOrderTypeLabel } from '@/lib/standardOrderInfo';
 
@@ -200,8 +201,11 @@ export default function KitchenReceipt({ order: rawOrder, settings, showPrintBut
         autoCut: settings.autoCut !== false,
         // Same geometry rules as the customer receipt: kitchen printer
         // calibration first, otherwise the device's Left/Right margins.
-        marginLeftMm: hoistedKitchenCfg?.leftMarginMm ?? margins.left,
-        marginRightMm: hoistedKitchenCfg?.rightMarginMm ?? margins.right,
+        // Per-slip margin, then the printer's calibration, then the device
+        // default. A KOT is torn off and spiked, so its right edge often needs
+        // a different margin from the bill's.
+        marginLeftMm: resolveSlipMargin('kot', hoistedKitchenCfg?.leftMarginMm, hoistedKitchenCfg?.rightMarginMm, margins.left, margins.right).left,
+        marginRightMm: resolveSlipMargin('kot', hoistedKitchenCfg?.leftMarginMm, hoistedKitchenCfg?.rightMarginMm, margins.left, margins.right).right,
         contentWidthMm: hoistedKitchenCfg?.printWidthMm,
         // Driver mode keeps the hidden worker; only the raster is skipped.
         preferDriver: kotPrintMode === 'driver',

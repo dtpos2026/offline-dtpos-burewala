@@ -1747,7 +1747,12 @@ export default function POSScreen() {
                 </div>
               )}
               <div className="p-2.5">
-                <p className="text-xs font-bold text-foreground truncate leading-tight" style={itemFontStyle}>{item.name}</p>
+                {/* Item name: one step larger and heavier than before. A cashier
+                    scans this grid at arm's length under counter lighting, so
+                    readability matters more than density here. A shop that has
+                    chosen its own menu font in Settings still wins — that path
+                    sets its own size and weight through itemFontStyle. */}
+                <p className="text-sm font-extrabold text-foreground truncate leading-snug" style={itemFontStyle}>{item.name}</p>
                 {item.categoryId === DEALS_CATEGORY_ID && (() => {
                   const deal = getDeals().find(d => d.id === item.id);
                   if (!deal || !deal.items?.length) return null;
@@ -1757,17 +1762,27 @@ export default function POSScreen() {
                     </p>
                   );
                 })()}
-                <div className="flex items-center justify-between mt-2">
+                {/* Price badge. The price used to be bare text sitting directly
+                    under the name, so at a glance the two ran together. A
+                    tinted, bordered chip separates them without redesigning
+                    the card or changing any layout around it. */}
+                <div className="flex items-center justify-between mt-2 gap-1">
                   {hasVar && isFinite(minVarPrice) ? (
-                    <span className="text-xs font-extrabold text-primary">From Rs.{minVarPrice.toLocaleString()}</span>
+                    <span className="text-xs font-extrabold text-primary bg-primary/10 border border-primary/25 rounded-md px-1.5 py-0.5 whitespace-nowrap">
+                      From Rs.{minVarPrice.toLocaleString()}
+                    </span>
                   ) : item.pricingType === 'fixed' ? (
-                    <span className="text-sm font-extrabold text-primary">Rs.{item.price.toLocaleString()}</span>
+                    <span className="text-sm font-extrabold text-primary bg-primary/10 border border-primary/25 rounded-md px-1.5 py-0.5 whitespace-nowrap">
+                      Rs.{item.price.toLocaleString()}
+                    </span>
                   ) : item.pricingType === 'weight' ? (
-                    <span className="text-xs font-bold text-status-teal flex items-center gap-0.5">
+                    <span className="text-xs font-bold text-status-teal bg-status-teal/10 border border-status-teal/25 rounded-md px-1.5 py-0.5 flex items-center gap-0.5 whitespace-nowrap">
                       <Weight className="h-3 w-3" /> {item.ratePerKg.toLocaleString()}/kg
                     </span>
                   ) : (
-                    <span className="text-xs font-bold text-status-warning">Manual</span>
+                    <span className="text-xs font-bold text-status-warning bg-status-warning/10 border border-status-warning/25 rounded-md px-1.5 py-0.5 whitespace-nowrap">
+                      Manual
+                    </span>
                   )}
                   <div className="bg-primary/10 text-primary rounded-full p-1 group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-200">
                     <Plus className="h-3.5 w-3.5" />

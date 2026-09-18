@@ -10,6 +10,7 @@
 import { printNode } from '@/printing';
 import { loadPrinterSettings, resolvePrinterForRole } from '@/lib/printerSettings';
 import { resolvePrintMode } from '@/printing/printMode';
+import { resolveSlipMargin } from '@/lib/slipMargins';
 import { getDeviceId } from '@/lib/tenant';
 import { appendTokenEntry, getTokenSummary, todayKey } from '@/lib/tokenLedger';
 
@@ -154,28 +155,40 @@ function departmentStubHtml(
   stub: NonNullable<TokenSlipData['departments']>[number],
   fs: number,
 ): string {
-  const cut = `<div style="border-top:2px dashed #000;margin:3px 0;text-align:center;font-size:${fs - 4}px;letter-spacing:2px">\u2702 CUT HERE</div>`;
+  const cut = `<div style="border-top:2px dashed #000;margin:4px 0 2px;text-align:center;font-size:${fs - 4}px;font-weight:700;letter-spacing:2px">\u2702 CUT HERE</div>`;
   // Per-piece stubs carry "3 of 6" so a counter can see at a glance that
   // none of the set is missing.
   const counter = stub.index && stub.ofTotal && stub.ofTotal > 1
-    ? `<span style="font-size:${fs - 3}px;font-weight:700">${stub.index} of ${stub.ofTotal}</span>`
+    ? `<span style="font-size:${fs - 2}px;font-weight:800">${stub.index} of ${stub.ofTotal}</span>`
     : '';
   // Department summary stubs have no item name; item and piece stubs lead
   // with the item and keep the department as the smaller line.
   const headline = stub.itemName || stub.departmentName;
   const sub = stub.itemName ? stub.departmentName : '';
 
+  // ===== TYPOGRAPHY =====
+  // A customer holds this stub in one hand, often folded, sometimes in poor
+  // light, and needs the item and the quantity at a glance. So:
+  //   • the same condensed monospace family the receipts use, which keeps the
+  //     stub visually part of the same system rather than a stray slip
+  //   • the item name at the largest size on the stub, weight 900
+  //   • the quantity in a ruled box — a boxed number is found instantly, a
+  //     bare one has to be read for
+  //   • the Order/Token line bold and letter-spaced, because those digits are
+  //     what a counter calls out
+  // Nothing about WHAT is printed changes; only how it reads.
+  const face = "'Lucida Console','Consolas','Courier New',monospace";
   return `${cut}
-    <div style="padding:1px 0 3px">
-      <div style="display:flex;justify-content:space-between;font-size:${fs - 3}px;font-weight:700">
+    <div style="padding:2px 0 4px;font-family:${face};font-weight:700;color:#000">
+      <div style="display:flex;justify-content:space-between;font-size:${fs - 2}px;font-weight:800;letter-spacing:0.3px">
         <span>Order #${esc(d.billNumber ?? d.orderNumber)}</span><span>Token #${esc(d.orderNumber)}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:1px">
-        <span style="font-size:${fs + 2}px;font-weight:900;letter-spacing:0.5px;line-height:1.1">${esc(headline).toUpperCase()}</span>
-        <span style="font-size:${fs + 5}px;font-weight:900;white-space:nowrap">QTY ${stub.qty}</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:2px">
+        <span style="font-size:${fs + 4}px;font-weight:900;letter-spacing:0.5px;line-height:1.12">${esc(headline).toUpperCase()}</span>
+        <span style="font-size:${fs + 4}px;font-weight:900;white-space:nowrap;border:2px solid #000;border-radius:3px;padding:0 5px;line-height:1.25">${stub.qty}</span>
       </div>
-      ${sub || counter ? `<div style="display:flex;justify-content:space-between;font-size:${fs - 3}px">
-        <span>${esc(sub)}</span>${counter}
+      ${sub || counter ? `<div style="display:flex;justify-content:space-between;font-size:${fs - 2}px;font-weight:700;margin-top:1px">
+        <span>${esc(sub).toUpperCase()}</span>${counter}
       </div>` : ''}
     </div>`;
 }
@@ -354,8 +367,8 @@ export async function printTokenDirect(
       compact: !!settingsAny?.receiptCompactMode,
       compactFontSize: settingsAny?.receiptCompactFontSize,
       compactLineHeight: settingsAny?.receiptCompactLineHeight,
-      marginLeftMm: tokenCfg?.leftMarginMm,
-      marginRightMm: tokenCfg?.rightMarginMm,
+      marginLeftMm: resolveSlipMargin('token', tokenCfg?.leftMarginMm, tokenCfg?.rightMarginMm).left,
+      marginRightMm: resolveSlipMargin('token', tokenCfg?.leftMarginMm, tokenCfg?.rightMarginMm).right,
       contentWidthMm: tokenCfg?.printWidthMm,
       logType: 'other',
     });

@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // No HTML, no preview, no dialog: fastest and most reliable path.
   printRaw: (options) => ipcRenderer.invoke('print-raw', options),
   testLanPrinter: (options) => ipcRenderer.invoke('test-lan-printer', options),
+  // Probe TCP 9100 across this machine's own /24 subnets to find network
+  // thermal printers. Reports what answered; configures nothing by itself.
+  scanLanPrinters: (options) => ipcRenderer.invoke('scan-lan-printers', options),
   pingHost: (options) => ipcRenderer.invoke('ping-host', options),
   spoolerStatus: () => ipcRenderer.invoke('printer-spooler-status'),
   restartSpooler: () => ipcRenderer.invoke('printer-restart-spooler'),

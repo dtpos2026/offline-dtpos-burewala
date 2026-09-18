@@ -13,6 +13,7 @@ import type { Order } from '@/lib/types';
 import { printNode } from '@/printing';
 import { loadPrinterSettings, resolvePrinterForRole } from '@/lib/printerSettings';
 import { wantsRaw } from '@/printing/printMode';
+import { resolveSlipMargin } from '@/lib/slipMargins';
 import { getDeviceId } from '@/lib/tenant';
 
 export interface ShiftReportRange {
@@ -266,7 +267,9 @@ export async function printShiftReport(range: ShiftReportRange): Promise<{ succe
       compact: !!settings.receiptCompactMode,
       compactFontSize: settings.receiptCompactFontSize,
       compactLineHeight: settings.receiptCompactLineHeight,
-      marginLeftMm, marginRightMm, contentWidthMm,
+      marginLeftMm: resolveSlipMargin('report', marginLeftMm, marginRightMm).left,
+      marginRightMm: resolveSlipMargin('report', marginLeftMm, marginRightMm).right,
+      contentWidthMm,
       logType: 'other',
     });
   } catch (e: any) {
