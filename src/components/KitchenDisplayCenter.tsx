@@ -36,6 +36,16 @@ interface Props {
   kitchen: string;
 }
 
+/**
+ * What to put on the second screen.
+ *
+ * Two genuinely different audiences: the KITCHEN board is dense and is read
+ * by cooks who act on it, while the CUSTOMER display answers one question for
+ * someone standing at the counter. A shop may want either, and with two
+ * external screens it may want both.
+ */
+type Content = 'kitchen' | 'customer';
+
 function api(): any {
   return (window as any).electronAPI;
 }
@@ -45,6 +55,7 @@ export default function KitchenDisplayCenter({ kitchen }: Props) {
   const [selected, setSelected] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  const [content, setContent] = useState<Content>('kitchen');
   const desktop = !!api()?.listDisplays;
 
   const refresh = useCallback(async () => {
@@ -78,17 +89,20 @@ export default function KitchenDisplayCenter({ kitchen }: Props) {
     if (busy) return;
     setBusy(true);
     try {
-      const url = `${window.location.origin}${window.location.pathname}#/kds-tv?kitchen=${encodeURIComponent(kitchen)}`;
+      const url = content === 'customer'
+        ? `${window.location.origin}${window.location.pathname}#/customer-display`
+        : `${window.location.origin}${window.location.pathname}#/kds-tv?kitchen=${encodeURIComponent(kitchen)}`;
       const res = await api().openKdsWindow({ url, displayId: selected, fullscreen: true });
       if (res?.success) {
         setOpen(true);
         const d = displays.find(x => x.id === res.displayId);
-        toast.success(`Kitchen Display opened on ${d ? d.label : 'the selected screen'}.`);
+        const what = content === 'customer' ? 'Customer Display' : 'Kitchen board';
+        toast.success(`${what} opened on ${d ? d.label : 'the selected screen'}.`);
       } else {
-        toast.error(`Could not open the Kitchen Display: ${res?.error || 'unknown error'}`);
+        toast.error(`Could not open the display: ${res?.error || 'unknown error'}`);
       }
     } catch (e: any) {
-      toast.error(`Could not open the Kitchen Display: ${e?.message || String(e)}`);
+      toast.error(`Could not open the display: ${e?.message || String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -121,12 +135,14 @@ export default function KitchenDisplayCenter({ kitchen }: Props) {
             </p>
           </div>
         </div>
-        <Button
-          size="sm"
-          onClick={() => window.open(`#/kds-tv?kitchen=${encodeURIComponent(kitchen)}`, '_blank')}
-        >
-          <Tv className="h-4 w-4 mr-1" /> Open TV Mode
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={() => window.open(`#/kds-tv?kitchen=${encodeURIComponent(kitchen)}`, '_blank')}>
+            <Tv className="h-4 w-4 mr-1" /> Kitchen board
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => window.open('#/customer-display', '_blank')}>
+            <Monitor className="h-4 w-4 mr-1" /> Customer display
+          </Button>
+        </div>
       </Card>
     );
   }
@@ -137,15 +153,40 @@ export default function KitchenDisplayCenter({ kitchen }: Props) {
         <div className="flex items-start gap-3">
           <Tv className="h-5 w-5 mt-0.5 shrink-0" />
           <div>
-            <h3 className="font-semibold">Kitchen Display Center</h3>
+            <h3 className="font-semibold">Display Center</h3>
             <p className="text-xs text-muted-foreground mt-1">
-              Choose the screen the kitchen will watch, then open the display on it.
+              Choose what to show and which screen to show it on.
             </p>
           </div>
         </div>
         <Button size="sm" variant="ghost" onClick={refresh} title="Re-read connected screens">
           <RefreshCw className="h-4 w-4" />
         </Button>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-medium">What should this screen show?</p>
+        <div className="flex gap-2">
+          <Button
+            type="button" size="sm"
+            variant={content === 'kitchen' ? 'default' : 'outline'}
+            onClick={() => setContent('kitchen')}
+          >
+            Kitchen board
+          </Button>
+          <Button
+            type="button" size="sm"
+            variant={content === 'customer' ? 'default' : 'outline'}
+            onClick={() => setContent('customer')}
+          >
+            Customer display
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {content === 'kitchen'
+            ? 'The dense board cooks work from — every active order and its items.'
+            : 'The screen above the counter: preparing, ready to collect, and your banners.'}
+        </p>
       </div>
 
       {displays.length === 0 ? (
@@ -187,7 +228,10 @@ export default function KitchenDisplayCenter({ kitchen }: Props) {
 
       <div className="flex flex-wrap gap-2">
         <Button onClick={launch} disabled={busy || selected === null}>
-          <Tv className="h-4 w-4 mr-1" /> {open ? 'Reopen on this screen' : 'Open Kitchen Display'}
+          <Tv className="h-4 w-4 mr-1" />
+          {open
+            ? 'Reopen on this screen'
+            : content === 'customer' ? 'Open Customer Display' : 'Open Kitchen Board'}
         </Button>
         {open && (
           <Button variant="outline" onClick={close} disabled={busy}>

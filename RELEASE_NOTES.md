@@ -1,5 +1,57 @@
 # DT POS Enterprise — Release Notes
 
+## v1.6.0 — Customer Display: order-ready screen with your own branding
+
+A second kind of screen, for the person standing at the counter rather than
+the cook. They need two answers, readable across a room — is my order being
+made, and is it ready — and something to look at in between.
+
+### The screen
+
+Two columns. **PREPARING** in amber with the wait time; **READY** in green,
+the largest type on the display. A newly-ready order flashes and is **spoken
+aloud** with its number, so a customer who looked away for ten seconds does
+not miss it. A ready order then *stays on screen* for a hold period after it
+is collected, because someone who stepped outside comes back and looks up.
+
+### Your own banners and video
+
+Beside the columns is a media panel: images you upload, or a video. Deals,
+offers, brand imagery — this is the one moment the customer is standing still
+and looking up, and a display that is only numbers wastes it.
+
+The panel only appears when banners have actually been added; an empty panel
+is worse than no panel, so without any the order columns take the full width.
+A video plays through to its end before the next item rather than being cut
+off by a timer. Banners live in this device's storage, which is a few
+megabytes in total — the settings screen shows the current size, warns as it
+fills, and reports a storage failure plainly instead of pretending an upload
+worked.
+
+### Announcements
+
+Spoken through the voice installed in Windows. Wording is yours —
+`Order number {n} is ready. Please collect.` by default — with a repeat count
+and a **Test the voice** button. If no speech voice is installed the test says
+so, rather than leaving a shop believing announcements are happening.
+
+An order is announced **once**. Whatever was already ready when the screen
+opened is not news and stays silent. The screen can also be muted at the
+screen itself.
+
+### Choosing what goes on the second screen
+
+The Display Center now asks **what** to show as well as **where**: the dense
+kitchen board cooks work from, or the customer display. With two external
+screens a shop can run both. Everything the screen shows is read-only — the
+display can never change an order; every status comes from the kitchen.
+
+### Verified
+
+335 tests. The announcement rules, the storage limits and the read-only
+guarantee are all covered; the external-screen behaviour needs real hardware
+and is noted as such.
+
 ## v1.5.0 — Kitchen Display Center, per-slip margins, LAN discovery
 
 ### Kitchen Display / TV Mode

@@ -27,6 +27,7 @@ const UsersRolesPage = lazy(() => import("@/pages/UsersRolesPage"));
 const ReceivingPage = lazy(() => import("@/pages/ReceivingPage"));
 const KitchenDisplayPage = lazy(() => import("@/pages/KitchenDisplayPage"));
 const KdsTvPage = lazy(() => import("@/pages/KdsTvPage"));
+const CustomerDisplayPage = lazy(() => import("@/pages/CustomerDisplayPage"));
 const InventoryPage = lazy(() => import("@/pages/InventoryPage"));
 const SuperAdminPage = lazy(() => import("@/pages/SuperAdminPage"));
 const HRPage = lazy(() => import("@/pages/HRPage"));
@@ -564,6 +565,7 @@ const App = () => {
                 <Route path="/rider" element={<OfflineBlocked><RiderAppPage /></OfflineBlocked>} />
                 <Route path="/kitchen" element={<KitchenDisplayPage />} />
                 <Route path="/kds-tv" element={<KdsTvPage />} />
+                <Route path="/customer-display" element={<CustomerDisplayPage />} />
                 <Route path="/whatsapp" element={<WhatsAppPage />} />
                 <Route path="/marketing" element={<MarketingPage />} />
                 <Route path="/customers" element={<CustomersPage />} />
