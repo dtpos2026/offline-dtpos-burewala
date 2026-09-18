@@ -4,6 +4,7 @@ import { Order, RestaurantSettings, CartItem } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Clock, CheckCircle, ChefHat, AlertTriangle, ChefHat as PrepIcon, Bell, Check, Maximize2, Minimize2, Volume2, VolumeX, ThumbsUp, Truck, Tv } from 'lucide-react';
+import KitchenDisplayCenter from '@/components/KitchenDisplayCenter';
 
 function getTimerInfo(createdAt: string, settings: RestaurantSettings) {
   const preparingThreshold = Math.max(1, settings.kitchenPreparingMinutes || 5);
@@ -72,6 +73,7 @@ export default function KitchenDisplayPage() {
   const [activeKitchen, setActiveKitchen] = useState<string>(() => localStorage.getItem(KITCHEN_KEY) || 'all');
   const [soundOn, setSoundOn] = useState<boolean>(() => localStorage.getItem(SOUND_KEY) !== '0');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showDisplayCenter, setShowDisplayCenter] = useState(false);
   const knownOrderIds = useRef<Set<string>>(new Set());
   const isFirstLoad = useRef(true);
 
@@ -190,11 +192,22 @@ export default function KitchenDisplayPage() {
           <Button variant="outline" size="sm" className="h-8" onClick={toggleFullscreen} title="Fullscreen (TV mode)">
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
-          <Button variant="outline" size="sm" className="h-8" onClick={() => window.open('#/kds-tv?kitchen=' + encodeURIComponent(activeKitchen), '_blank')} title="Open TV display in new window">
+          <Button
+            variant={showDisplayCenter ? 'default' : 'outline'}
+            size="sm" className="h-8"
+            onClick={() => setShowDisplayCenter(v => !v)}
+            title="Choose which screen the kitchen watches, then open the display on it"
+          >
             <Tv className="h-4 w-4 mr-1" /> TV Mode
           </Button>
         </div>
       </div>
+
+      {showDisplayCenter && (
+        <div className="mb-4">
+          <KitchenDisplayCenter kitchen={activeKitchen} />
+        </div>
+      )}
 
       <div className="flex items-center gap-3 mb-4">
         <ChefHat className="h-6 w-6 text-primary" />

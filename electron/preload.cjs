@@ -42,6 +42,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Probe TCP 9100 across this machine's own /24 subnets to find network
   // thermal printers. Reports what answered; configures nothing by itself.
   scanLanPrinters: (options) => ipcRenderer.invoke('scan-lan-printers', options),
+
+  // Kitchen Display on an external screen. The OS reports the displays it
+  // has; it does not report which cable each arrived by, so the picker shows
+  // real labels and resolutions rather than a guessed HDMI/VGA badge.
+  listDisplays: () => ipcRenderer.invoke('list-displays'),
+  openKdsWindow: (options) => ipcRenderer.invoke('open-kds-window', options),
+  closeKdsWindow: () => ipcRenderer.invoke('close-kds-window'),
+  isKdsWindowOpen: () => ipcRenderer.invoke('kds-window-open'),
   pingHost: (options) => ipcRenderer.invoke('ping-host', options),
   spoolerStatus: () => ipcRenderer.invoke('printer-spooler-status'),
   restartSpooler: () => ipcRenderer.invoke('printer-restart-spooler'),

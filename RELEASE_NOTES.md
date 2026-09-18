@@ -1,5 +1,78 @@
 # DT POS Enterprise — Release Notes
 
+## v1.5.0 — Kitchen Display Center, per-slip margins, LAN discovery
+
+### Kitchen Display / TV Mode
+
+**TV Mode** now opens a Kitchen Display Center: pick the screen the kitchen
+will watch, then open the display on it as a real second window, positioned
+inside that screen's bounds and made fullscreen.
+
+A note on what the picker shows. Electron reports the displays the operating
+system has — label, resolution, scale, position, which is primary — but it
+does **not** report the cable. Windows exposes no API for "this monitor is on
+HDMI". An HDMI/USB/VGA picker would therefore be a label with nothing behind
+it. So screens are identified by their OS name and resolution instead, and
+every connection appears the same way, because once the OS has a screen it
+*is* the same thing to the application: bounds a window can be placed on.
+Whichever cable it arrived by, the display lands where you point it. With no
+screen chosen, an external one is preferred over the cashier's own monitor.
+
+The kitchen board itself gained a **Recently Finished** strip — a short
+ten-minute memory, not a history — where completed orders read green and
+cancelled orders read red with the number struck through, because a
+cancellation has to be noticed within seconds or food keeps being made. New
+orders carry a **NEW** flag that expires on its own, with a one-shot entry
+animation. Movement is deliberately restrained: this screen is watched for
+hours, and anything that moves constantly becomes noise. `prefers-reduced-motion`
+is honoured.
+
+### Print Margin Settlement — one margin per kind of slip
+
+Separate left/right margins for **Customer Receipt**, **KOT**, **Token** and
+**Reports**, because the slips are cut and handled differently: a KOT is torn
+off and spiked, a bill is handed over, a token goes in a pocket. The KOT's
+right margin can now be nudged for the cutter without touching anything else.
+
+Every field defaults to **inherit**, so an untouched installation prints
+exactly as it did before — the printer's own calibration and then the device
+default still apply. Only a number that is actually typed overrides anything.
+
+### LAN printer discovery
+
+**Find Network Printers** probes TCP 9100 across the machine's own /24
+subnets, with capped concurrency and a short timeout so it cannot swamp the
+network the POS is also using for orders. A host that answers is *reported*,
+never auto-configured: answering on 9100 makes it very likely a printer, and
+"very likely" is not "is". One click adds it as a LAN printer ready to be
+assigned a role.
+
+### Marketing navigation freeze
+
+Moving between WhatsApp, Customers and CRM stalled for two to three seconds.
+Every page is lazy-loaded and the recharts chunk is ~375 KB, so the first CRM
+visit parsed it synchronously on the main thread. Parsing cannot be made
+faster, only moved somewhere nobody is waiting — the heavy chunks are now
+warmed during idle time once the POS has settled. No UI, data or behaviour
+changed; if a prefetch fails the normal lazy import still runs as before.
+
+### Smaller fixes
+
+- **POS menu**: item name one step larger and heavier; price in a tinted,
+  bordered chip so it no longer runs into the name. A shop that chose its own
+  menu font still wins.
+- **Department token**: the same monospace family as the receipts, item name
+  at the largest size on the stub, and the quantity in a ruled box — a boxed
+  number is found at a glance, a bare one has to be read for.
+- **Network error messages** are now in English rather than Roman Urdu.
+
+### Verified
+
+320 tests. Retrieve → View → Print was inspected and left unchanged; it works.
+Routes without a menu entry were audited and every one is deliberate (public
+portals, the KDS window, superadmin). The three margin surfaces are three
+different scopes, not duplicates, so none were merged.
+
 ## v1.4.1 — Counter fixes: Retrieve KOT, CRM freeze, duplicate menu, bolder slips
 
 ### "Reprint KOT from Retrieve does nothing"

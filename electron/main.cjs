@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, screen } = require('electron');
 const https = require('https');
 const http = require('http');
 const os = require('os');
@@ -1417,19 +1417,19 @@ function humanizeNetError(err) {
   switch (code) {
     case 'ETIMEDOUT':
     case 'ERR_SOCKET_TIMEOUT':
-      return 'Printer se connect nahi hua (timeout). Check: printer ON hai? LAN cable connected? Laptop aur printer same network par? IP sahi hai?';
+      return 'Could not connect to the printer (timed out). Check that the printer is switched on, the network cable is connected, the computer and printer are on the same network, and the IP address is correct.';
     case 'ECONNREFUSED':
-      return 'Printer ne connection refuse kiya. Port galat ho sakta hai (9100 default). Ya doosri app printer use kar rahi hai.';
+      return 'The printer refused the connection. The port may be wrong (9100 is the usual one), or another application is already using the printer.';
     case 'EHOSTUNREACH':
-      return 'Printer reachable nahi (different subnet). Laptop aur printer ka IP same range me hona chahiye (e.g. dono 192.168.1.x).';
+      return 'The printer is on a different subnet. The computer and the printer need IP addresses in the same range — for example both 192.168.1.x.';
     case 'ENETUNREACH':
-      return 'Network reachable nahi. LAN cable check karein ya router restart karein.';
+      return 'The network is unreachable. Check the network cable, or restart the router.';
     case 'EHOSTDOWN':
-      return 'Printer OFF hai ya reboot ho raha hai.';
+      return 'The printer is switched off or restarting.';
     case 'ENOTFOUND':
-      return 'Printer IP nahi mila. Printer ki self-test print nikaal ke naya IP dekhein.';
+      return 'The printer IP address could not be found. Run the printer self-test print to read its current IP.';
     case 'ECONNRESET':
-      return 'Printer ne connection tod diya. Printer power cycle karein (OFF → 10 sec wait → ON).';
+      return 'The printer dropped the connection. Power cycle it: switch off, wait ten seconds, switch on.';
     default:
       return msg || 'Unknown network error';
   }
@@ -1508,6 +1508,138 @@ ipcMain.handle('test-lan-printer', async (_event, options = {}) => {
 
 // ===== Printer Diagnostics IPC =====
 // Generic TCP ping for any host:port (used to verify network printer reachability)
+// ============================================================
+// KITCHEN DISPLAY — external screens
+//
+// What this can and cannot know
+// -----------------------------
+// Electron reports the displays the OPERATING SYSTEM has: id, label, size,
+// scale and position. It does NOT report the cable. Windows does not expose
+// "this monitor is on HDMI" through any API Electron surfaces, so inventing
+// an HDMI/USB/VGA picker would be a label with nothing behind it — it would
+// look informative and be a guess.
+//
+// So the picker shows what is real and sufficient: each display's OS label,
+// its resolution, and which one is primary. A kitchen TV on HDMI, a second
+// monitor on VGA and a USB display adapter all appear the same way, because
+// once the OS has them they ARE the same thing to the application — a screen
+// with bounds you can put a window on. Whichever cable it arrived by, the
+// window lands on it.
+//
+// The KDS window is a real second window, positioned inside the chosen
+// display's bounds and then made fullscreen, which is how the OS puts it on
+// that physical screen.
+// ============================================================
+let kdsWindow = null;
+
+/** Serialise one Electron Display for the renderer's picker. */
+function describeDisplay(d, primaryId) {
+  const w = d.size?.width ?? d.bounds?.width ?? 0;
+  const h = d.size?.height ?? d.bounds?.height ?? 0;
+  return {
+    id: d.id,
+    // `label` is the OS's own monitor name where it has one. It is often
+    // blank on Windows, so a readable fallback is built from the resolution.
+    label: (d.label && String(d.label).trim()) || `Display ${w}x${h}`,
+    width: w,
+    height: h,
+    scaleFactor: d.scaleFactor || 1,
+    bounds: d.bounds,
+    primary: d.id === primaryId,
+    internal: !!d.internal,
+    rotation: d.rotation || 0,
+  };
+}
+
+ipcMain.handle('list-displays', async () => {
+  try {
+    const primary = screen.getPrimaryDisplay();
+    const all = screen.getAllDisplays().map(d => describeDisplay(d, primary.id));
+    return { success: true, displays: all, primaryId: primary.id };
+  } catch (e) {
+    return { success: false, error: String((e && e.message) || e), displays: [] };
+  }
+});
+
+ipcMain.handle('open-kds-window', async (_event, options = {}) => {
+  try {
+    const url = String(options.url || '');
+    if (!url) return { success: false, error: 'No Kitchen Display address was given.' };
+
+    const displays = screen.getAllDisplays();
+    const wanted = Number(options.displayId);
+    const target = displays.find(d => d.id === wanted)
+      // Prefer an EXTERNAL screen when nothing was chosen: a kitchen display
+      // on the cashier's own monitor helps nobody.
+      || displays.find(d => !d.internal && d.id !== screen.getPrimaryDisplay().id)
+      || screen.getPrimaryDisplay();
+
+    if (kdsWindow && !kdsWindow.isDestroyed()) {
+      try { kdsWindow.destroy(); } catch {}
+      kdsWindow = null;
+    }
+
+    const b = target.bounds;
+    kdsWindow = new BrowserWindow({
+      // Positioned INSIDE the chosen display's bounds — this is what puts the
+      // window on that physical screen before fullscreen takes over.
+      x: b.x + 40,
+      y: b.y + 40,
+      width: Math.max(800, b.width - 80),
+      height: Math.max(600, b.height - 80),
+      backgroundColor: '#0b1220',
+      autoHideMenuBar: true,
+      title: 'Kitchen Display',
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.cjs'),
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+
+    kdsWindow.on('closed', () => { kdsWindow = null; });
+    await kdsWindow.loadURL(url);
+
+    if (options.fullscreen !== false) {
+      try { kdsWindow.setFullScreen(true); } catch { /* some drivers refuse */ }
+    }
+    kdsWindow.show();
+
+    try {
+      appendLog('INFO', 'KDS display',
+        `opened on display ${target.id} (${b.width}x${b.height} at ${b.x},${b.y}) primary=${target.id === screen.getPrimaryDisplay().id}`);
+    } catch {}
+
+    return {
+      success: true,
+      displayId: target.id,
+      bounds: b,
+      primary: target.id === screen.getPrimaryDisplay().id,
+    };
+  } catch (e) {
+    return { success: false, error: String((e && e.message) || e) };
+  }
+});
+
+ipcMain.handle('close-kds-window', async () => {
+  try {
+    if (kdsWindow && !kdsWindow.isDestroyed()) kdsWindow.destroy();
+    kdsWindow = null;
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: String((e && e.message) || e) };
+  }
+});
+
+ipcMain.handle('kds-window-open', async () => ({
+  success: true,
+  open: !!(kdsWindow && !kdsWindow.isDestroyed()),
+}));
+
+app.on('before-quit', () => {
+  try { if (kdsWindow && !kdsWindow.isDestroyed()) kdsWindow.destroy(); } catch {}
+});
+
 // ============================================================
 // LAN PRINTER DISCOVERY
 //
