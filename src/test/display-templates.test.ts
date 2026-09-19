@@ -21,7 +21,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   CUSTOMER_TEMPLATES, KITCHEN_TEMPLATES, DEVELOPER_CREDIT,
-  templatesFor, templateById, templateVars, pickAutoTemplate, scaledFont,
+  templatesFor, templateById, templateVars, pickAutoTemplate, scaledFont, fitNumberFont,
 } from '@/lib/displayTemplates';
 import { loadKitchenDisplay, resolveKitchenTemplate, kitchenColumns } from '@/lib/kitchenDisplay';
 import { loadDisplayConfig, resolveDisplayTemplate, mediaStyle } from '@/lib/customerDisplay';
@@ -249,5 +249,90 @@ describe('the kitchen ticket is the restaurant\'s too', () => {
     const off = text(buildKotBytes(order, { name: 'FIRST CHEF', kotShowShopName: false } as any));
     expect(off).not.toContain('FIRST CHEF');
     expect(off).toContain('KITCHEN ORDER');
+  });
+});
+
+describe('the layouts from the mockups', () => {
+  const customerPage = read('pages/CustomerDisplayPage.tsx');
+  const kitchenPage = read('pages/KdsTvPage.tsx');
+
+  it('gives the customer screen a NOW SERVING list, not only number tiles', () => {
+    // The mockups are a list: number, what the order is, where it goes, and a
+    // READY badge. A queue is read top to bottom, and a bare tile has nowhere
+    // to put the item name.
+    expect(customerPage).toContain('NOW SERVING');
+    expect(customerPage).toMatch(/function NowServingList/);
+    const listTemplates = CUSTOMER_TEMPLATES.filter(t => t.layout === 'now-serving');
+    expect(listTemplates.length).toBeGreaterThanOrEqual(4);
+    // The default a shop sees first is the mockup layout.
+    expect(CUSTOMER_TEMPLATES[0].layout).toBe('now-serving');
+  });
+
+  it('gives the kitchen board a lane per stage', () => {
+    expect(kitchenPage).toMatch(/status-lanes/);
+    for (const lane of ['NEW', 'PREPARING', 'READY', 'DELIVERY', 'COMPLETED']) {
+      expect(kitchenPage.includes(`'${lane}'`), `no ${lane} lane`).toBe(true);
+    }
+    expect(KITCHEN_TEMPLATES.some(t => t.layout === 'status-lanes')).toBe(true);
+    // The wall grid is kept: a small kitchen with four tickets does not need
+    // five lanes.
+    expect(KITCHEN_TEMPLATES.some(t => t.layout === 'grid')).toBe(true);
+  });
+
+  it('renders one ticket component for both kitchen layouts', () => {
+    // Two copies of that markup is how one layout ends up showing a quantity
+    // or a note the other does not.
+    expect(kitchenPage).toMatch(/function KitchenTicket/);
+    expect((kitchenPage.match(/<KitchenTicket/g) || []).length).toBe(2);
+  });
+});
+
+describe('an order number always fits its tile', () => {
+  it('shrinks as the number gets longer', () => {
+    // The shop photographed "#1105" printed as "#111" with the last digit
+    // sheared off, and another spilling outside its border. The number was
+    // sized from the VIEWPORT while the tile is only as wide as the column
+    // split leaves it.
+    const three = fitNumberFont('#12');
+    const five = fitNumberFont('#1105');
+    const six = fitNumberFont('#11052');
+    const cqw = (css: string) => parseFloat(css.split(',')[1].trim());
+    expect(cqw(five)).toBeLessThan(cqw(three));
+    expect(cqw(six)).toBeLessThan(cqw(five));
+  });
+
+  it('measures against the tile, not the window', () => {
+    // `cqw` only resolves against the tile if the tile declares a container.
+    expect(fitNumberFont('#1105')).toContain('cqw');
+    const page = read('pages/CustomerDisplayPage.tsx');
+    expect(page).toContain("containerType: 'inline-size'");
+  });
+
+  it('keeps a floor and a ceiling so no screen is absurd', () => {
+    const css = fitNumberFont('#9');
+    expect(css.startsWith('clamp(')).toBe(true);
+    const [min, , max] = css.slice(6, -1).split(',').map(s => s.trim());
+    expect(parseFloat(min)).toBeLessThan(parseFloat(max));
+  });
+});
+
+describe('a display window is a display, not a till', () => {
+  it('keeps the print host and the other workers off the display routes', () => {
+    // The shop's TV was running a SECOND copy of the print-queue host. It
+    // took jobs, marked them printing, and printed nothing — the till then
+    // waited on them until the safety timeout, which is the late and stuck
+    // printing reported from the counter.
+    const layout = read('components/AppLayout.tsx');
+    expect(layout).toContain('DISPLAY_SURFACES');
+    expect(layout).toContain('{!isDisplaySurface && <AutoKotPrinter />}');
+    for (const route of ['/customer-display', '/kds-tv']) {
+      expect(layout.includes(`'${route}'`), `${route} is not treated as a display`).toBe(true);
+    }
+  });
+
+  it('has the print host refuse to run in one regardless', () => {
+    const host = read('components/AutoKotPrinter.tsx');
+    expect(host).toContain('isDisplayWindow');
+    expect(host).toMatch(/DISPLAY_ROUTES/);
   });
 });

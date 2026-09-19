@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { getOrders, getSettings, getKitchens, getMenuItems, onDataChange, setOrderKitchenStatus } from '@/lib/store';
 import { Order, RestaurantSettings, CartItem } from '@/lib/types';
-import { Maximize2, Volume2, VolumeX, AlertTriangle, Clock, ChefHat } from 'lucide-react';
+import { Maximize2, Volume2, VolumeX, AlertTriangle, Clock, ChefHat, Bell, Bike, CheckCircle2 } from 'lucide-react';
 import {
   loadKitchenDisplay, resolveKitchenTemplate, kitchenColumns,
   type KitchenDisplayConfig,
@@ -200,6 +200,40 @@ export default function KdsTvPage() {
 
   const warn = settings.kitchenWarningMinutes || 10;
   const prep = settings.kitchenPreparingMinutes || 5;
+  const laneLayout = (template.layout || 'grid') === 'status-lanes';
+
+  // ===== STATUS LANES =====
+  // A lane per stage, which is the layout on the mockups. A cook reads their
+  // own lane instead of scanning the whole wall for the tickets that are
+  // theirs, and an order visibly travels left to right as it is worked.
+  //
+  // COMPLETED is fed from the same short "recently finished" memory the strip
+  // uses, so the board does not slowly fill with work that is done.
+  const lanes = useMemo(() => {
+    const stage = (o: Order) => {
+      const ks = o.kitchenStatus || 'pending';
+      const ds = (o as any).deliveryStatus;
+      if (ds && ds !== 'pending' && ds !== 'accepted') return 'delivery';
+      if (ks === 'ready') return 'ready';
+      if (ks === 'preparing') return 'preparing';
+      if (ks === 'accepted') return 'preparing';
+      return 'new';
+    };
+    const by: Record<string, Array<{ order: Order; items: CartItem[] }>> = {
+      new: [], preparing: [], ready: [], delivery: [], completed: [],
+    };
+    for (const row of visible) by[stage(row.order)].push(row);
+    by.completed = recent.map(o => ({ order: o, items: filterItems(o.items || []) }));
+    return by;
+  }, [visible, recent]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const LANES: Array<{ id: keyof typeof lanes; label: string; colour: string; Icon: typeof ChefHat }> = [
+    { id: 'new', label: 'NEW', colour: 'var(--dt-alert)', Icon: Bell },
+    { id: 'preparing', label: 'PREPARING', colour: 'var(--dt-preparing)', Icon: ChefHat },
+    { id: 'ready', label: 'READY', colour: 'var(--dt-ready)', Icon: CheckCircle2 },
+    { id: 'delivery', label: 'DELIVERY', colour: 'var(--dt-preparing)', Icon: Bike },
+    { id: 'completed', label: 'COMPLETED', colour: 'var(--dt-border)', Icon: CheckCircle2 },
+  ];
 
   const advance = (orderId: string, current: string | undefined) => {
     const next = current === 'pending' || !current ? 'accepted'
@@ -319,121 +353,100 @@ export default function KdsTvPage() {
         ))}
       </div>
 
-      {/* Order grid */}
-      {/* Ticket columns come from the screen's real width, not from breakpoints:
-          a 1366-wide monitor and a 3840-wide TV are both "xl" to Tailwind and
-          are not remotely the same board. */}
-      <div
-        className="p-4 grid gap-3"
-        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-      >
-        {visible.map(({ order, items }) => {
-          const mins = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000);
-          const isDelayed = mins >= warn;
-          const isWarn = mins >= prep && mins < warn;
-          const ks = order.kitchenStatus || 'pending';
-          const customerName = (order as any).customerName || order.customer?.name || (order as any).creditCustomerName;
-          // Status colour comes from the template, so a shop that picks the
-          // Clean board gets its darker, print-legible set and the Colourful
-          // one gets its loud set — same meaning, different palette.
-          const statusClr = isDelayed ? 'var(--dt-alert)'
-            : isWarn ? 'var(--dt-preparing)'
-            : ks === 'ready' ? 'var(--dt-ready)'
-            : ks === 'preparing' ? 'var(--dt-preparing)'
-            : 'var(--dt-border)';
-          const timeClr = isDelayed ? 'var(--dt-alert)' : isWarn ? 'var(--dt-preparing)' : 'var(--dt-ready)';
-          const actionClr = ks === 'pending' ? 'var(--dt-preparing)'
-            : ks === 'accepted' ? 'var(--dt-preparing)'
-            : ks === 'preparing' ? 'var(--dt-ready)'
-            : 'var(--dt-border)';
-          const isNew = freshIds.has(order.id);
-          return (
-            <div
-              key={order.id}
-              className={`border-2 p-3 flex flex-col ${isNew ? 'kds-new' : 'kds-card'} ${isDelayed ? 'kds-late' : ''}`}
-              style={{
-                borderRadius: 'var(--dt-radius)',
-                background: 'var(--dt-surface)',
-                borderColor: statusClr,
-              }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="font-black" style={{ fontSize: scaledFont(1.5, template.numberScale, 0.8) }}>
-                    #{order.orderNumber}
-                  </div>
-                  {isNew && (
-                    <span className="text-[10px] font-black tracking-widest rounded px-1.5 py-0.5 shrink-0"
-                          style={{ background: 'var(--dt-preparing)', color: 'var(--dt-bg)' }}>
-                      NEW
-                    </span>
-                  )}
+      {/* ===== THE BOARD =====
+          Two shapes, one ticket. `status-lanes` is the layout on the mockups:
+          a lane per stage, so a cook reads their own lane rather than
+          scanning the whole wall, and an order visibly travels left to right
+          as it is worked. `grid` is the older wall, kept because a small
+          kitchen with four tickets on screen does not need five lanes.
+
+          Lanes wrap on their own: five fit across a wide TV, and on a
+          narrower screen they fall into two rows — which is the second
+          mockup, reached without a second layout. */}
+      {laneLayout ? (
+        <div
+          className="p-4 grid gap-3 items-start"
+          style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(16rem, 1fr))' }}
+        >
+          {LANES.map(({ id, label, colour, Icon }) => {
+            const rows = lanes[id] || [];
+            const done = id === 'completed';
+            return (
+              <section key={id} className="min-w-0 flex flex-col gap-2">
+                <div
+                  className="flex items-center gap-2 px-3 py-2 font-black tracking-widest"
+                  style={{
+                    borderRadius: 'var(--dt-radius)',
+                    background: colour,
+                    color: 'var(--dt-bg)',
+                    fontSize: scaledFont(0.8, template.typeScale, 0.25),
+                  }}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{label}</span>
+                  <span className="ml-auto tabular-nums">{rows.length}</span>
                 </div>
-                <div className="font-black tabular-nums px-2 py-0.5 rounded"
-                     style={{ color: timeClr, border: `1px solid ${timeClr}`, fontSize: scaledFont(0.875, template.typeScale, 0.25) }}>
-                  {isDelayed ? <AlertTriangle className="h-3.5 w-3.5 inline mr-1" /> : <Clock className="h-3.5 w-3.5 inline mr-1" />}
-                  {mins}m
-                </div>
-              </div>
-              <div className="uppercase tracking-wide mb-2 flex flex-wrap gap-x-2 opacity-60"
-                   style={{ fontSize: scaledFont(0.7, template.typeScale, 0.2) }}>
-                <span>{order.orderType}</span>
-                {order.tableName && <span>· {order.tableName}</span>}
-                {customerName && <span>· {customerName}</span>}
-              </div>
-              <div className="space-y-1 flex-1">
-                {items.map(it => (
-                  <div key={it.id} className="rounded px-2 py-1.5 flex items-center justify-between gap-2"
-                       style={{ background: 'rgba(127,127,127,0.16)' }}>
-                    <div className="min-w-0">
-                      <div className="font-bold truncate" style={{ fontSize: scaledFont(0.875, template.typeScale, 0.3) }}>
-                        {it.name}
-                      </div>
-                      {it.note && (
-                        <div className="italic truncate" style={{ color: 'var(--dt-preparing)', fontSize: scaledFont(0.7, template.typeScale, 0.2) }}>
-                          📝 {it.note}
-                        </div>
-                      )}
-                    </div>
-                    <div className="font-black shrink-0"
-                         style={{ color: 'var(--dt-preparing)', fontSize: scaledFont(1.125, template.numberScale, 0.5) }}>
-                      ×{it.quantity}
-                    </div>
-                  </div>
+                {rows.map(({ order, items }) => (
+                  <KitchenTicket
+                    key={order.id}
+                    order={order}
+                    items={items}
+                    warn={warn}
+                    prep={prep}
+                    isNew={freshIds.has(order.id)}
+                    template={template}
+                    onAdvance={advance}
+                    labelFor={labelFor}
+                    muted={done}
+                  />
                 ))}
+                {rows.length === 0 && (
+                  <div
+                    className="text-center py-6 opacity-25 border border-dashed"
+                    style={{ borderRadius: 'var(--dt-radius)', borderColor: 'var(--dt-border)',
+                             fontSize: scaledFont(0.75, template.typeScale, 0.2) }}
+                  >
+                    Empty
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      ) : (
+        /* Ticket columns come from the screen's real width, not from
+           breakpoints: a 1366-wide monitor and a 3840-wide TV are both "xl"
+           to Tailwind and are not remotely the same board. */
+        <div
+          className="p-4 grid gap-3"
+          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        >
+          {visible.map(({ order, items }) => (
+            <KitchenTicket
+              key={order.id}
+              order={order}
+              items={items}
+              warn={warn}
+              prep={prep}
+              isNew={freshIds.has(order.id)}
+              template={template}
+              onAdvance={advance}
+              labelFor={labelFor}
+            />
+          ))}
+          {visible.length === 0 && (
+            <div className="col-span-full text-center py-32 opacity-40">
+              <ChefHat className="h-20 w-20 mx-auto mb-4" />
+              <div className="font-black" style={{ fontSize: scaledFont(1.5, template.typeScale, 0.7) }}>
+                NO ACTIVE ORDERS
               </div>
-              {order.notes && (
-                <div className="mt-2 italic" style={{ color: 'var(--dt-preparing)', fontSize: scaledFont(0.7, template.typeScale, 0.2) }}>
-                  📝 {order.notes}
-                </div>
-              )}
-              <button
-                onClick={() => advance(order.id, ks)}
-                className="mt-2 w-full py-2 font-black tracking-wider transition hover:opacity-85"
-                style={{
-                  borderRadius: 'var(--dt-radius)',
-                  background: actionClr,
-                  color: 'var(--dt-bg)',
-                  fontSize: scaledFont(0.75, template.typeScale, 0.22),
-                }}
-              >
-                {labelFor(ks)}
-              </button>
+              <div className="mt-2" style={{ fontSize: scaledFont(0.875, template.typeScale, 0.3) }}>
+                Waiting for new orders…
+              </div>
             </div>
-          );
-        })}
-        {visible.length === 0 && (
-          <div className="col-span-full text-center py-32 opacity-40">
-            <ChefHat className="h-20 w-20 mx-auto mb-4" />
-            <div className="font-black" style={{ fontSize: scaledFont(1.5, template.typeScale, 0.7) }}>
-              NO ACTIVE ORDERS
-            </div>
-            <div className="mt-2" style={{ fontSize: scaledFont(0.875, template.typeScale, 0.3) }}>
-              Waiting for new orders…
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* ===== RECENTLY FINISHED =====
           A short memory, pinned to the bottom so it never competes with the
@@ -442,7 +455,7 @@ export default function KdsTvPage() {
           this screen that must be noticed within seconds, because food is
           still being made until someone sees it. Hence the red treatment and
           the strike-through on the number. */}
-      {recent.length > 0 && (
+      {!laneLayout && recent.length > 0 && (
         <div className="sticky bottom-0 backdrop-blur border-t px-4 py-2"
              style={{ background: 'var(--dt-surface)', borderColor: 'var(--dt-border)' }}>
           <div className="flex items-center gap-3 overflow-x-auto">
@@ -474,3 +487,119 @@ export default function KdsTvPage() {
     </div>
   );
 }
+
+/**
+ * One kitchen ticket.
+ *
+ * Extracted so the wall grid and the status lanes render the SAME ticket.
+ * Two copies of this markup is how one layout ends up showing a quantity or
+ * a note that the other does not.
+ */
+function KitchenTicket({
+  order, items, warn, prep, isNew, template, onAdvance, labelFor, muted,
+}: {
+  order: Order;
+  items: CartItem[];
+  warn: number;
+  prep: number;
+  isNew: boolean;
+  template: { typeScale: number; numberScale: number };
+  onAdvance: (id: string, current: string | undefined) => void;
+  labelFor: (s: string | undefined) => string;
+  /** Completed tickets are history: shown, but not actionable. */
+  muted?: boolean;
+}) {
+  const mins = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000);
+  const isDelayed = mins >= warn;
+  const isWarn = mins >= prep && mins < warn;
+  const ks = order.kitchenStatus || 'pending';
+  const customerName = (order as any).customerName || order.customer?.name || (order as any).creditCustomerName;
+  // Status colour comes from the template, so a shop that picks the
+  // Clean board gets its darker, print-legible set and the Colourful
+  // one gets its loud set — same meaning, different palette.
+  const statusClr = isDelayed ? 'var(--dt-alert)'
+    : isWarn ? 'var(--dt-preparing)'
+    : ks === 'ready' ? 'var(--dt-ready)'
+    : ks === 'preparing' ? 'var(--dt-preparing)'
+    : 'var(--dt-border)';
+  const timeClr = isDelayed ? 'var(--dt-alert)' : isWarn ? 'var(--dt-preparing)' : 'var(--dt-ready)';
+  const actionClr = ks === 'pending' ? 'var(--dt-preparing)'
+    : ks === 'accepted' ? 'var(--dt-preparing)'
+    : ks === 'preparing' ? 'var(--dt-ready)'
+    : 'var(--dt-border)';
+  // `isNew` is a prop: the wall and the lanes share one NEW-flag clock.
+  return (
+    <div
+            className={`border-2 p-3 flex flex-col ${isNew ? 'kds-new' : 'kds-card'} ${isDelayed ? 'kds-late' : ''}`}
+      style={{
+        borderRadius: 'var(--dt-radius)',
+        background: 'var(--dt-surface)',
+        borderColor: statusClr,
+      }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="font-black" style={{ fontSize: scaledFont(1.5, template.numberScale, 0.8) }}>
+            #{order.orderNumber}
+          </div>
+          {isNew && (
+            <span className="text-[10px] font-black tracking-widest rounded px-1.5 py-0.5 shrink-0"
+                  style={{ background: 'var(--dt-preparing)', color: 'var(--dt-bg)' }}>
+              NEW
+            </span>
+          )}
+        </div>
+        <div className="font-black tabular-nums px-2 py-0.5 rounded"
+             style={{ color: timeClr, border: `1px solid ${timeClr}`, fontSize: scaledFont(0.875, template.typeScale, 0.25) }}>
+          {isDelayed ? <AlertTriangle className="h-3.5 w-3.5 inline mr-1" /> : <Clock className="h-3.5 w-3.5 inline mr-1" />}
+          {mins}m
+        </div>
+      </div>
+      <div className="uppercase tracking-wide mb-2 flex flex-wrap gap-x-2 opacity-60"
+           style={{ fontSize: scaledFont(0.7, template.typeScale, 0.2) }}>
+        <span>{order.orderType}</span>
+        {order.tableName && <span>· {order.tableName}</span>}
+        {customerName && <span>· {customerName}</span>}
+      </div>
+      <div className="space-y-1 flex-1">
+        {items.map(it => (
+          <div key={it.id} className="rounded px-2 py-1.5 flex items-center justify-between gap-2"
+               style={{ background: 'rgba(127,127,127,0.16)' }}>
+            <div className="min-w-0">
+              <div className="font-bold truncate" style={{ fontSize: scaledFont(0.875, template.typeScale, 0.3) }}>
+                {it.name}
+              </div>
+              {it.note && (
+                <div className="italic truncate" style={{ color: 'var(--dt-preparing)', fontSize: scaledFont(0.7, template.typeScale, 0.2) }}>
+                  📝 {it.note}
+                </div>
+              )}
+            </div>
+            <div className="font-black shrink-0"
+                 style={{ color: 'var(--dt-preparing)', fontSize: scaledFont(1.125, template.numberScale, 0.5) }}>
+              ×{it.quantity}
+            </div>
+          </div>
+        ))}
+      </div>
+      {order.notes && (
+        <div className="mt-2 italic" style={{ color: 'var(--dt-preparing)', fontSize: scaledFont(0.7, template.typeScale, 0.2) }}>
+          📝 {order.notes}
+        </div>
+      )}
+      <button
+        onClick={() => { if (!muted) onAdvance(order.id, ks); }}
+        className="mt-2 w-full py-2 font-black tracking-wider transition hover:opacity-85"
+        style={{
+          borderRadius: 'var(--dt-radius)',
+          background: actionClr,
+          color: 'var(--dt-bg)',
+          fontSize: scaledFont(0.75, template.typeScale, 0.22),
+        }}
+      >
+        {labelFor(ks)}
+      </button>
+    </div>
+  );
+}
+

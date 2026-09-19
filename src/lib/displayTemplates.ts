@@ -84,9 +84,16 @@ export interface DisplayTemplate {
    *                the item name and the table, which a bare number tile
    *                does not.
    *
-   * Ignored by the kitchen board, which is always a ticket grid.
+   * And on the kitchen board:
+   *
+   *  'grid'         every active ticket in one wall, oldest first.
+   *  'status-lanes' a lane per stage — NEW, PREPARING, READY, DELIVERY,
+   *                 COMPLETED — which is the layout on the mockups. A cook
+   *                 reads their own lane instead of scanning the whole wall
+   *                 for the tickets that are theirs, and an order visibly
+   *                 travels left to right as it is worked.
    */
-  layout?: 'columns' | 'now-serving';
+  layout?: 'columns' | 'now-serving' | 'grid' | 'status-lanes';
   /**
    * Which screens this template suits, for automatic mode.
    * `minAspect`/`maxAspect` are width/height; `minWidth` is in CSS pixels.
@@ -278,7 +285,7 @@ export const KITCHEN_TEMPLATES: DisplayTemplate[] = [
       preparing: '#1D4ED8', ready: '#15803D', alert: '#B91C1C',
     },
     radius: 12, typeScale: 1, numberScale: 1, orderRatio: 100,
-    density: 'comfortable', suits: { minAspect: 1.3 },
+    density: 'comfortable', layout: 'grid', suits: { minAspect: 1.3 },
   },
   {
     id: 'modern',
@@ -292,7 +299,7 @@ export const KITCHEN_TEMPLATES: DisplayTemplate[] = [
       preparing: '#3B82F6', ready: '#22C55E', alert: '#EF4444',
     },
     radius: 12, typeScale: 1, numberScale: 1, orderRatio: 100,
-    density: 'comfortable', suits: { minAspect: 1.3 },
+    density: 'comfortable', layout: 'status-lanes', suits: { minAspect: 1.3 },
   },
   {
     id: 'premium',
@@ -306,7 +313,7 @@ export const KITCHEN_TEMPLATES: DisplayTemplate[] = [
       preparing: '#60A5FA', ready: '#4ADE80', alert: '#F87171',
     },
     radius: 18, typeScale: 1, numberScale: 1, orderRatio: 100,
-    density: 'comfortable', suits: { minAspect: 1.3 },
+    density: 'comfortable', layout: 'status-lanes', suits: { minAspect: 1.3 },
   },
   {
     id: 'compact',
@@ -320,7 +327,7 @@ export const KITCHEN_TEMPLATES: DisplayTemplate[] = [
       preparing: '#3B82F6', ready: '#22C55E', alert: '#EF4444',
     },
     radius: 10, typeScale: 0.85, numberScale: 0.85, orderRatio: 100,
-    density: 'compact', suits: { maxAspect: 1.45 },
+    density: 'compact', layout: 'status-lanes', suits: { maxAspect: 1.45 },
   },
   {
     id: 'large-order',
@@ -334,7 +341,7 @@ export const KITCHEN_TEMPLATES: DisplayTemplate[] = [
       preparing: '#60A5FA', ready: '#4ADE80', alert: '#F87171',
     },
     radius: 16, typeScale: 1.25, numberScale: 1.5, orderRatio: 100,
-    density: 'comfortable', suits: { minWidth: 1600 },
+    density: 'comfortable', layout: 'grid', suits: { minWidth: 1600 },
   },
   {
     id: 'colorful',
@@ -348,7 +355,7 @@ export const KITCHEN_TEMPLATES: DisplayTemplate[] = [
       preparing: '#00B4D8', ready: '#06D6A0', alert: '#EF476F',
     },
     radius: 18, typeScale: 1, numberScale: 1.1, orderRatio: 100,
-    density: 'comfortable', suits: { minAspect: 1.3 },
+    density: 'comfortable', layout: 'status-lanes', suits: { minAspect: 1.3 },
   },
   {
     id: 'fast-kitchen',
@@ -362,7 +369,7 @@ export const KITCHEN_TEMPLATES: DisplayTemplate[] = [
       preparing: '#38BDF8', ready: '#4ADE80', alert: '#FB7185',
     },
     radius: 8, typeScale: 0.8, numberScale: 0.9, orderRatio: 100,
-    density: 'compact', suits: { minWidth: 1280 },
+    density: 'compact', layout: 'grid', suits: { minWidth: 1280 },
   },
 ];
 

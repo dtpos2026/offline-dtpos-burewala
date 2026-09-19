@@ -1,5 +1,89 @@
 # DT POS Enterprise — Release Notes
 
+## v1.7.1 — The calibration reaches the paper in every mode
+
+Five faults reported from the counter, and the layouts from the mockups.
+
+### Left 3 / Right 5 now prints the same in Auto/RAW as in Driver mode
+
+The machine needs Left 3 / Right 5 to print a centred slip. In Windows
+Driver Only that worked; in Auto / RAW Fast it did not, and changing the
+numbers did not move the print the way they said.
+
+The margin plumbing was reaching the raster stage correctly. **The raster
+stage was undoing it.** It cropped the capture down to its ink and then resized
+that crop back up to the full content width — which stretches the slip to fill
+whatever room the margins leave, applying them and taking them away in the same
+step. Worse, the crop is measured per bill: a receipt with a long widest line
+and one with a short widest line got different scale factors, so the same shop
+with the same settings got two different widths.
+
+That crop existed to rescue a squeezed slip whose real cause was the capture
+being measured with `scrollWidth`, and that was fixed at the source. It is off
+by default now, and the capture maps one-to-one onto the printable dots.
+
+The test suite drives the real raster pipeline and reads the **dots** back out
+of the print job for every pair asked for — 3/5, 5/5, 5/3, 8/5, 3/8 — plus the
+two that matter most: change only Left and the ink moves by exactly that many
+dots; change only Right and the far edge moves instead.
+
+### Prints arriving late, or sticking
+
+`/customer-display` and `/kds-tv` sat inside the app layout, which mounts the
+print-queue host. Those screens open as **separate Electron windows**, so the
+shop's TV was running a second copy of it. The "only one host" guard is a
+module variable — one JavaScript context, not two windows — and the
+cross-window lock behind it expires after eight seconds.
+
+So the TV would take a job, mark it `printing`, render the receipt into its own
+hidden DOM and print nothing, because the spooler call goes through the till's
+window. The till then waited on a job somebody else had claimed until the
+twenty-second safety timeout fired. Every background worker is now kept off
+those routes, and the print host refuses to run in a display window regardless.
+
+Two smaller causes of a wrong slip went with it. The direct-print settings cache
+was **emptied** on every settings change, so a print landing in that gap
+silently lost the printer's margins, paper size and cut setting; it is replaced
+rather than emptied now, with a generation counter so a slow load cannot
+overwrite a newer one. And the role resolver filtered on a truthy `enabled`
+while startup detection and role mapping both read `!== false` — a config
+restored from an older build has no such field, so the resolver found nothing
+and that printer's margins looked inert.
+
+### Add video did nothing
+
+It called `window.prompt()`, which Electron does not implement: it returns null,
+so the button was a no-op in the packaged app and worked only in a browser. It
+opens a **native file chooser** now, with an address field beside it for a URL.
+The video is not copied — only its path is stored — so the file has to stay
+where it is, which the screen says.
+
+### Order numbers sheared off
+
+Four-digit numbers printed as `#111` with the last digit cut, and `#1105`
+spilled outside its border. They were sized from the **viewport** while the tile
+is only as wide as the column split and the column count leave it. Tiles now
+declare a container and the number is fitted to it by digit count, so it fits
+whatever the split, the screen or the order number.
+
+### The layouts from the mockups
+
+The customer screen has a **NOW SERVING** list: the shop's media on one side and
+a read-down list on the other, each row carrying the order number, what the
+order is, where it goes and a READY badge. A queue is read top to bottom, and a
+bare number tile has nowhere to put the item name.
+
+The kitchen board has **status lanes** — NEW, PREPARING, READY, DELIVERY,
+COMPLETED — so a cook reads their own lane instead of scanning the whole wall,
+and an order visibly travels left to right as it is worked. Five lanes fit
+across a wide TV and fall into two rows on a narrower one, which is the second
+mockup reached without a second layout. The older wall grid is kept for the
+templates that suit a small kitchen. Both layouts render the same ticket
+component, because two copies of that markup is how one of them ends up showing
+a quantity the other does not.
+
+---
+
 ## v1.7.0 — The margin settings do what they say, and the printer is ready at startup
 
 Three faults that were costing a shop real time every day, and a display
