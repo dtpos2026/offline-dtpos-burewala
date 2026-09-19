@@ -58,6 +58,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // File dialogs
   showSaveDialog: (defaultName) => ipcRenderer.invoke('show-save-dialog', defaultName),
   showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),
+  // Native file chooser for a customer-display video. Electron does not
+  // implement window.prompt(), so the old "type the path" flow silently did
+  // nothing in the packaged app.
+  pickMediaFile: (kind) => ipcRenderer.invoke('pick-media-file', kind),
 
   // File I/O
   writeFile: (filePath, data) => ipcRenderer.invoke('write-file', filePath, data),

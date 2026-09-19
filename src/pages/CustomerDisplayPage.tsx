@@ -43,8 +43,8 @@ import {
   type CustomerDisplayConfig,
   type DisplayMedia,
 } from '@/lib/customerDisplay';
-import { templateVars, scaledFont, DEVELOPER_CREDIT } from '@/lib/displayTemplates';
-import { Volume2, VolumeX, Maximize2, ChefHat, CheckCircle2 } from 'lucide-react';
+import { templateVars, scaledFont, fitNumberFont, DEVELOPER_CREDIT } from '@/lib/displayTemplates';
+import { Volume2, VolumeX, Maximize2, ChefHat, CheckCircle2, Megaphone } from 'lucide-react';
 
 /** Orders the kitchen is still working on. */
 function isPreparing(o: Order): boolean {
@@ -185,6 +185,7 @@ export default function CustomerDisplayPage() {
 
   const cardsPerColumn = template.density === 'compact' ? 16 : 12;
   const numberScale = template.numberScale;
+  const listLayout = (template.layout || 'columns') === 'now-serving';
 
   return (
     <div
@@ -267,46 +268,202 @@ export default function CustomerDisplayPage() {
           hasMedia
             ? narrow
               ? { gridTemplateRows: `${ratio}fr ${100 - ratio}fr` }
-              : { gridTemplateColumns: `${ratio}fr ${100 - ratio}fr` }
+              // The list layout puts the shop's media FIRST, as on the
+              // mockups: the banner is the thing a waiting customer looks at,
+              // and the order list sits beside it to be scanned for a number.
+              : listLayout
+                ? { gridTemplateColumns: `${100 - ratio}fr ${ratio}fr`, direction: 'rtl' as const }
+                : { gridTemplateColumns: `${ratio}fr ${100 - ratio}fr` }
             : undefined
         }
       >
-        <div className="grid grid-cols-2 gap-[1.2vw] min-h-0 min-w-0">
-          <OrderColumn
-            title="PREPARING"
-            icon={<ChefHat style={{ width: '1.6em', height: '1.6em' }} />}
-            colour="var(--dt-preparing)"
-            orders={preparing.slice(0, cardsPerColumn)}
-            total={preparing.length}
-            empty="No orders in the kitchen"
-            template={template}
-            numberScale={numberScale}
-            renderExtra={o => cfg.showWaitTime
-              ? <div className="tabular-nums opacity-60" style={{ fontSize: scaledFont(0.9, template.typeScale, 0.3) }}>
-                  {minutesSince(o.createdAt)} min
-                </div>
-              : null}
-          />
-          <OrderColumn
-            title="READY"
-            icon={<CheckCircle2 style={{ width: '1.6em', height: '1.6em' }} />}
-            colour="var(--dt-ready)"
-            orders={ready.slice(0, cardsPerColumn)}
-            total={ready.length}
-            empty="Nothing ready yet"
-            template={template}
-            numberScale={numberScale * 1.15}
+        {listLayout ? (
+          <NowServingList
+            preparing={preparing}
+            ready={ready}
             flash={flash}
-            renderExtra={() => (
-              <div className="font-bold tracking-widest opacity-80"
-                   style={{ fontSize: scaledFont(0.9, template.typeScale, 0.3) }}>
-                COLLECT
-              </div>
-            )}
+            template={template}
+            showWaitTime={cfg.showWaitTime}
+            rows={cardsPerColumn}
           />
-        </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-[1.2vw] min-h-0 min-w-0">
+            <OrderColumn
+              title="PREPARING"
+              icon={<ChefHat style={{ width: '1.6em', height: '1.6em' }} />}
+              colour="var(--dt-preparing)"
+              orders={preparing.slice(0, cardsPerColumn)}
+              total={preparing.length}
+              empty="No orders in the kitchen"
+              template={template}
+              numberScale={numberScale}
+              renderExtra={o => cfg.showWaitTime
+                ? <div className="tabular-nums opacity-60" style={{ fontSize: scaledFont(0.9, template.typeScale, 0.3) }}>
+                    {minutesSince(o.createdAt)} min
+                  </div>
+                : null}
+            />
+            <OrderColumn
+              title="READY"
+              icon={<CheckCircle2 style={{ width: '1.6em', height: '1.6em' }} />}
+              colour="var(--dt-ready)"
+              orders={ready.slice(0, cardsPerColumn)}
+              total={ready.length}
+              empty="Nothing ready yet"
+              template={template}
+              numberScale={numberScale * 1.15}
+              flash={flash}
+              renderExtra={() => (
+                <div className="font-bold tracking-widest opacity-80"
+                     style={{ fontSize: scaledFont(0.9, template.typeScale, 0.3) }}>
+                  COLLECT
+                </div>
+              )}
+            />
+          </div>
+        )}
 
         {hasMedia && <MediaPanel media={cfg.media} defaultSeconds={cfg.mediaSeconds} template={template} />}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * NOW SERVING — the list layout from the mockups.
+ *
+ * A queue is read top to bottom, which is how people join one, so the orders
+ * are a list rather than a wall of tiles. A row therefore has room for what
+ * a bare number tile never did: what the order IS, where it goes, and a badge
+ * that says READY in words rather than only in colour.
+ *
+ * Ready orders sit at the top because that is the only thing anyone on the
+ * far side of the counter is looking for.
+ */
+function NowServingList({
+  preparing, ready, flash, template, showWaitTime, rows,
+}: {
+  preparing: Order[];
+  ready: Order[];
+  flash: Set<string>;
+  template: { typeScale: number; numberScale: number };
+  showWaitTime: boolean;
+  rows: number;
+}) {
+  const items = [
+    ...ready.map(o => ({ order: o, isReady: true })),
+    ...preparing.map(o => ({ order: o, isReady: false })),
+  ].slice(0, rows);
+
+  return (
+    // `direction` is reset here: the wrapper flips it to put the media first
+    // without reordering the markup, and text inside must read left to right.
+    <section className="flex flex-col min-h-0 min-w-0" style={{ direction: 'ltr' }}>
+      <div
+        className="flex items-center gap-3 px-[1vw] py-[1vh] mb-[1vh]"
+        style={{
+          borderRadius: 'var(--dt-radius)',
+          background: 'var(--dt-accent)',
+          color: 'var(--dt-on-accent)',
+        }}
+      >
+        <Megaphone style={{ width: '1.4em', height: '1.4em' }} />
+        <h2 className="font-black tracking-widest" style={{ fontSize: scaledFont(1.4, template.typeScale, 0.6) }}>
+          NOW SERVING
+        </h2>
+        <span className="ml-auto font-black tabular-nums opacity-80"
+              style={{ fontSize: scaledFont(1.2, template.typeScale, 0.5) }}>
+          {ready.length}
+        </span>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-[0.8vh]">
+        {items.map(({ order: o, isReady }) => (
+          <OrderRow
+            key={o.id}
+            order={o}
+            isReady={isReady}
+            flashing={flash.has(o.id)}
+            template={template}
+            showWaitTime={showWaitTime}
+          />
+        ))}
+        {items.length === 0 && (
+          <div className="text-center opacity-30 py-[8vh]"
+               style={{ fontSize: scaledFont(1.25, template.typeScale, 0.5) }}>
+            No orders yet
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** One line of the NOW SERVING list. */
+function OrderRow({
+  order, isReady, flashing, template, showWaitTime,
+}: {
+  order: Order;
+  isReady: boolean;
+  flashing: boolean;
+  template: { typeScale: number; numberScale: number };
+  showWaitTime: boolean;
+}) {
+  const colour = isReady ? 'var(--dt-ready)' : 'var(--dt-preparing)';
+  // What the order is, in the few words a row has space for.
+  const summary = (order.items || [])
+    .slice(0, 2)
+    .map(i => i.name)
+    .join(' + ');
+  const more = Math.max(0, (order.items || []).length - 2);
+  const where = order.tableName || order.tableLabel
+    || String(order.orderType || '').replace(/_/g, ' ');
+
+  return (
+    <div
+      className={`${flashing ? 'cd-flash' : 'cd-in'} flex items-center gap-[1vw] px-[1vw] py-[0.9vh] border-2 shrink-0`}
+      style={{
+        borderRadius: 'var(--dt-radius)',
+        background: 'var(--dt-surface)',
+        borderColor: colour,
+      }}
+    >
+      {/* The number gets its own container so `cqw` measures THIS box. */}
+      <div
+        className="shrink-0 text-center overflow-hidden"
+        style={{ containerType: 'inline-size', width: '28%', minWidth: '4.5rem' }}
+      >
+        <div
+          className="font-black tabular-nums leading-none whitespace-nowrap"
+          style={{ color: colour, fontSize: fitNumberFont(`#${order.orderNumber ?? ''}`, template.numberScale) }}
+        >
+          #{order.orderNumber}
+        </div>
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="truncate font-bold" style={{ fontSize: scaledFont(1.05, template.typeScale, 0.4) }}>
+          {summary || 'Order'}{more > 0 ? ` +${more}` : ''}
+        </div>
+        <div className="truncate uppercase tracking-wide opacity-55"
+             style={{ fontSize: scaledFont(0.75, template.typeScale, 0.22) }}>
+          {where}
+          {showWaitTime && !isReady ? ` · ${minutesSince(order.createdAt)} min` : ''}
+        </div>
+      </div>
+
+      <div
+        className="shrink-0 font-black tracking-wider px-[0.9vw] py-[0.5vh] flex items-center gap-1.5"
+        style={{
+          borderRadius: 'calc(var(--dt-radius) / 1.5)',
+          background: colour,
+          color: 'var(--dt-bg)',
+          fontSize: scaledFont(0.8, template.typeScale, 0.25),
+        }}
+      >
+        {isReady
+          ? <><CheckCircle2 style={{ width: '1.1em', height: '1.1em' }} /> READY</>
+          : <><ChefHat style={{ width: '1.1em', height: '1.1em' }} /> PREPARING</>}
       </div>
     </div>
   );
@@ -349,15 +506,23 @@ function OrderColumn({
         {orders.map(o => (
           <div
             key={o.id}
-            className={`${flash?.has(o.id) ? 'cd-flash' : 'cd-in'} text-center p-[1vw] border-2`}
+            className={`${flash?.has(o.id) ? 'cd-flash' : 'cd-in'} text-center p-[1vw] border-2 overflow-hidden`}
             style={{
               borderRadius: 'var(--dt-radius)',
               background: 'var(--dt-surface)',
               borderColor: colour,
+              // ===== THE SHEARED-OFF ORDER NUMBER =====
+              // The number used to be sized from the VIEWPORT, while this tile
+              // is only as wide as the column split and the column count leave
+              // it. Four-digit numbers printed as "#111" with the last digit
+              // cut off, and "#1105" spilled outside its border. Declaring a
+              // container here makes `cqw` measure THIS box, so the number is
+              // fitted to the space it actually has.
+              containerType: 'inline-size',
             }}
           >
-            <div className="font-black tabular-nums leading-none"
-                 style={{ color: colour, fontSize: scaledFont(3.5, numberScale, 2.2) }}>
+            <div className="font-black tabular-nums leading-none whitespace-nowrap"
+                 style={{ color: colour, fontSize: fitNumberFont(`#${o.orderNumber ?? ''}`, numberScale) }}>
               #{o.orderNumber}
             </div>
             {renderExtra?.(o)}

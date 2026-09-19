@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
   Monitor, Trash2, Volume2, Image as ImageIcon, Film, Palette, Columns, Settings2,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -38,6 +39,7 @@ import {
 import { templateById } from '@/lib/displayTemplates';
 import DisplayTemplatePicker from '@/components/DisplayTemplatePicker';
 import { getSettings } from '@/lib/store';
+import { pickMediaFile, isElectron } from '@/lib/electron';
 
 /** Beyond this the shop is close to the storage limit. */
 const SIZE_WARN_KB = 3000;
@@ -63,6 +65,8 @@ export default function CustomerDisplaySettingsCard() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [sizeKb, setSizeKb] = useState(0);
   const [openMedia, setOpenMedia] = useState<string | null>(null);
+  const [videoUrl, setVideoUrl] = useState('');
+  const [showVideoUrl, setShowVideoUrl] = useState(false);
   const shopName = (() => { try { return getSettings().name; } catch { return undefined; } })();
 
   useEffect(() => { setSizeKb(displayConfigSizeKb(cfg)); }, [cfg]);
@@ -114,18 +118,50 @@ export default function CustomerDisplaySettingsCard() {
     if (fileRef.current) fileRef.current.value = '';
   };
 
-  const addVideo = () => {
-    const src = window.prompt(
-      'Video address\n\nA file path on this machine (file:///C:/promo.mp4) or a URL. '
-      + 'The video itself is not copied into the settings, only its address, so it must stay where it is.',
-    );
-    if (!src || !src.trim()) return;
-    if (commit({
+  const pushVideo = (src: string, label?: string) => {
+    if (!src.trim()) return false;
+    const ok = commit({
       ...cfg,
-      media: [...cfg.media, { id: `v${Date.now()}`, kind: 'video', src: src.trim(), fit: 'contain', position: 'center' }],
-    })) {
-      toast.success('Video added.');
+      media: [...cfg.media, {
+        id: `v${Date.now()}`, kind: 'video', src: src.trim(),
+        fit: 'contain', position: 'center',
+        caption: label,
+      }],
+    });
+    if (ok) toast.success('Video added.');
+    return ok;
+  };
+
+  /**
+   * ===== THE ADD VIDEO BUTTON THAT DID NOTHING =====
+   *
+   * This used to call `window.prompt()` and ask the shop to TYPE a path.
+   * Electron does not implement prompt() — it returns null and logs
+   * "prompt() is and will not be supported" — so in the packaged Windows app
+   * the button was a no-op. It worked when tested in a browser, which is
+   * exactly how it shipped.
+   *
+   * A native file chooser is also simply the right control: nobody should be
+   * typing file:///C:/Users/.../promo.mp4 by hand.
+   */
+  const addVideo = async () => {
+    const picked = await pickMediaFile('video');
+    if (picked.success && picked.url) {
+      // The video is NOT copied. These settings live in localStorage next to
+      // the banners, and a promo video is tens of megabytes — so the path is
+      // stored and the file has to stay where it is.
+      if (pushVideo(picked.url, picked.name)) setVideoUrl('');
+      return;
     }
+    if (picked.canceled) return;
+    if (picked.error && picked.error !== 'not-desktop') {
+      toast.error(`Could not open the file chooser: ${picked.error}`);
+      return;
+    }
+    // Browser build: there is no file chooser that yields a lasting path, so
+    // the address field below is the way in. Say so instead of doing nothing.
+    setShowVideoUrl(true);
+    toast.info('Paste the video address below — the desktop app can browse for the file.');
   };
 
   const remove = (id: string) => commit({ ...cfg, media: cfg.media.filter(m => m.id !== id) });
@@ -321,8 +357,35 @@ export default function CustomerDisplaySettingsCard() {
             <Button size="sm" variant="outline" onClick={addVideo}>
               <Film className="h-4 w-4 mr-1" /> Add video
             </Button>
+            <Button size="sm" variant="ghost" onClick={() => setShowVideoUrl(v => !v)}>
+              <LinkIcon className="h-4 w-4 mr-1" /> Video address
+            </Button>
           </div>
         </div>
+
+        {showVideoUrl && (
+          <div className="rounded-md bg-muted/40 p-2.5 space-y-2">
+            <Label className="text-xs">Video address</Label>
+            <div className="flex gap-2">
+              <Input
+                className="h-9"
+                placeholder="https://… or file:///C:/promo.mp4"
+                value={videoUrl}
+                onChange={e => setVideoUrl(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && pushVideo(videoUrl)) setVideoUrl(''); }}
+              />
+              <Button size="sm" disabled={!videoUrl.trim()}
+                      onClick={() => { if (pushVideo(videoUrl)) setVideoUrl(''); }}>
+                Add
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {isElectron()
+                ? 'For a file on this computer, Add video opens a file chooser — easier than typing a path.'
+                : 'In the desktop app, Add video opens a file chooser for a video on that computer.'}
+            </p>
+          </div>
+        )}
 
         {cfg.media.length === 0 ? (
           <p className="text-xs text-muted-foreground">

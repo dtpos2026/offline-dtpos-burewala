@@ -48,6 +48,33 @@ export async function getPrinters(): Promise<SystemPrinterInfo[]> {
   }));
 }
 
+export interface PickedMediaFile {
+  success: boolean;
+  canceled?: boolean;
+  error?: string;
+  /** Absolute path on this machine. */
+  path?: string;
+  name?: string;
+  sizeBytes?: number;
+  /** file:// URL, which is what a <video src> needs. */
+  url?: string;
+}
+
+/**
+ * Ask Windows for a video (or image) file.
+ *
+ * Returns `{ success: false }` outside the desktop app, where the caller
+ * falls back to asking for an address instead.
+ */
+export async function pickMediaFile(kind: 'video' | 'image' = 'video'): Promise<PickedMediaFile> {
+  if (!isElectron() || !api()?.pickMediaFile) return { success: false, error: 'not-desktop' };
+  try {
+    return await api().pickMediaFile(kind);
+  } catch (e: any) {
+    return { success: false, error: e?.message || String(e) };
+  }
+}
+
 export async function printReceiptNative(options?: {
   printerName?: string;
   silent?: boolean;

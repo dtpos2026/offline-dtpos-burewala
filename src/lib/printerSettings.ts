@@ -455,7 +455,13 @@ export function resolvePrinterForRole(
   role: CloudPrintRole,
   deviceId?: string,
 ): PrinterConfig | undefined {
-  const printers = settings.printers.filter((p) => p.enabled);
+  // `!== false`, not truthy. A config restored from an older build or from
+  // the cloud can arrive with no `enabled` field at all, and a strict truthy
+  // test dropped those printers here while startup detection and role mapping
+  // both counted them — so the resolver found nothing, the slip fell back to
+  // the device defaults, and the printer's own margins looked like they did
+  // nothing. Same rule in all three places now.
+  const printers = settings.printers.filter((p) => p.enabled !== false);
   if (deviceId) {
     const override = settings.deviceAssignments?.[deviceId]?.[role];
     if (override) {

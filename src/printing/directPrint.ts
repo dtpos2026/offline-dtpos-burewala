@@ -77,17 +77,42 @@ export function prewarmDirectPrint() {
     .finally(() => { psLoading = null; });
 }
 
-// ===== KEEP THE WARM CACHE HONEST =====
+// ===== KEEP THE WARM CACHE HONEST, WITHOUT EVER EMPTYING IT =====
+//
 // This cache is read on every direct print, and it was filled once at
-// startup. Startup auto-detection, and the shop editing Printer Center, both
-// write new printer settings AFTER that — so without this the first bill of
-// the session could still be sent to the name the machine had before the
-// repair, and the change would only take effect on the next restart.
+// startup. Startup detection and Printer Center both write new settings
+// afterwards, so it has to be refreshed or the first bill of the session goes
+// to the name the machine had before the repair.
+//
+// The first version of this refresh cleared `psCache` and `psLoading` and
+// called prewarm again. Two faults, both of which cost a shop a correct slip:
+//
+//   • a print landing in the gap saw a null cache, so `resolveTarget` and
+//     `slipGeometryFor` fell through to the shop-level fallback — the
+//     printer's own margins, paper size and cut setting silently dropped for
+//     that bill;
+//   • nulling `psLoading` defeated prewarm's own guard, so every event began
+//     another concurrent load, and a slow one could finish last and write
+//     STALE settings over fresh ones.
+//
+// Now the cache is REPLACED, never emptied: the old value keeps serving until
+// the new one has arrived, and a generation counter means only the newest
+// load may write. Refreshes are also coalesced, because the one-time margin
+// migrations fire this event three times in a row on first run.
+let psGeneration = 0;
+let psRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+function refreshPrinterSettings() {
+  const mine = ++psGeneration;
+  loadPrinterSettings()
+    .then(d => { if (mine === psGeneration && d) psCache = d; })
+    .catch(() => { /* keep serving the settings we already have */ });
+}
+
 if (typeof window !== 'undefined') {
   window.addEventListener('dtpos-printer-settings-changed', () => {
-    psCache = null;
-    psLoading = null;
-    prewarmDirectPrint();
+    if (psRefreshTimer) return;
+    psRefreshTimer = setTimeout(() => { psRefreshTimer = null; refreshPrinterSettings(); }, 50);
   });
 }
 

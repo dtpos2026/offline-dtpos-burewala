@@ -1379,6 +1379,64 @@ ipcMain.handle('show-save-dialog', async (_event, defaultName) => {
 });
 
 // Show Open dialog for backup import
+// ============================================================
+// PICK A VIDEO FOR THE CUSTOMER DISPLAY
+//
+// Why this is a main-process dialog and not window.prompt().
+//
+// The Add Video button used to open `window.prompt()` and ask the shop to
+// TYPE a path. Electron does not implement prompt() — it returns null and
+// writes "prompt() is and will not be supported" to the console — so in the
+// packaged Windows app the button did nothing at all. It worked when tested
+// in a browser, which is exactly how it shipped.
+//
+// A native file dialog is also simply the right control: nobody should be
+// typing `file:///C:/Users/.../promo.mp4` by hand.
+//
+// The video is NOT copied. Only its path is stored, because these settings
+// live in localStorage alongside the banners and a promo video is tens of
+// megabytes. The file therefore has to stay where it is, which the settings
+// screen says plainly.
+// ============================================================
+ipcMain.handle('pick-media-file', async (_event, kind = 'video') => {
+  const filters = kind === 'video'
+    ? [{ name: 'Video', extensions: ['mp4', 'webm', 'ogg', 'ogv', 'mov', 'm4v', 'mkv'] }]
+    : [{ name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }];
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: kind === 'video' ? 'Choose a video for the customer display' : 'Choose an image',
+      filters,
+      properties: ['openFile'],
+    });
+    if (result.canceled || !result.filePaths || !result.filePaths.length) {
+      return { success: false, canceled: true };
+    }
+    const filePath = result.filePaths[0];
+    let sizeBytes = 0;
+    try { sizeBytes = fs.statSync(filePath).size; } catch { /* size is informational */ }
+    return {
+      success: true,
+      path: filePath,
+      name: path.basename(filePath),
+      sizeBytes,
+      // A file:// URL is what a <video src> needs. The packaged app itself is
+      // loaded from file://, so this is same-scheme and plays; under the dev
+      // server (http://localhost) the browser blocks it, which the settings
+      // screen warns about rather than failing silently.
+      url: pathToFileUrl(filePath),
+    };
+  } catch (e) {
+    return { success: false, error: String((e && e.message) || e) };
+  }
+});
+
+/** Windows path -> file:// URL, with each segment escaped. */
+function pathToFileUrl(filePath) {
+  const normalised = String(filePath).replace(/\\/g, '/');
+  const withSlash = normalised.startsWith('/') ? normalised : '/' + normalised;
+  return 'file://' + withSlash.split('/').map(encodeURIComponent).join('/').replace(/^%2F/, '/');
+}
+
 ipcMain.handle('show-open-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Import Backup',

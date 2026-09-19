@@ -73,6 +73,21 @@ export interface DisplayTemplate {
   /** How much the board puts on screen at once. */
   density: 'comfortable' | 'compact';
   /**
+   * The shape of the customer board.
+   *
+   *  'columns'     two status columns of number tiles, side by side.
+   *  'now-serving' the shop's media on one side and a READ-DOWN LIST of
+   *                orders on the other — number, what it is, and a READY
+   *                badge. This is the layout on the printed mockups, and it
+   *                is the better one for a queue: a list is read top to
+   *                bottom the way people join a queue, and it has room for
+   *                the item name and the table, which a bare number tile
+   *                does not.
+   *
+   * Ignored by the kitchen board, which is always a ticket grid.
+   */
+  layout?: 'columns' | 'now-serving';
+  /**
    * Which screens this template suits, for automatic mode.
    * `minAspect`/`maxAspect` are width/height; `minWidth` is in CSS pixels.
    */
@@ -112,8 +127,8 @@ export const CUSTOMER_TEMPLATES: DisplayTemplate[] = [
       accent: PURPLE, onAccent: WHITE,
       preparing: '#FFB703', ready: '#4ADE80', alert: '#F87171',
     },
-    radius: 20, typeScale: 1, numberScale: 1, orderRatio: 70,
-    density: 'comfortable', suits: { minAspect: 1.3 },
+    radius: 20, typeScale: 1, numberScale: 1, orderRatio: 40,
+    density: 'comfortable', layout: 'now-serving', suits: { minAspect: 1.3 },
   },
   {
     id: 'modern',
@@ -126,8 +141,8 @@ export const CUSTOMER_TEMPLATES: DisplayTemplate[] = [
       accent: PURPLE_LIFT, onAccent: WHITE,
       preparing: '#FBBF24', ready: '#22C55E', alert: '#EF4444',
     },
-    radius: 16, typeScale: 1, numberScale: 1, orderRatio: 70,
-    density: 'comfortable', suits: { minAspect: 1.3 },
+    radius: 16, typeScale: 1, numberScale: 1, orderRatio: 40,
+    density: 'comfortable', layout: 'now-serving', suits: { minAspect: 1.3 },
   },
   {
     id: 'minimal',
@@ -210,8 +225,8 @@ export const CUSTOMER_TEMPLATES: DisplayTemplate[] = [
       accent: PURPLE_LIFT, onAccent: WHITE,
       preparing: '#FFB703', ready: '#4ADE80', alert: '#F87171',
     },
-    radius: 18, typeScale: 1, numberScale: 1, orderRatio: 60,
-    density: 'comfortable', suits: { minAspect: 1.5 },
+    radius: 18, typeScale: 1, numberScale: 1, orderRatio: 38,
+    density: 'comfortable', layout: 'now-serving', suits: { minAspect: 1.5 },
   },
   {
     id: 'media-focused',
@@ -225,7 +240,7 @@ export const CUSTOMER_TEMPLATES: DisplayTemplate[] = [
       preparing: '#FBBF24', ready: '#22C55E', alert: '#EF4444',
     },
     radius: 14, typeScale: 0.9, numberScale: 0.85, orderRatio: 30,
-    density: 'compact', suits: { minAspect: 1.5 },
+    density: 'compact', layout: 'now-serving', suits: { minAspect: 1.5 },
   },
   {
     id: 'compact',
@@ -423,6 +438,34 @@ export function templateVars(t: DisplayTemplate): Record<string, string> {
     '--dt-type': String(t.typeScale),
     '--dt-number': String(t.numberScale),
   };
+}
+
+/**
+ * A font size for an order number that FITS ITS OWN TILE.
+ *
+ * The bug this replaces was on the shop's screen: four-digit order numbers
+ * printed as "#111" with the last digit sheared off, and "#1105" spilling
+ * outside its tile. The number was sized from the VIEWPORT, while its tile is
+ * only as wide as the column split and the column count leave it — so the
+ * same font that fits "#12" on a wide screen cuts "#1105" on the same screen
+ * the moment the shop gives the banners more room.
+ *
+ * `cqw` is a percentage of the TILE, not of the window, so the number is
+ * measured against the box it actually has to fit in. The divisor is the
+ * digit count: a bold tabular digit is about 0.62em wide, so N characters
+ * need N x 0.62 x font, and 88% of the tile is what is left after the
+ * padding. The result is capped so that a two-digit number does not become
+ * absurd, and floored in px so a small screen stays readable.
+ *
+ * The tile must declare `container-type: inline-size` or `cqw` resolves
+ * against the viewport and the bug comes straight back.
+ */
+export function fitNumberFont(text: string, scale = 1): string {
+  const chars = Math.max(2, String(text || '').length);
+  const CHAR_EM = 0.62;
+  const USABLE = 88;
+  const cqw = Math.min(34, USABLE / (CHAR_EM * chars)) * scale;
+  return `clamp(1.1rem, ${cqw.toFixed(1)}cqw, ${(3.2 * scale).toFixed(2)}rem)`;
 }
 
 /**

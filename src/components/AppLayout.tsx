@@ -315,9 +315,18 @@ function BranchSelector() {
 }
 
 
+/**
+ * Routes that are a SCREEN rather than a workstation.
+ *
+ * These open full-screen on a second monitor and are read-only by design, so
+ * nothing that acts on the shop's behalf may run inside them.
+ */
+const DISPLAY_SURFACES = ['/customer-display', '/kds-tv'];
+
 export default function AppLayout({ children, userRole, onLogout }: Props) {
   useAppLang(); // language switch par sidebar refresh
   const location = useLocation();
+  const isDisplaySurface = DISPLAY_SURFACES.some(r => location.pathname.startsWith(r));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('pos-sidebar-collapsed') === '1');
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
@@ -505,12 +514,29 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
 
         <main className="flex-1 overflow-auto bg-background relative">
           {children}
-          <PersistentWhatsApp />
-          <NewOrderNotifier />
-          <ServiceCallNotifier />
-          <AutoKotPrinter />
-          <AutoReadyTimer />
-          <ReadyNotificationBus />
+          {/* ===== BACKGROUND WORKERS RUN IN THE TILL WINDOW ONLY =====
+              The Kitchen Display and the Customer Display are separate
+              Electron windows running this same app, so every one of these
+              was starting a SECOND copy of itself on the shop's TV.
+              AutoKotPrinter is the one that hurt: it is the print-queue host,
+              and its "only one host" guard is a module-level variable, which
+              guards one JS context and not two windows. The cross-window lock
+              behind it expires after 8 seconds, so the TV would take a job,
+              mark it `printing`, render the receipt into its own hidden DOM —
+              and print nothing, because the spooler call targets the till's
+              window. The till then sat waiting on a job somebody else had
+              claimed until the 20-second safety timeout fired, which is the
+              "print late aata hai / stuck ho jaata hai" on the counter.
+              (Before the second screen was made live it was worse but
+              invisible: the TV's frozen order cache made it drop the job as
+              an unknown order instead.)
+              A display is a display. It shows what the till decides. */}
+          {!isDisplaySurface && <PersistentWhatsApp />}
+          {!isDisplaySurface && <NewOrderNotifier />}
+          {!isDisplaySurface && <ServiceCallNotifier />}
+          {!isDisplaySurface && <AutoKotPrinter />}
+          {!isDisplaySurface && <AutoReadyTimer />}
+          {!isDisplaySurface && <ReadyNotificationBus />}
           {/* Support chat widget — Dashboard aur Reports par hi, taake billing
               aur baqi screens par kaam me rukawat na ho. */}
           {/* Messages sirf Reports ke Dashboard par — POS/billing screens par

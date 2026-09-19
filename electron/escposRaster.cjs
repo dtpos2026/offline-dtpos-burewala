@@ -279,10 +279,30 @@ function cropBlankSides(image, opts = {}) {
 function escposRasterBytes(image, paperLabel, autoCut = true, opts = {}) {
   const geom = rasterGeometry(paperLabel, opts.marginLeftMm, opts.marginRightMm);
 
-  // Remove any blank the capture picked up beside the slip, so the receipt
-  // itself is what gets scaled to the printable width.
+  // ===== WHY THIS IS OFF BY DEFAULT NOW =====
+  //
+  // Cropping the capture to its ink and then resizing THAT to the content
+  // width stretches the slip to fill whatever room the margins leave. It was
+  // added to rescue a squeezed slip, but the squeeze had a different cause
+  // (the capture was measured with scrollWidth instead of the authored
+  // width), and that is fixed at the source in main.cjs.
+  //
+  // What it left behind was worse than what it fixed, and it is the reason a
+  // calibration that behaves in Windows Driver mode misbehaves in Auto/RAW:
+  //
+  //   • the document is ALREADY authored at exactly the content width, so
+  //     cropping removes the slip's own internal balance and then stretches
+  //     the remainder back over it — the margins are effectively applied and
+  //     then undone;
+  //   • the crop is measured per bill, so a receipt whose widest line is long
+  //     and one whose widest line is short get DIFFERENT scale factors. The
+  //     same shop, the same settings, two bills, two widths.
+  //
+  // With it off the capture maps one-to-one onto the printable dots: the
+  // millimetres the shop typed are the millimetres that come out, and Auto,
+  // RAW and the Windows driver all land in the same place.
   let trimmed = { trimmedLeft: 0, trimmedRight: 0 };
-  if (opts.cropBlankSides !== false && typeof image.crop === 'function') {
+  if (opts.cropBlankSides === true && typeof image.crop === 'function') {
     try {
       const r = cropBlankSides(image, opts);
       image = r.image;

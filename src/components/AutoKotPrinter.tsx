@@ -73,6 +73,35 @@ function releaseHostLock(hostId: string) {
 // becomes the printer host, the rest stay silent — deterministic, race-free.
 let ACTIVE_HOST_ID: string | null = null;
 
+/**
+ * ===== A DISPLAY WINDOW MUST NEVER HOST THE PRINT QUEUE =====
+ *
+ * ACTIVE_HOST_ID above is a module variable, so it makes one host per JS
+ * CONTEXT. The Kitchen Display and the Customer Display are separate Electron
+ * windows — separate contexts — so each got its own "only" host, and the
+ * cross-window localStorage lock behind it expires after 8 seconds.
+ *
+ * The TV would therefore take a job, mark it `printing`, render the receipt
+ * into its own hidden DOM and print nothing, because the spooler call goes
+ * through the till's window. The till then waited on a job another window had
+ * claimed until the 20-second safety timeout fired — the late and stuck
+ * prints reported from the counter.
+ *
+ * AppLayout already keeps this component off those routes. This is the second
+ * lock on the same door, because the cost of getting it wrong is a shop that
+ * cannot print and the cost of the check is one string comparison.
+ */
+const DISPLAY_ROUTES = ['/customer-display', '/kds-tv'];
+
+function isDisplayWindow(): boolean {
+  try {
+    const hash = window.location.hash || '';
+    return DISPLAY_ROUTES.some(r => hash.startsWith(`#${r}`));
+  } catch {
+    return false;
+  }
+}
+
 export default function AutoKotPrinter() {
   const [active, setActive] = useState<ActiveRender | null>(null);
   const busyRef = useRef(false);
@@ -95,6 +124,11 @@ export default function AutoKotPrinter() {
   }, []);
 
   useEffect(() => {
+    if (isDisplayWindow()) {
+      setIsPrimaryHost(false);
+      try { console.log('%c[DT-Print]', 'color:#f59e0b', 'display window — not hosting the print queue'); } catch { /* no console */ }
+      return;
+    }
     if (ACTIVE_HOST_ID === null) {
       ACTIVE_HOST_ID = myHostId.current;
       setIsPrimaryHost(true);
