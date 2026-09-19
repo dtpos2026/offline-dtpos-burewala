@@ -63,6 +63,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // nothing in the packaged app.
   pickMediaFile: (kind) => ipcRenderer.invoke('pick-media-file', kind),
 
+  // A monitor was plugged in or pulled out. Notification only — nothing opens
+  // or moves by itself, because a window jumping screens mid-service is the
+  // disturbance this exists to prevent.
+  onDisplaysChanged: (handler) => {
+    const fn = (_e, payload) => { try { handler(payload); } catch {} };
+    ipcRenderer.on('displays-changed', fn);
+    return () => ipcRenderer.removeListener('displays-changed', fn);
+  },
+
   // File I/O
   writeFile: (filePath, data) => ipcRenderer.invoke('write-file', filePath, data),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),

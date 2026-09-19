@@ -227,12 +227,15 @@ export default function KdsTvPage() {
     return by;
   }, [visible, recent]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The status palette is shared and fixed (see displayTemplates.ts): a cook
+  // learns "red means nobody has started it" in their first shift and then
+  // reads the board by colour alone from across the kitchen.
   const LANES: Array<{ id: keyof typeof lanes; label: string; colour: string; Icon: typeof ChefHat }> = [
-    { id: 'new', label: 'NEW', colour: 'var(--dt-alert)', Icon: Bell },
-    { id: 'preparing', label: 'PREPARING', colour: 'var(--dt-preparing)', Icon: ChefHat },
-    { id: 'ready', label: 'READY', colour: 'var(--dt-ready)', Icon: CheckCircle2 },
-    { id: 'delivery', label: 'DELIVERY', colour: 'var(--dt-preparing)', Icon: Bike },
-    { id: 'completed', label: 'COMPLETED', colour: 'var(--dt-border)', Icon: CheckCircle2 },
+    { id: 'new', label: 'NEW', colour: 'var(--dt-status-new)', Icon: Bell },
+    { id: 'preparing', label: 'PREPARING', colour: 'var(--dt-status-preparing)', Icon: ChefHat },
+    { id: 'ready', label: 'READY', colour: 'var(--dt-status-ready)', Icon: CheckCircle2 },
+    { id: 'delivery', label: 'DELIVERY', colour: 'var(--dt-status-delivery)', Icon: Bike },
+    { id: 'completed', label: 'COMPLETED', colour: 'var(--dt-status-completed)', Icon: CheckCircle2 },
   ];
 
   const advance = (orderId: string, current: string | undefined) => {
@@ -310,19 +313,29 @@ export default function KdsTvPage() {
             </div>
           )}
         </div>
+        <div className="ml-4 hidden lg:flex items-center gap-2 opacity-80 shrink-0"
+             style={{ fontSize: scaledFont(0.9, template.typeScale, 0.3) }}>
+          <ChefHat className="h-4 w-4" /> Kitchen Display System
+        </div>
         <div
           className="ml-4 px-4 py-1.5 rounded-md border font-black uppercase tracking-wider shrink-0"
           style={{
-            borderColor: 'var(--dt-preparing)',
-            color: 'var(--dt-preparing)',
+            borderColor: 'currentColor',
             fontSize: scaledFont(0.875, template.typeScale, 0.3),
           }}
         >
-          <ChefHat className="h-4 w-4 inline mr-1.5" />{kitchenName}
+          {kitchenName}
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <div className="font-black tabular-nums" style={{ fontSize: scaledFont(1.5, template.typeScale, 0.7) }}>
-            {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+        <div className="ml-auto flex items-center gap-3">
+          {/* Time AND date: a board that runs for days needs to say which day
+              it is showing, or a stale window looks like a live one. */}
+          <div className="text-right leading-tight">
+            <div className="font-black tabular-nums" style={{ fontSize: scaledFont(1.5, template.typeScale, 0.7) }}>
+              {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+            </div>
+            <div className="opacity-70 tabular-nums" style={{ fontSize: scaledFont(0.7, template.typeScale, 0.2) }}>
+              {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </div>
           </div>
           <button onClick={() => setSoundOn(s => !s)} className="p-2 rounded-md"
                   style={{ background: 'rgba(127,127,127,0.25)' }}>
@@ -374,12 +387,12 @@ export default function KdsTvPage() {
             return (
               <section key={id} className="min-w-0 flex flex-col gap-2">
                 <div
-                  className="flex items-center gap-2 px-3 py-2 font-black tracking-widest"
+                  className="flex items-center gap-2 px-3 py-2.5 font-black tracking-widest"
                   style={{
                     borderRadius: 'var(--dt-radius)',
                     background: colour,
-                    color: 'var(--dt-bg)',
-                    fontSize: scaledFont(0.8, template.typeScale, 0.25),
+                    color: '#FFFFFF',
+                    fontSize: scaledFont(0.85, template.typeScale, 0.26),
                   }}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
@@ -398,6 +411,7 @@ export default function KdsTvPage() {
                     onAdvance={advance}
                     labelFor={labelFor}
                     muted={done}
+                    statusColour={colour}
                   />
                 ))}
                 {rows.length === 0 && (
@@ -455,6 +469,25 @@ export default function KdsTvPage() {
           this screen that must be noticed within seconds, because food is
           still being made until someone sees it. Hence the red treatment and
           the strike-through on the number. */}
+      {/* The shop's own bar along the bottom, as the compact design draws it. */}
+      {laneLayout && (
+        <div
+          className="sticky bottom-0 flex items-center gap-3 px-6 py-2"
+          style={{ background: 'var(--dt-accent)', color: 'var(--dt-on-accent)' }}
+        >
+          {settings.logo && <img src={settings.logo} alt="" className="h-6 w-6 object-contain rounded shrink-0" />}
+          <span className="font-black uppercase tracking-wide truncate"
+                style={{ fontSize: scaledFont(0.8, template.typeScale, 0.24) }}>
+            {settings.name || 'Restaurant'}
+          </span>
+          {display.showDeveloperCredit && (
+            <span className="ml-auto opacity-55 truncate" style={{ fontSize: '10px' }}>
+              {DEVELOPER_CREDIT}
+            </span>
+          )}
+        </div>
+      )}
+
       {!laneLayout && recent.length > 0 && (
         <div className="sticky bottom-0 backdrop-blur border-t px-4 py-2"
              style={{ background: 'var(--dt-surface)', borderColor: 'var(--dt-border)' }}>
@@ -489,14 +522,18 @@ export default function KdsTvPage() {
 }
 
 /**
- * One kitchen ticket.
+ * One kitchen ticket, as the printed designs draw it.
+ *
+ * A light card with dark text, because a cook reads a ticket the way they
+ * read a docket — and the colour that matters is the one framing it, which
+ * says at a glance which stage the order is at.
  *
  * Extracted so the wall grid and the status lanes render the SAME ticket.
  * Two copies of this markup is how one layout ends up showing a quantity or
  * a note that the other does not.
  */
 function KitchenTicket({
-  order, items, warn, prep, isNew, template, onAdvance, labelFor, muted,
+  order, items, warn, prep, isNew, template, onAdvance, labelFor, muted, statusColour,
 }: {
   order: Order;
   items: CartItem[];
@@ -508,98 +545,115 @@ function KitchenTicket({
   labelFor: (s: string | undefined) => string;
   /** Completed tickets are history: shown, but not actionable. */
   muted?: boolean;
+  /** The lane's colour, when this ticket sits in one. */
+  statusColour?: string;
 }) {
   const mins = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000);
   const isDelayed = mins >= warn;
   const isWarn = mins >= prep && mins < warn;
   const ks = order.kitchenStatus || 'pending';
   const customerName = (order as any).customerName || order.customer?.name || (order as any).creditCustomerName;
-  // Status colour comes from the template, so a shop that picks the
-  // Clean board gets its darker, print-legible set and the Colourful
-  // one gets its loud set — same meaning, different palette.
-  const statusClr = isDelayed ? 'var(--dt-alert)'
-    : isWarn ? 'var(--dt-preparing)'
-    : ks === 'ready' ? 'var(--dt-ready)'
-    : ks === 'preparing' ? 'var(--dt-preparing)'
-    : 'var(--dt-border)';
-  const timeClr = isDelayed ? 'var(--dt-alert)' : isWarn ? 'var(--dt-preparing)' : 'var(--dt-ready)';
-  const actionClr = ks === 'pending' ? 'var(--dt-preparing)'
-    : ks === 'accepted' ? 'var(--dt-preparing)'
-    : ks === 'preparing' ? 'var(--dt-ready)'
-    : 'var(--dt-border)';
-  // `isNew` is a prop: the wall and the lanes share one NEW-flag clock.
+  const where = order.tableName || order.tableLabel || String(order.orderType || '').replace(/_/g, ' ');
+
+  // In a lane the frame is the lane's colour; on the wall it carries the
+  // ticket's own state, because there is no lane header to say it.
+  const frame = statusColour
+    || (isDelayed ? 'var(--dt-status-new)'
+      : isWarn ? 'var(--dt-status-preparing)'
+      : ks === 'ready' ? 'var(--dt-status-ready)'
+      : ks === 'preparing' ? 'var(--dt-status-preparing)'
+      : 'var(--dt-panel-border)');
+  const timeClr = isDelayed ? 'var(--dt-status-new)'
+    : isWarn ? 'var(--dt-status-preparing)'
+    : 'var(--dt-status-ready)';
+  const actionClr = ks === 'pending' ? 'var(--dt-accent)'
+    : ks === 'accepted' ? 'var(--dt-status-preparing)'
+    : ks === 'preparing' ? 'var(--dt-status-ready)'
+    : 'var(--dt-status-completed)';
+
   return (
     <div
-            className={`border-2 p-3 flex flex-col ${isNew ? 'kds-new' : 'kds-card'} ${isDelayed ? 'kds-late' : ''}`}
+      className={`border-2 p-3 flex flex-col ${isNew ? 'kds-new' : 'kds-card'} ${isDelayed ? 'kds-late' : ''}`}
       style={{
         borderRadius: 'var(--dt-radius)',
-        background: 'var(--dt-surface)',
-        borderColor: statusClr,
+        background: 'var(--dt-panel)',
+        color: 'var(--dt-on-panel)',
+        borderColor: frame,
+        opacity: muted ? 0.75 : 1,
       }}
     >
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="font-black" style={{ fontSize: scaledFont(1.5, template.numberScale, 0.8) }}>
-            #{order.orderNumber}
+      <div className="flex items-start justify-between gap-2 mb-1.5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="font-black tabular-nums leading-none"
+                 style={{ fontSize: scaledFont(1.75, template.numberScale, 0.9) }}>
+              #{order.orderNumber}
+            </div>
+            {isNew && (
+              <span className="text-[10px] font-black tracking-widest rounded px-1.5 py-0.5 shrink-0"
+                    style={{ background: 'var(--dt-status-new)', color: '#fff' }}>
+                NEW
+              </span>
+            )}
           </div>
-          {isNew && (
-            <span className="text-[10px] font-black tracking-widest rounded px-1.5 py-0.5 shrink-0"
-                  style={{ background: 'var(--dt-preparing)', color: 'var(--dt-bg)' }}>
-              NEW
-            </span>
-          )}
+          <div className="truncate font-semibold mt-0.5"
+               style={{ fontSize: scaledFont(0.9, template.typeScale, 0.3) }}>
+            {where}
+            {customerName ? ` · ${customerName}` : ''}
+          </div>
         </div>
-        <div className="font-black tabular-nums px-2 py-0.5 rounded"
-             style={{ color: timeClr, border: `1px solid ${timeClr}`, fontSize: scaledFont(0.875, template.typeScale, 0.25) }}>
-          {isDelayed ? <AlertTriangle className="h-3.5 w-3.5 inline mr-1" /> : <Clock className="h-3.5 w-3.5 inline mr-1" />}
-          {mins}m
+        <div className="flex items-center gap-1 font-black tabular-nums shrink-0"
+             style={{ color: timeClr, fontSize: scaledFont(0.85, template.typeScale, 0.25) }}>
+          {isDelayed ? <AlertTriangle className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+          {mins} min
         </div>
       </div>
-      <div className="uppercase tracking-wide mb-2 flex flex-wrap gap-x-2 opacity-60"
-           style={{ fontSize: scaledFont(0.7, template.typeScale, 0.2) }}>
-        <span>{order.orderType}</span>
-        {order.tableName && <span>· {order.tableName}</span>}
-        {customerName && <span>· {customerName}</span>}
-      </div>
-      <div className="space-y-1 flex-1">
+
+      {/* Item lines read "quantity, then what it is" — the order a cook works
+          in, and the order the designs print them in. */}
+      <div className="space-y-0.5 flex-1">
         {items.map(it => (
-          <div key={it.id} className="rounded px-2 py-1.5 flex items-center justify-between gap-2"
-               style={{ background: 'rgba(127,127,127,0.16)' }}>
-            <div className="min-w-0">
-              <div className="font-bold truncate" style={{ fontSize: scaledFont(0.875, template.typeScale, 0.3) }}>
+          <div key={it.id} className="flex items-baseline gap-2">
+            <span className="font-black tabular-nums shrink-0 text-right"
+                  style={{ minWidth: '1.4em', color: 'var(--dt-accent)', fontSize: scaledFont(0.95, template.typeScale, 0.32) }}>
+              {it.quantity}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate" style={{ fontSize: scaledFont(0.95, template.typeScale, 0.32) }}>
                 {it.name}
-              </div>
+              </span>
               {it.note && (
-                <div className="italic truncate" style={{ color: 'var(--dt-preparing)', fontSize: scaledFont(0.7, template.typeScale, 0.2) }}>
-                  📝 {it.note}
-                </div>
+                <span className="block truncate italic"
+                      style={{ color: 'var(--dt-status-preparing)', fontSize: scaledFont(0.78, template.typeScale, 0.22) }}>
+                  {it.note}
+                </span>
               )}
-            </div>
-            <div className="font-black shrink-0"
-                 style={{ color: 'var(--dt-preparing)', fontSize: scaledFont(1.125, template.numberScale, 0.5) }}>
-              ×{it.quantity}
-            </div>
+            </span>
           </div>
         ))}
       </div>
+
       {order.notes && (
-        <div className="mt-2 italic" style={{ color: 'var(--dt-preparing)', fontSize: scaledFont(0.7, template.typeScale, 0.2) }}>
-          📝 {order.notes}
+        <div className="mt-1.5 italic truncate"
+             style={{ color: 'var(--dt-status-preparing)', fontSize: scaledFont(0.78, template.typeScale, 0.22) }}>
+          {order.notes}
         </div>
       )}
-      <button
-        onClick={() => { if (!muted) onAdvance(order.id, ks); }}
-        className="mt-2 w-full py-2 font-black tracking-wider transition hover:opacity-85"
-        style={{
-          borderRadius: 'var(--dt-radius)',
-          background: actionClr,
-          color: 'var(--dt-bg)',
-          fontSize: scaledFont(0.75, template.typeScale, 0.22),
-        }}
-      >
-        {labelFor(ks)}
-      </button>
+
+      {!muted && (
+        <button
+          onClick={() => onAdvance(order.id, ks)}
+          className="mt-2.5 w-full py-2 font-black tracking-wide transition hover:opacity-85"
+          style={{
+            borderRadius: 'calc(var(--dt-radius) * 0.7)',
+            background: actionClr,
+            color: '#FFFFFF',
+            fontSize: scaledFont(0.8, template.typeScale, 0.24),
+          }}
+        >
+          {labelFor(ks)}
+        </button>
+      )}
     </div>
   );
 }
-

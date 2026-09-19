@@ -53,6 +53,50 @@ export interface DisplayTheme {
   ready: string;
   /** Late, cancelled, needs attention. */
   alert: string;
+  /**
+   * The CARD surface, and the text on it.
+   *
+   * Separate from `surface` because the boards are two-tone by design: a
+   * coloured frame around light cards. A customer reads an order row, and a
+   * cook reads a ticket, the way they read paper — dark text on light — while
+   * the frame around it carries the shop's colour. Optional: a template that
+   * does not set these gets white cards, which is what the printed designs
+   * show.
+   */
+  panel?: string;
+  onPanel?: string;
+  panelMuted?: string;
+  panelBorder?: string;
+}
+
+/**
+ * The status colours, fixed across every template.
+ *
+ * These are not a matter of taste. A cook learns "red means it has not been
+ * started" in their first shift and then reads the board by colour alone from
+ * across the kitchen; a template that renamed those colours would cost them
+ * that. So the palette is shared, and what a template changes is the frame
+ * around it.
+ */
+export const STATUS_COLOURS = {
+  new: '#EF4444',        // red — nobody has picked it up yet
+  preparing: '#F59E0B',  // amber — being cooked
+  ready: '#22C55E',      // green — go and collect it
+  delivery: '#3B82F6',   // blue — out with a rider
+  takeaway: '#7B2CBF',   // purple — waiting at the counter
+  completed: '#9CA3AF',  // grey — done, and no longer anybody's job
+} as const;
+
+export type StatusKey = keyof typeof STATUS_COLOURS;
+
+/** Card surface tokens, with the printed designs' white as the default. */
+export function panelVars(t: DisplayTemplate): Record<string, string> {
+  return {
+    '--dt-panel': t.theme.panel || '#FFFFFF',
+    '--dt-on-panel': t.theme.onPanel || '#1A1033',
+    '--dt-panel-muted': t.theme.panelMuted || '#6B7280',
+    '--dt-panel-border': t.theme.panelBorder || '#E5E7EB',
+  };
 }
 
 export interface DisplayTemplate {
@@ -444,6 +488,13 @@ export function templateVars(t: DisplayTemplate): Record<string, string> {
     '--dt-radius': `${t.radius}px`,
     '--dt-type': String(t.typeScale),
     '--dt-number': String(t.numberScale),
+    ...panelVars(t),
+    '--dt-status-new': STATUS_COLOURS.new,
+    '--dt-status-preparing': STATUS_COLOURS.preparing,
+    '--dt-status-ready': STATUS_COLOURS.ready,
+    '--dt-status-delivery': STATUS_COLOURS.delivery,
+    '--dt-status-takeaway': STATUS_COLOURS.takeaway,
+    '--dt-status-completed': STATUS_COLOURS.completed,
   };
 }
 

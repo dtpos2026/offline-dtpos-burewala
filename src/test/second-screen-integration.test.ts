@@ -151,14 +151,27 @@ describe('invalidating the cache does not cost this window its own writes', () =
   });
 
   it('flushes an unwritten mutation before it drops the cache', () => {
-    // A mutation still in memory would go with the cache. The handler flushes
-    // first for that reason, which the source has to keep doing.
+    // A mutation still in memory would go with the cache. Both cross-window
+    // signals — the storage event and the instant nudge — go through one
+    // invalidation helper, and it has to flush before it clears.
     const src = read('lib/store.ts');
-    const handler = src.slice(src.indexOf("addEventListener('storage'"));
-    const flushAt = handler.indexOf('flushPendingWrite');
-    const clearAt = handler.indexOf('cachedData = null');
-    expect(flushAt).toBeGreaterThan(-1);
-    expect(clearAt).toBeGreaterThan(-1);
+    const helper = src.slice(src.indexOf('const invalidateAndAnnounce'));
+    const flushAt = helper.indexOf('flushPendingWrite');
+    const clearAt = helper.indexOf('cachedData = null');
+    expect(flushAt, 'no flush in the invalidation path').toBeGreaterThan(-1);
+    expect(clearAt, 'no cache clear in the invalidation path').toBeGreaterThan(-1);
     expect(flushAt, 'the cache is dropped before the pending write is flushed').toBeLessThan(clearAt);
+  });
+
+  it('nudges the other windows without sending them any data', () => {
+    // The nudge is a signal, not a payload: the receiving window re-reads
+    // from storage exactly as it does for a storage event. That is what keeps
+    // a browser with no BroadcastChannel correct, and keeps the till from
+    // ever waiting on a display window.
+    const src = read('lib/store.ts');
+    expect(src).toContain('BroadcastChannel');
+    expect(src).toContain('signalOtherWindows');
+    const post = src.slice(src.indexOf('function signalOtherWindows'), src.indexOf('function signalOtherWindows') + 400);
+    expect(post).toMatch(/postMessage\(\{ collections, at: Date\.now\(\) \}\)/);
   });
 });

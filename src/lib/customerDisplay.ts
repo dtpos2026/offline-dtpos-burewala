@@ -73,8 +73,32 @@ export interface CustomerDisplayConfig {
   announce: boolean;
   /** Announcement wording. `{n}` is replaced with the order number. */
   announceTemplate: string;
+  /**
+   * Language tag for `announceTemplate`, so Windows picks a matching voice.
+   *
+   * Without it an Urdu sentence is handed to an English voice and comes out
+   * as nonsense.
+   */
+  announceLang: string;
+  /**
+   * A SECOND announcement, in another language, spoken after the first.
+   *
+   * Most counters here want the number in Urdu and in English. Empty means
+   * one announcement only.
+   */
+  announceTemplate2: string;
+  announceLang2: string;
   /** Times an announcement repeats, so a distracted customer still catches it. */
   announceRepeat: number;
+  /**
+   * Play a short chime before the number is spoken.
+   *
+   * It is the sound that makes the room look up; the words only work on
+   * someone who is already listening. The chime can be routed to a chosen
+   * output (see announceAudio.ts) — the spoken part cannot, which the
+   * settings screen states rather than hides.
+   */
+  announceChime: boolean;
   /** Show how long each order has been waiting. */
   showWaitTime: boolean;
   /** Keep a ready order on screen this many seconds before it drops off. */
@@ -99,6 +123,14 @@ export interface CustomerDisplayConfig {
    */
   orderRatio: number;
   /**
+   * The message on the bar across the bottom of the order panel.
+   *
+   * On the printed designs this is "Thanks for your Patience!" and "Enjoy
+   * Your Meal!". It is the last thing a waiting customer reads, so it is the
+   * shop's words rather than ours. Empty hides the bar.
+   */
+  footerMessage: string;
+  /**
    * Show the "Powered by Digital Target" line.
    *
    * On by default and a single small line. The screen's branding is the
@@ -114,12 +146,19 @@ export const DEFAULT_DISPLAY: CustomerDisplayConfig = {
   announce: true,
   // Spoken, not printed — so it reads as speech rather than as a label.
   announceTemplate: 'Order number {n} is ready. Please collect.',
+  announceLang: 'en-GB',
+  // Off until a shop turns it on: two announcements on every order is a lot
+  // of talking for a counter that only needed one.
+  announceTemplate2: '',
+  announceLang2: 'ur-PK',
   announceRepeat: 2,
+  announceChime: true,
   showWaitTime: true,
   // Long enough for someone who stepped away to come back and still see it.
   readyHoldSeconds: 90,
   media: [],
   mediaSeconds: 8,
+  footerMessage: 'Thanks for your patience!',
   templateId: 'premium',
   templateMode: 'manual',
   orderRatio: 70,
@@ -127,6 +166,77 @@ export const DEFAULT_DISPLAY: CustomerDisplayConfig = {
 };
 
 const KEY = 'dtpos-customer-display-v1';
+
+// ============================================================
+// ANNOUNCEMENT VOICES
+//
+// A Pakistani counter is not an English-only counter. The customer waiting
+// for order 105 may well not read the screen, which is the whole reason the
+// number is spoken — and speaking it in a language they do not use is the
+// same as not speaking it.
+//
+// So the wording is a template the shop picks, each with the LANGUAGE TAG
+// that Windows needs to choose a voice. `lang` is what makes this work: the
+// browser picks an Urdu voice for `ur-PK` and an English one for `en-GB`,
+// and without it a Nastaliq sentence is read out by an English voice as
+// nonsense. A shop can also announce twice, in two languages, which is what
+// most counters here actually want.
+//
+// `{n}` is the order number. Nothing else is substituted, because a template
+// a shop can mistype into a crash is not a feature.
+// ============================================================
+export interface AnnouncementVoice {
+  id: string;
+  /** Shown in the picker. */
+  label: string;
+  /** BCP-47 tag Windows matches a voice against. */
+  lang: string;
+  /** The sentence. `{n}` becomes the order number. */
+  text: string;
+}
+
+export const ANNOUNCEMENT_VOICES: AnnouncementVoice[] = [
+  {
+    id: 'en-ready',
+    label: 'English — order is ready',
+    lang: 'en-GB',
+    text: 'Order number {n} is ready. Please collect.',
+  },
+  {
+    id: 'en-counter',
+    label: 'English — come to the counter',
+    lang: 'en-GB',
+    text: 'Order {n}, please come to the counter.',
+  },
+  {
+    id: 'en-short',
+    label: 'English — short',
+    lang: 'en-GB',
+    text: 'Order {n} ready.',
+  },
+  {
+    id: 'ur-ready',
+    label: 'اردو — آرڈر تیار ہے',
+    lang: 'ur-PK',
+    text: 'آرڈر نمبر {n} تیار ہے۔ براہِ کرم کاؤنٹر سے وصول کریں۔',
+  },
+  {
+    id: 'ur-counter',
+    label: 'اردو — کاؤنٹر پر تشریف لائیں',
+    lang: 'ur-PK',
+    text: 'آرڈر نمبر {n}، براہِ کرم کاؤنٹر پر تشریف لائیں۔',
+  },
+  {
+    id: 'ur-short',
+    label: 'اردو — مختصر',
+    lang: 'ur-PK',
+    text: 'آرڈر نمبر {n} تیار ہے۔',
+  },
+];
+
+export function voiceById(id: string | undefined): AnnouncementVoice | undefined {
+  return ANNOUNCEMENT_VOICES.find(v => v.id === id);
+}
 
 const FITS = ['contain', 'cover', 'fill'];
 const POSITIONS = ['center', 'top', 'bottom', 'left', 'right'];
@@ -148,7 +258,13 @@ export function loadDisplayConfig(): CustomerDisplayConfig {
       announce: p.announce !== false,
       announceTemplate: typeof p.announceTemplate === 'string' && p.announceTemplate.trim()
         ? p.announceTemplate : DEFAULT_DISPLAY.announceTemplate,
+      announceLang: typeof p.announceLang === 'string' && p.announceLang.trim()
+        ? p.announceLang : DEFAULT_DISPLAY.announceLang,
+      announceTemplate2: typeof p.announceTemplate2 === 'string' ? p.announceTemplate2 : '',
+      announceLang2: typeof p.announceLang2 === 'string' && p.announceLang2.trim()
+        ? p.announceLang2 : DEFAULT_DISPLAY.announceLang2,
       announceRepeat: clampNum(p.announceRepeat, 1, 5, DEFAULT_DISPLAY.announceRepeat),
+      announceChime: p.announceChime !== false,
       showWaitTime: p.showWaitTime !== false,
       readyHoldSeconds: clampNum(p.readyHoldSeconds, 10, 600, DEFAULT_DISPLAY.readyHoldSeconds),
       media: Array.isArray(p.media)
@@ -167,6 +283,7 @@ export function loadDisplayConfig(): CustomerDisplayConfig {
             }))
         : [],
       mediaSeconds: clampNum(p.mediaSeconds, 2, 120, DEFAULT_DISPLAY.mediaSeconds),
+      footerMessage: typeof p.footerMessage === 'string' ? p.footerMessage : DEFAULT_DISPLAY.footerMessage,
       templateId: typeof p.templateId === 'string' && p.templateId ? p.templateId : DEFAULT_DISPLAY.templateId,
       templateMode: p.templateMode === 'automatic' ? 'automatic' : 'manual',
       orderRatio: clampNum(p.orderRatio, 20, 100, DEFAULT_DISPLAY.orderRatio),
@@ -217,33 +334,92 @@ export function displayConfigSizeKb(cfg: CustomerDisplayConfig): number {
  */
 export function announceOrder(
   orderNumber: number | string,
-  cfg: Pick<CustomerDisplayConfig, 'announceTemplate' | 'announceRepeat'>,
+  cfg: Pick<CustomerDisplayConfig, 'announceTemplate' | 'announceRepeat'>
+     & Partial<Pick<CustomerDisplayConfig, 'announceLang' | 'announceTemplate2' | 'announceLang2'>>,
 ): { spoken: boolean; reason?: string } {
   try {
     const synth = typeof window !== 'undefined' ? window.speechSynthesis : undefined;
     if (!synth) return { spoken: false, reason: 'This device has no speech support.' };
-    if (!synth.getVoices || synth.getVoices().length === 0) {
-      // Voices load asynchronously on first use; speaking anyway usually still
-      // works once they arrive, so this is not treated as a failure.
-      void 0;
-    }
-    const text = String(cfg.announceTemplate || '').replace(/\{n\}/g, String(orderNumber));
-    if (!text.trim()) return { spoken: false, reason: 'The announcement text is empty.' };
 
     const times = Math.max(1, Math.min(5, cfg.announceRepeat || 1));
+    const lines: Array<{ text: string; lang: string }> = [];
+    const add = (tpl: string | undefined, lang: string | undefined) => {
+      const text = String(tpl || '').replace(/\{n\}/g, String(orderNumber)).trim();
+      if (text) lines.push({ text, lang: lang || 'en-GB' });
+    };
+    add(cfg.announceTemplate, cfg.announceLang);
+    // The second language, when the shop has set one. Most counters here want
+    // the number in Urdu and again in English.
+    add(cfg.announceTemplate2, cfg.announceLang2);
+
+    if (!lines.length) return { spoken: false, reason: 'The announcement text is empty.' };
+
+    // A voice that actually speaks the language, where Windows has one.
+    // Without this an Urdu sentence is handed to an English voice and comes
+    // out as nonsense — the announcement is worse than silence.
+    const voices = (() => { try { return synth.getVoices() || []; } catch { return []; } })();
+    const pickVoice = (lang: string) => {
+      const want = lang.toLowerCase();
+      const base = want.split('-')[0];
+      return voices.find(v => v.lang?.toLowerCase() === want)
+        || voices.find(v => v.lang?.toLowerCase().replace('_', '-') === want)
+        || voices.find(v => v.lang?.toLowerCase().startsWith(base))
+        || undefined;
+    };
+
+    let missing: string | undefined;
     for (let i = 0; i < times; i++) {
-      const u = new SpeechSynthesisUtterance(text);
-      // Slower and slightly louder than conversational: this is being heard
-      // across a room with background noise.
-      u.rate = 0.9;
-      u.pitch = 1;
-      u.volume = 1;
-      synth.speak(u);
+      for (const line of lines) {
+        const u = new SpeechSynthesisUtterance(line.text);
+        u.lang = line.lang;
+        const voice = pickVoice(line.lang);
+        if (voice) u.voice = voice;
+        else if (!missing && voices.length) missing = line.lang;
+        // Slower and slightly louder than conversational: this is being heard
+        // across a room with background noise.
+        u.rate = 0.9;
+        u.pitch = 1;
+        u.volume = 1;
+        synth.speak(u);
+      }
+    }
+    if (missing) {
+      // Spoken, but not in the language asked for. Saying so beats letting a
+      // shop believe their Urdu announcement is working when it is not.
+      return {
+        spoken: true,
+        reason: `Windows has no ${missing} voice installed, so that line was read by another voice.`,
+      };
     }
     return { spoken: true };
   } catch (e: any) {
     return { spoken: false, reason: e?.message || 'Speech failed.' };
   }
+}
+
+/**
+ * Which languages this computer can actually speak.
+ *
+ * Used by the settings screen to tell a shop BEFORE they rely on it that
+ * Windows has no Urdu voice installed, rather than after a customer has
+ * stood at the counter listening to nothing useful.
+ */
+export function installedVoiceLanguages(): string[] {
+  try {
+    const list = window.speechSynthesis?.getVoices?.() || [];
+    return Array.from(new Set(list.map(v => String(v.lang || '').toLowerCase()).filter(Boolean)));
+  } catch {
+    return [];
+  }
+}
+
+/** Does this computer have a voice for the given tag (or its base language)? */
+export function hasVoiceFor(lang: string): boolean {
+  const langs = installedVoiceLanguages();
+  if (!langs.length) return false;
+  const want = String(lang || '').toLowerCase();
+  const base = want.split('-')[0];
+  return langs.some(l => l === want || l.replace('_', '-') === want || l.startsWith(base));
 }
 
 /** Stop anything currently being spoken. */

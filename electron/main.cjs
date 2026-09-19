@@ -1619,6 +1619,48 @@ ipcMain.handle('list-displays', async () => {
   }
 });
 
+// ============================================================
+// A SCREEN WAS PLUGGED IN, OR PULLED OUT.
+//
+// Windows tells Electron the moment a monitor appears or disappears, whatever
+// it arrived on — HDMI, DisplayPort, VGA through an adapter, a USB display.
+// Relaying that to the renderer means the Display Center list is right the
+// instant a TV is switched on, instead of the shop pressing refresh and
+// wondering why nothing is there.
+//
+// It is a NOTIFICATION, not an action. Nothing opens, moves or closes by
+// itself: a window jumping to another monitor mid-service, or a display
+// re-opening over the till while a bill is being taken, is exactly the
+// disturbance this is supposed to prevent. The shop clicks the screen it
+// wants; the software only keeps the list honest.
+// ============================================================
+function broadcastDisplays(reason) {
+  let payload;
+  try {
+    const primary = screen.getPrimaryDisplay();
+    payload = {
+      reason,
+      displays: screen.getAllDisplays().map(d => describeDisplay(d, primary.id)),
+      primaryId: primary.id,
+    };
+  } catch (e) {
+    payload = { reason, displays: [], error: String((e && e.message) || e) };
+  }
+  for (const win of BrowserWindow.getAllWindows()) {
+    try {
+      if (!win.isDestroyed()) win.webContents.send('displays-changed', payload);
+    } catch { /* a window closing mid-broadcast is not an error */ }
+  }
+}
+
+try {
+  screen.on('display-added', () => broadcastDisplays('added'));
+  screen.on('display-removed', () => broadcastDisplays('removed'));
+  // A resolution or scaling change moves the same screen's bounds, which is
+  // what an already-open display window is positioned by.
+  screen.on('display-metrics-changed', () => broadcastDisplays('changed'));
+} catch { /* older Electron: the renderer still polls */ }
+
 ipcMain.handle('open-kds-window', async (_event, options = {}) => {
   try {
     const url = String(options.url || '');

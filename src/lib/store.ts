@@ -320,6 +320,10 @@ function emitDataChange(name: string) {
       // Single combined event
       window.dispatchEvent(new CustomEvent(DATA_CHANGE_EVENT, { detail: { collection: '*', collections: names } }));
     } catch {}
+    // And the same nudge to the other windows, so the kitchen board and the
+    // counter screen react now rather than on their next poll. Fire-and-
+    // forget by design: the till must never wait on a display.
+    signalOtherWindows(names);
   }, 120);
 }
 export function onDataChange(cb: (collection: string) => void): () => void {
@@ -747,24 +751,60 @@ function saveLocal(data: AppData) {
 // what this store has always been; the alternative on the table was a second
 // screen that never updates at all.
 // ============================================================
+// ===== THE INSTANT SIGNAL =====
+//
+// The `storage` event below is the reliable cross-window signal, but it only
+// fires once a write has been committed to disk, and this store batches its
+// writes. A BroadcastChannel carries the nudge straight across at the moment
+// the mutation happens, so a number reaching READY on the counter screen, or
+// a ticket appearing on the kitchen board, is immediate rather than a beat
+// behind.
+//
+// It is a NUDGE ONLY. No data travels on it — the receiving window drops its
+// cache and re-reads from storage, exactly as it does for a storage event. So
+// a browser without BroadcastChannel loses nothing but the promptness, and
+// the till is never waiting on a display window for anything.
+const SIGNAL_CHANNEL = 'dtpos-data-signal';
+let signalChannel: BroadcastChannel | null = null;
+try {
+  if (typeof BroadcastChannel !== 'undefined') signalChannel = new BroadcastChannel(SIGNAL_CHANNEL);
+} catch { signalChannel = null; }
+
+/** Tell the other windows something changed. Never throws into a mutation. */
+function signalOtherWindows(collections: string[]) {
+  try { signalChannel?.postMessage({ collections, at: Date.now() }); } catch { /* best effort */ }
+}
+
 if (typeof window !== 'undefined') {
   let announce: ReturnType<typeof setTimeout> | null = null;
-  window.addEventListener('storage', (e) => {
-    if (e.key !== STORAGE_KEY() || e.newValue === null) return;
+
+  const invalidateAndAnnounce = (collections: string[] = ['*']) => {
     // Never discard a mutation of ours that has not reached disk yet.
     if (pendingLocalWrite) { try { flushPendingWrite(true); } catch { /* best effort */ } }
-    // Lazy: the next read re-parses. A burst of remote writes therefore costs
-    // one parse per actual read, not one per event.
     cachedData = null;
     if (announce) return;
     announce = setTimeout(() => {
       announce = null;
       try {
         window.dispatchEvent(new CustomEvent(DATA_CHANGE_EVENT, {
-          detail: { collection: '*', collections: ['*'] },
+          detail: { collection: collections[0] || '*', collections },
         }));
       } catch { /* no window */ }
-    }, 150);
+    }, 40);
+  };
+
+  try {
+    signalChannel?.addEventListener('message', (e: MessageEvent) => {
+      const cols = Array.isArray((e.data || {}).collections) ? e.data.collections : ['*'];
+      invalidateAndAnnounce(cols);
+    });
+  } catch { /* the storage event below still covers it */ }
+
+  window.addEventListener('storage', (e) => {
+    if (e.key !== STORAGE_KEY() || e.newValue === null) return;
+    // Lazy: the next read re-parses. A burst of remote writes therefore costs
+    // one parse per actual read, not one per event.
+    invalidateAndAnnounce(['*']);
   });
 }
 

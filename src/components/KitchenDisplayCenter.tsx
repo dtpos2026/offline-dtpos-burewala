@@ -106,16 +106,33 @@ export default function KitchenDisplayCenter({ kitchen }: Props) {
     } catch { /* leave the last known list */ }
   }, [desktop]);
 
+  const [lastChange, setLastChange] = useState<string>('');
+
   useEffect(() => {
     refresh();
-    // Displays come and go while the app runs — a TV is switched on, a cable
-    // is pulled. Re-read on focus so the list is not stale when it is used,
-    // and poll slowly while this card is open so a screen switched on with the
-    // page already in front of somebody simply appears.
+    // Windows tells Electron the moment a monitor appears or disappears —
+    // HDMI, DisplayPort, VGA through an adapter, a USB display, it does not
+    // matter which. That is the signal; the poll and the focus listener are
+    // only belt and braces for an older Electron that does not emit it.
+    //
+    // Nothing opens or moves by itself when a screen appears. A display
+    // window jumping monitors mid-service, or re-opening over the till while
+    // a bill is being taken, is exactly what this is meant to avoid: the list
+    // is kept honest and the shop clicks the screen it wants.
+    const off = api()?.onDisplaysChanged?.((payload: any) => {
+      refresh();
+      const n = (payload?.displays || []).length;
+      setLastChange(
+        payload?.reason === 'added' ? `A screen was connected — ${n} now available.`
+        : payload?.reason === 'removed' ? `A screen was disconnected — ${n} left.`
+        : `A screen changed resolution — ${n} available.`,
+      );
+    });
     const onFocus = () => refresh();
     window.addEventListener('focus', onFocus);
-    const poll = setInterval(refresh, 4000);
+    const poll = setInterval(refresh, 8000);
     return () => {
+      try { off?.(); } catch { /* already gone */ }
       window.removeEventListener('focus', onFocus);
       clearInterval(poll);
     };
@@ -232,6 +249,13 @@ export default function KitchenDisplayCenter({ kitchen }: Props) {
             : 'The screen above the counter: preparing, ready to collect, and your banners.'}
         </p>
       </div>
+
+      {lastChange && (
+        <p className="text-xs rounded-md border border-primary/40 bg-primary/5 px-3 py-2">
+          {lastChange} Nothing was moved or re-opened — click a screen below when
+          you want to use it.
+        </p>
+      )}
 
       {displays.length === 0 ? (
         <p className="text-xs text-muted-foreground">

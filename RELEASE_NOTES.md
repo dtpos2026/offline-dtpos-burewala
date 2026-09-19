@@ -1,5 +1,75 @@
 # DT POS Enterprise — Release Notes
 
+## v1.8.0 — The boards as drawn, and the number spoken in Urdu
+
+### The screens now match the printed designs
+
+**The customer screen** is a white order panel beside the shop's media: a
+purple "Now Serving" bar, a row per order carrying **ORDER #102** with what the
+order is beneath it and a green **READY** badge on the right, and the shop's own
+message along the bottom. The newest ready order is highlighted.
+
+Why white cards on a coloured screen: the frame carries the shop's colour and
+the rows are *read*. Scanning for your own number is the same job as reading a
+receipt, and dark-on-light is what that job wants.
+
+**The kitchen board** has a lane per stage — NEW, PREPARING, READY, DELIVERY,
+COMPLETED — each under a solid colour bar, with light tickets beneath. A ticket
+shows the number, the table, the wait, then item lines as **quantity then item**,
+which is the order a cook works in. The header carries the kitchen, the time and
+the date; the shop's bar runs along the bottom.
+
+The status colours are now fixed across every template: red is not started,
+amber is cooking, green is ready, blue is out with a rider, grey is done. A cook
+learns that in their first shift and then reads the board by colour alone from
+across the kitchen — a template that renamed those colours would take that away.
+
+### The order number, in Urdu
+
+Six wordings, three in Urdu and three in English, each carrying the **language
+tag** Windows needs to choose a voice. That tag is the whole trick: without it
+an Urdu sentence is handed to an English voice and comes out as nonsense.
+
+A shop can also announce **twice, in two languages** — the number in Urdu and
+again in English, which is what most counters here actually want. Where Windows
+has no voice for a language installed, the settings screen says so before the
+shop relies on it, and the test button says so again.
+
+### Where the sound comes out
+
+The announcement can start with a **chime**, and that chime can be sent to a
+chosen output — the dining-room speakers over a USB sound card, say, leaving the
+rest of the computer's sound alone.
+
+The **spoken** part cannot be routed this way and the screen says so plainly.
+Windows produces speech outside the page and sends it to the app's own output,
+which is set in Windows under Sound → Volume mixer. There is no code that
+changes that, and pretending otherwise would have a shop set a device, hear the
+announcement on the wrong speakers, and have no way to understand why.
+
+### A screen plugged in, or pulled out
+
+Windows tells the app the moment a monitor appears or disappears — HDMI,
+DisplayPort, VGA through an adapter, a USB display, it makes no difference — and
+the Display Center list updates immediately and says what changed.
+
+It is a **notification, not an action**. Nothing opens, moves or closes by
+itself: a display window jumping monitors mid-service, or re-opening over the
+till while a bill is being taken, is exactly the disturbance this prevents. The
+list is kept honest; the shop clicks the screen it wants.
+
+### The screens react at once, and the till never waits
+
+Changes now carry across windows on an instant channel as well as through
+storage, so a number reaching READY on the counter screen, or a ticket landing
+on the kitchen board, happens as it happens rather than a beat later.
+
+It is a **nudge only** — no data travels on it, the receiving window re-reads
+for itself. A browser without the channel loses nothing but the promptness, and
+the till is never waiting on a display window for anything.
+
+---
+
 ## v1.7.2 — The receipt fills the roll again
 
 **This fixes a regression I introduced in 1.7.1.** The receipt came out

@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
   Monitor, Trash2, Volume2, Image as ImageIcon, Film, Palette, Columns, Settings2,
-  Link as LinkIcon,
+  Link as LinkIcon, Speaker,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -31,6 +31,10 @@ import {
   displayConfigSizeKb,
   announceOrder,
   mediaStyle,
+  ANNOUNCEMENT_VOICES,
+  voiceById,
+  hasVoiceFor,
+  installedVoiceLanguages,
   type CustomerDisplayConfig,
   type DisplayMedia,
   type MediaFit,
@@ -40,6 +44,10 @@ import { templateById } from '@/lib/displayTemplates';
 import DisplayTemplatePicker from '@/components/DisplayTemplatePicker';
 import { getSettings } from '@/lib/store';
 import { pickMediaFile, isElectron } from '@/lib/electron';
+import {
+  canChooseOutput, listAudioOutputs, loadAnnounceOutput, saveAnnounceOutput,
+  playAnnounceChime, type AudioOutput,
+} from '@/lib/announceAudio';
 
 /** Beyond this the shop is close to the storage limit. */
 const SIZE_WARN_KB = 3000;
@@ -67,9 +75,24 @@ export default function CustomerDisplaySettingsCard() {
   const [openMedia, setOpenMedia] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState('');
   const [showVideoUrl, setShowVideoUrl] = useState(false);
+  const [outputs, setOutputs] = useState<AudioOutput[]>([]);
+  const [output, setOutput] = useState(() => loadAnnounceOutput());
+  // Voices load asynchronously in Chromium, so "no Urdu voice" is only worth
+  // saying once the list has actually arrived.
+  const [voicesLoaded, setVoicesLoaded] = useState(() => installedVoiceLanguages().length > 0);
   const shopName = (() => { try { return getSettings().name; } catch { return undefined; } })();
 
   useEffect(() => { setSizeKb(displayConfigSizeKb(cfg)); }, [cfg]);
+
+  useEffect(() => {
+    void listAudioOutputs().then(setOutputs);
+    const onVoices = () => setVoicesLoaded(installedVoiceLanguages().length > 0);
+    onVoices();
+    try { window.speechSynthesis?.addEventListener?.('voiceschanged', onVoices); } catch { /* older engine */ }
+    return () => {
+      try { window.speechSynthesis?.removeEventListener?.('voiceschanged', onVoices); } catch { /* nothing to remove */ }
+    };
+  }, []);
 
   const commit = (next: CustomerDisplayConfig) => {
     const res = saveDisplayConfig(next);
@@ -169,7 +192,15 @@ export default function CustomerDisplaySettingsCard() {
   const testVoice = () => {
     const r = announceOrder(101, cfg);
     if (!r.spoken) toast.error(r.reason || 'This device could not speak the announcement.');
+    else if (r.reason) toast.warning(r.reason);
     else toast.success('Announcement played.');
+  };
+
+  const testChime = async () => {
+    const r = await playAnnounceChime(output);
+    if (!r.ok) toast.error(r.reason || 'Could not play the chime.');
+    else if (r.reason) toast.warning(r.reason);
+    else toast.success('Chime played.');
   };
 
   const openDisplay = async () => {
@@ -298,6 +329,19 @@ export default function CustomerDisplaySettingsCard() {
         </div>
       </div>
 
+      <div className="space-y-1">
+        <Label className="text-xs">Message along the bottom</Label>
+        <Input
+          placeholder="Thanks for your patience!"
+          value={cfg.footerMessage}
+          onChange={e => patch({ footerMessage: e.target.value })}
+        />
+        <p className="text-[11px] text-muted-foreground">
+          The last thing a waiting customer reads, so it is your words. Leave
+          it empty to hide the bar.
+        </p>
+      </div>
+
       <div className="flex items-center justify-between rounded-md border p-3">
         <div className="space-y-0.5 pr-4">
           <Label htmlFor="cd-credit" className="text-sm">Show &ldquo;Powered by Digital Target&rdquo;</Label>
@@ -322,12 +366,83 @@ export default function CustomerDisplaySettingsCard() {
         </div>
 
         {cfg.announce && (
-          <div className="space-y-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Wording — <code>{'{n}'}</code> becomes the order number</Label>
-              <Input value={cfg.announceTemplate} onChange={e => patch({ announceTemplate: e.target.value })} />
+          <div className="space-y-3">
+            {/* ===== FIRST ANNOUNCEMENT ===== */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Announcement</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {ANNOUNCEMENT_VOICES.map(v => (
+                  <Button
+                    key={v.id}
+                    type="button" size="sm"
+                    variant={cfg.announceTemplate === v.text ? 'default' : 'outline'}
+                    className="h-7 text-xs"
+                    onClick={() => patch({ announceTemplate: v.text, announceLang: v.lang })}
+                  >
+                    {v.label}
+                  </Button>
+                ))}
+              </div>
+              <Input value={cfg.announceTemplate}
+                     onChange={e => patch({ announceTemplate: e.target.value })} />
+              <p className="text-[11px] text-muted-foreground">
+                <code>{'{n}'}</code> becomes the order number. Language:{' '}
+                <b>{cfg.announceLang}</b>
+                {!hasVoiceFor(cfg.announceLang) && voicesLoaded && (
+                  <span className="text-status-warning">
+                    {' '}— Windows has no voice for this language installed, so it
+                    will be read by another voice.
+                  </span>
+                )}
+              </p>
             </div>
-            <div className="flex items-end gap-3">
+
+            {/* ===== SECOND LANGUAGE ===== */}
+            <div className="rounded-md bg-muted/40 p-2.5 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs">Say it again in another language</Label>
+                <Switch
+                  checked={!!cfg.announceTemplate2}
+                  onCheckedChange={v => patch({
+                    announceTemplate2: v ? (voiceById('ur-ready')?.text || '') : '',
+                    announceLang2: 'ur-PK',
+                  })}
+                />
+              </div>
+              {cfg.announceTemplate2 ? (
+                <>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ANNOUNCEMENT_VOICES.map(v => (
+                      <Button
+                        key={v.id}
+                        type="button" size="sm"
+                        variant={cfg.announceTemplate2 === v.text ? 'default' : 'outline'}
+                        className="h-7 text-xs"
+                        onClick={() => patch({ announceTemplate2: v.text, announceLang2: v.lang })}
+                      >
+                        {v.label}
+                      </Button>
+                    ))}
+                  </div>
+                  <Input value={cfg.announceTemplate2}
+                         onChange={e => patch({ announceTemplate2: e.target.value })} />
+                  <p className="text-[11px] text-muted-foreground">
+                    Spoken straight after the first. Language: <b>{cfg.announceLang2}</b>
+                    {!hasVoiceFor(cfg.announceLang2) && voicesLoaded && (
+                      <span className="text-status-warning">
+                        {' '}— no voice for it is installed in Windows.
+                      </span>
+                    )}
+                  </p>
+                </>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  Most counters want the number in Urdu and again in English.
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-end gap-3 flex-wrap">
               <div className="space-y-1">
                 <Label className="text-xs">Repeat</Label>
                 <Input type="number" min={1} max={5} className="w-20"
@@ -336,10 +451,54 @@ export default function CustomerDisplaySettingsCard() {
               </div>
               <Button size="sm" variant="outline" onClick={testVoice}>Test the voice</Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Uses the voice installed on this computer. If nothing is heard, no
-              speech voice is installed in Windows — the test above will say so.
-            </p>
+
+            {/* ===== CHIME AND WHERE THE SOUND COMES OUT ===== */}
+            <div className="rounded-md border p-2.5 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <Label className="text-xs">Chime before the announcement</Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    The sound that makes the room look up. The words only reach
+                    someone already listening.
+                  </p>
+                </div>
+                <Switch checked={cfg.announceChime}
+                        onCheckedChange={v => patch({ announceChime: v })} />
+              </div>
+
+              {canChooseOutput() ? (
+                <div className="space-y-1">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <Speaker className="h-3.5 w-3.5" /> Play the chime on
+                  </Label>
+                  <div className="flex gap-2">
+                    <select
+                      className="flex-1 h-9 rounded-md border bg-background px-2 text-sm"
+                      value={output}
+                      onChange={e => { setOutput(e.target.value); saveAnnounceOutput(e.target.value); }}
+                    >
+                      <option value="default">System default</option>
+                      {outputs.filter(o => o.deviceId !== 'default').map(o => (
+                        <option key={o.deviceId} value={o.deviceId}>{o.label}</option>
+                      ))}
+                    </select>
+                    <Button size="sm" variant="outline" onClick={testChime}>Test</Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Use this to send the chime to the dining-room speakers and
+                    leave the rest of the computer's sound alone. <b>The spoken
+                    part cannot be routed this way</b> — Windows produces it
+                    outside the page and sends it to the app's own output, which
+                    is set in Windows under Sound&nbsp;→&nbsp;Volume mixer.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  This device cannot choose an output; sound follows the Windows
+                  default.
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -44,6 +44,7 @@ import {
   type DisplayMedia,
 } from '@/lib/customerDisplay';
 import { templateVars, scaledFont, fitNumberFont, DEVELOPER_CREDIT } from '@/lib/displayTemplates';
+import { playAnnounceChime } from '@/lib/announceAudio';
 import { Volume2, VolumeX, Maximize2, ChefHat, CheckCircle2, Megaphone } from 'lucide-react';
 
 /** Orders the kitchen is still working on. */
@@ -166,7 +167,14 @@ export default function CustomerDisplayPage() {
     }, 6000);
 
     if (cfg.announce && !muted) {
-      for (const o of fresh) announceOrder(o.orderNumber ?? '', cfg);
+      // The chime first, on whichever output the shop chose. It is what makes
+      // the room look up; the words only reach someone already listening.
+      const speak = () => { for (const o of fresh) announceOrder(o.orderNumber ?? '', cfg); };
+      if (cfg.announceChime) {
+        void playAnnounceChime().finally(() => window.setTimeout(speak, 420));
+      } else {
+        speak();
+      }
     }
   }, [ready, cfg, muted]);
 
@@ -285,6 +293,7 @@ export default function CustomerDisplayPage() {
             template={template}
             showWaitTime={cfg.showWaitTime}
             rows={cardsPerColumn}
+            footerMessage={cfg.footerMessage}
           />
         ) : (
           <div className="grid grid-cols-2 gap-[1.2vw] min-h-0 min-w-0">
@@ -330,18 +339,22 @@ export default function CustomerDisplayPage() {
 }
 
 /**
- * NOW SERVING — the list layout from the mockups.
+ * NOW SERVING — the panel from the printed designs.
  *
- * A queue is read top to bottom, which is how people join one, so the orders
- * are a list rather than a wall of tiles. A row therefore has room for what
- * a bare number tile never did: what the order IS, where it goes, and a badge
- * that says READY in words rather than only in colour.
+ * A white card panel beside the shop's media: a purple title bar, a row per
+ * order, and the shop's own message along the bottom.
  *
- * Ready orders sit at the top because that is the only thing anyone on the
- * far side of the counter is looking for.
+ * Why white, on a purple screen. The frame carries the shop's colour; the
+ * rows are read. A customer scanning for their number is doing the same job
+ * as reading a receipt, and dark-on-light is what that job wants — which is
+ * also exactly what the designs show.
+ *
+ * Ready orders sit at the top, and the newest ready one is highlighted,
+ * because that is the only thing anyone on the far side of the counter is
+ * looking for.
  */
 function NowServingList({
-  preparing, ready, flash, template, showWaitTime, rows,
+  preparing, ready, flash, template, showWaitTime, rows, footerMessage,
 }: {
   preparing: Order[];
   ready: Order[];
@@ -349,6 +362,7 @@ function NowServingList({
   template: { typeScale: number; numberScale: number };
   showWaitTime: boolean;
   rows: number;
+  footerMessage?: string;
 }) {
   const items = [
     ...ready.map(o => ({ order: o, isReady: true })),
@@ -358,18 +372,26 @@ function NowServingList({
   return (
     // `direction` is reset here: the wrapper flips it to put the media first
     // without reordering the markup, and text inside must read left to right.
-    <section className="flex flex-col min-h-0 min-w-0" style={{ direction: 'ltr' }}>
+    <section
+      className="flex flex-col min-h-0 min-w-0 overflow-hidden"
+      style={{
+        direction: 'ltr',
+        borderRadius: 'var(--dt-radius)',
+        background: 'var(--dt-panel)',
+        color: 'var(--dt-on-panel)',
+      }}
+    >
       <div
-        className="flex items-center gap-3 px-[1vw] py-[1vh] mb-[1vh]"
+        className="flex items-center gap-3 px-[1.2vw] py-[1.4vh] m-[0.6vw] shrink-0"
         style={{
-          borderRadius: 'var(--dt-radius)',
+          borderRadius: 'calc(var(--dt-radius) * 0.8)',
           background: 'var(--dt-accent)',
           color: 'var(--dt-on-accent)',
         }}
       >
-        <Megaphone style={{ width: '1.4em', height: '1.4em' }} />
-        <h2 className="font-black tracking-widest" style={{ fontSize: scaledFont(1.4, template.typeScale, 0.6) }}>
-          NOW SERVING
+        <Megaphone style={{ width: '1.5em', height: '1.5em' }} />
+        <h2 className="font-black tracking-wide" style={{ fontSize: scaledFont(1.5, template.typeScale, 0.65) }}>
+          Now Serving
         </h2>
         <span className="ml-auto font-black tabular-nums opacity-80"
               style={{ fontSize: scaledFont(1.2, template.typeScale, 0.5) }}>
@@ -377,93 +399,115 @@ function NowServingList({
         </span>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-[0.8vh]">
-        {items.map(({ order: o, isReady }) => (
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-[0.7vh] px-[0.6vw]">
+        {items.map(({ order: o, isReady }, i) => (
           <OrderRow
             key={o.id}
             order={o}
             isReady={isReady}
             flashing={flash.has(o.id)}
+            highlighted={isReady && i === 0}
             template={template}
             showWaitTime={showWaitTime}
           />
         ))}
         {items.length === 0 && (
-          <div className="text-center opacity-30 py-[8vh]"
-               style={{ fontSize: scaledFont(1.25, template.typeScale, 0.5) }}>
+          <div className="text-center py-[8vh]"
+               style={{ color: 'var(--dt-panel-muted)', fontSize: scaledFont(1.15, template.typeScale, 0.45) }}>
             No orders yet
           </div>
         )}
       </div>
+
+      {/* The shop's own last word to a waiting customer. */}
+      {footerMessage ? (
+        <div
+          className="flex items-center justify-center gap-2 m-[0.6vw] px-[1vw] py-[1.2vh] font-bold shrink-0"
+          style={{
+            borderRadius: 'calc(var(--dt-radius) * 0.8)',
+            background: 'var(--dt-accent)',
+            color: 'var(--dt-on-accent)',
+            fontSize: scaledFont(1.05, template.typeScale, 0.4),
+          }}
+        >
+          <ChefHat style={{ width: '1.3em', height: '1.3em' }} />
+          {footerMessage}
+        </div>
+      ) : <div className="pb-[0.6vw]" />}
     </section>
   );
 }
 
-/** One line of the NOW SERVING list. */
+/** One row of the NOW SERVING panel. */
 function OrderRow({
-  order, isReady, flashing, template, showWaitTime,
+  order, isReady, flashing, highlighted, template, showWaitTime,
 }: {
   order: Order;
   isReady: boolean;
   flashing: boolean;
+  highlighted: boolean;
   template: { typeScale: number; numberScale: number };
   showWaitTime: boolean;
 }) {
-  const colour = isReady ? 'var(--dt-ready)' : 'var(--dt-preparing)';
+  const badge = isReady ? 'var(--dt-status-ready)' : 'var(--dt-status-preparing)';
   // What the order is, in the few words a row has space for.
-  const summary = (order.items || [])
-    .slice(0, 2)
-    .map(i => i.name)
-    .join(' + ');
+  const summary = (order.items || []).slice(0, 2).map(i => i.name).join(' + ');
   const more = Math.max(0, (order.items || []).length - 2);
   const where = order.tableName || order.tableLabel
     || String(order.orderType || '').replace(/_/g, ' ');
 
   return (
     <div
-      className={`${flashing ? 'cd-flash' : 'cd-in'} flex items-center gap-[1vw] px-[1vw] py-[0.9vh] border-2 shrink-0`}
+      className={`${flashing ? 'cd-flash' : 'cd-in'} flex items-center gap-[0.8vw] px-[1vw] py-[1vh] border shrink-0`}
       style={{
-        borderRadius: 'var(--dt-radius)',
-        background: 'var(--dt-surface)',
-        borderColor: colour,
+        borderRadius: 'calc(var(--dt-radius) * 0.7)',
+        background: highlighted ? 'var(--dt-accent)' : 'var(--dt-panel)',
+        color: highlighted ? 'var(--dt-on-accent)' : 'var(--dt-on-panel)',
+        borderColor: highlighted ? 'var(--dt-accent)' : 'var(--dt-panel-border)',
       }}
     >
-      {/* The number gets its own container so `cqw` measures THIS box. */}
-      <div
-        className="shrink-0 text-center overflow-hidden"
-        style={{ containerType: 'inline-size', width: '28%', minWidth: '4.5rem' }}
-      >
+      <div className="min-w-0 flex-1">
         <div
-          className="font-black tabular-nums leading-none whitespace-nowrap"
-          style={{ color: colour, fontSize: fitNumberFont(`#${order.orderNumber ?? ''}`, template.numberScale) }}
+          className="font-black tabular-nums leading-tight truncate"
+          style={{ fontSize: scaledFont(1.6, template.numberScale, 0.8) }}
         >
-          #{order.orderNumber}
+          ORDER #{order.orderNumber}
+        </div>
+        <div
+          className="truncate"
+          style={{
+            color: highlighted ? 'inherit' : 'var(--dt-panel-muted)',
+            opacity: highlighted ? 0.85 : 1,
+            fontSize: scaledFont(0.95, template.typeScale, 0.32),
+          }}
+        >
+          {summary || 'Order'}{more > 0 ? ` +${more}` : ''}
         </div>
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="truncate font-bold" style={{ fontSize: scaledFont(1.05, template.typeScale, 0.4) }}>
-          {summary || 'Order'}{more > 0 ? ` +${more}` : ''}
-        </div>
-        <div className="truncate uppercase tracking-wide opacity-55"
-             style={{ fontSize: scaledFont(0.75, template.typeScale, 0.22) }}>
+      <div className="shrink-0 text-right">
+        <div className="uppercase tracking-wide truncate"
+             style={{
+               color: highlighted ? 'inherit' : 'var(--dt-panel-muted)',
+               opacity: highlighted ? 0.85 : 1,
+               fontSize: scaledFont(0.8, template.typeScale, 0.25),
+             }}>
           {where}
           {showWaitTime && !isReady ? ` · ${minutesSince(order.createdAt)} min` : ''}
         </div>
-      </div>
-
-      <div
-        className="shrink-0 font-black tracking-wider px-[0.9vw] py-[0.5vh] flex items-center gap-1.5"
-        style={{
-          borderRadius: 'calc(var(--dt-radius) / 1.5)',
-          background: colour,
-          color: 'var(--dt-bg)',
-          fontSize: scaledFont(0.8, template.typeScale, 0.25),
-        }}
-      >
-        {isReady
-          ? <><CheckCircle2 style={{ width: '1.1em', height: '1.1em' }} /> READY</>
-          : <><ChefHat style={{ width: '1.1em', height: '1.1em' }} /> PREPARING</>}
+        <div
+          className="mt-1 inline-flex items-center gap-1.5 font-black tracking-wide px-[0.8vw] py-[0.45vh]"
+          style={{
+            borderRadius: 999,
+            background: badge,
+            color: '#FFFFFF',
+            fontSize: scaledFont(0.78, template.typeScale, 0.24),
+          }}
+        >
+          {isReady
+            ? <><CheckCircle2 style={{ width: '1.1em', height: '1.1em' }} /> READY</>
+            : <><ChefHat style={{ width: '1.1em', height: '1.1em' }} /> PREPARING</>}
+        </div>
       </div>
     </div>
   );
