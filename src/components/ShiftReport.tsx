@@ -228,7 +228,22 @@ export async function printShiftReport(range: ShiftReportRange): Promise<{ succe
   if (wantsRaw({ printerConfig: counterCfg, settings })) {
     try {
       const { buildShiftReportBytes } = await import('@/printing/escposBuilder');
-      const bytes = buildShiftReportBytes(data, settings);
+      // The report is the fourth slip kind, and it gets its margins the same
+      // way the other three do: its own per-slip setting, then the printer's
+      // calibration, then this device's. Reading only the shop-level value is
+      // what made Printer Center's margins look like decoration.
+      const { resolveSlipMargin } = await import('@/lib/slipMargins');
+      const { loadPrintMargins } = await import('@/lib/printMargins');
+      const device = loadPrintMargins();
+      const m = resolveSlipMargin('report', counterCfg?.leftMarginMm, counterCfg?.rightMarginMm, device.left, device.right);
+      const bytes = buildShiftReportBytes(data, settings, {
+        paper: counterCfg?.paperSize,
+        leftMm: m.left,
+        rightMm: m.right,
+        contentWidthMm: counterCfg?.printWidthMm,
+        autoCut: counterCfg ? counterCfg.autoCut !== false : undefined,
+        beep: counterCfg ? !!counterCfg.beep : undefined,
+      });
       const api: any = (window as any).electronAPI;
       if (api?.printRaw && bytes.length > 40) {
         const res = await api.printRaw({ printerName, data: bytes, copies: 1 });

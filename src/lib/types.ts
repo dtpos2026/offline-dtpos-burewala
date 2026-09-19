@@ -530,6 +530,16 @@ export interface RestaurantSettings {
   visitAgainText?: string;     // Editable "Please Visit Again" line on customer receipts
   kotThankYouText?: string;    // Editable footer text on KOT (default: "— Thank You —")
   kotFooterNote?: string;      // Editable secondary note on KOT (default: "Please check the order before preparing")
+  /**
+   * Print the restaurant's own name at the top of the KOT.
+   *
+   * The rendered KOT has always shown it; the raw one did not, so switching a
+   * kitchen printer to raw quietly stripped the shop's name off its tickets.
+   * On by default — the ticket belongs to the restaurant.
+   */
+  kotShowShopName?: boolean;
+  /** Print the one-line "Powered by Digital Target" credit under the KOT footer. */
+  kotShowDeveloperCredit?: boolean;
   taxAmount: number;
   serviceChargePercent: number;
   qrMode: 'auto' | 'custom';

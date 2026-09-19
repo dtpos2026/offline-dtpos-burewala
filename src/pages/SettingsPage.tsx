@@ -1820,6 +1820,39 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* ===== WHOSE TICKET IT IS =====
+              The restaurant's name belongs at the top of its own kitchen
+              ticket. The rendered KOT always printed it and the raw one did
+              not, so switching a kitchen printer to raw quietly stripped it
+              off. Both do now, and both carry the same one-line developer
+              credit underneath, which a shop can switch off. */}
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="flex items-center justify-between rounded-md border p-3 gap-3">
+              <span className="min-w-0">
+                <span className="text-sm block">Restaurant name on the KOT</span>
+                <span className="text-xs text-muted-foreground">
+                  Printed above &ldquo;Kitchen Order&rdquo; on every ticket, rendered or raw.
+                </span>
+              </span>
+              <Switch
+                checked={settings.kotShowShopName !== false}
+                onCheckedChange={v => setSettings({ ...settings, kotShowShopName: v })}
+              />
+            </label>
+            <label className="flex items-center justify-between rounded-md border p-3 gap-3">
+              <span className="min-w-0">
+                <span className="text-sm block">&ldquo;Powered by Digital Target&rdquo; on the KOT</span>
+                <span className="text-xs text-muted-foreground">
+                  One small line under your own footer.
+                </span>
+              </span>
+              <Switch
+                checked={settings.kotShowDeveloperCredit !== false}
+                onCheckedChange={v => setSettings({ ...settings, kotShowDeveloperCredit: v })}
+              />
+            </label>
+          </div>
+
           <div>
             <label className="text-xs font-medium text-muted-foreground">Receipt Footer Text</label>
             <Textarea value={settings.receiptFooter} onChange={e => setSettings({ ...settings, receiptFooter: e.target.value })} rows={3} />

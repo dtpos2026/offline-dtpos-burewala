@@ -7,6 +7,7 @@
 import type { Order, RestaurantSettings } from '@/lib/types';
 import { resolveReceiptLayout, type ReceiptLayout } from './receiptLayout';
 import { columnsOf } from './paperProfile';
+import { DEVELOPER_CREDIT } from '@/lib/displayTemplates';
 
 const ESC = 0x1b;
 const GS = 0x1d;
@@ -279,35 +280,89 @@ function when(iso?: string): string {
   return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-function paperOf(settings: any): Paper {
-  const p = settings?.paperSize;
+/**
+ * Where a raw slip sits on the paper, resolved by the CALLER.
+ *
+ * This is the half of the margin story the raw path was missing. It read the
+ * shop-level `receiptMarginLeft` and nothing else, so a printer calibrated to
+ * 3mm in Printer Center, or a KOT given its own right margin, printed exactly
+ * where it always had — and the shop, quite reasonably, reported that the
+ * margin settings did nothing. The rendered path had been resolving printer
+ * and per-slip margins correctly the whole time, which is why the same bill
+ * moved through the driver and refused to move raw.
+ *
+ * The caller resolves it because only the caller knows WHICH printer and
+ * WHICH kind of slip this is; see `slipGeometryFor` in directPrint.ts.
+ */
+export interface SlipGeometry {
+  paper?: Paper;
+  /** Left margin (mm). Undefined means "not configured" — not zero. */
+  leftMm?: number;
+  /** Right margin (mm). Undefined means "not configured". */
+  rightMm?: number;
+  /** Calibrated content width (mm). */
+  contentWidthMm?: number;
+  /** Cut the paper at the end of the slip. */
+  autoCut?: boolean;
+  /** Sound the printer's buzzer when the slip finishes. */
+  beep?: boolean;
+}
+
+function paperOf(settings: any, geom?: SlipGeometry): Paper {
+  const p = geom?.paper ?? settings?.paperSize;
   return p === '58mm' || p === '110mm' ? p : '80mm';
 }
 
+/** A number the caller actually supplied, or undefined. */
+function mm(value: unknown): number | undefined {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
 /**
- * Margin/geometry options for a slip, read from the shop settings.
+ * Margin/geometry options for a slip.
  *
  * The raw path gets its margins from the SAME numbers as the HTML path, so a
  * receipt printed raw and the same receipt printed through the driver land in
- * the same place on the paper.
+ * the same place on the paper. Resolved geometry from the caller wins; the
+ * shop-level values are the fallback for callers that have none.
+ *
+ * Note the deliberate absence of `|| 0`. An unset margin must stay UNDEFINED
+ * so `resolveReceiptLayout` can apply the paper profile's safe inset — `|| 0`
+ * turned every unconfigured slip into an explicit zero and printed the first
+ * column on the head's very first dot, which is what shaved the left edge.
  */
-function docOptionsOf(settings: any, font?: 'A' | 'B'): EscposDocOptions {
+function docOptionsOf(settings: any, font?: 'A' | 'B', geom?: SlipGeometry): EscposDocOptions {
   return {
-    leftMm: Number(settings?.receiptMarginLeft) || 0,
-    rightMm: Number(settings?.receiptMarginRight) || 0,
-    contentWidthMm: Number(settings?.receiptPrintWidthMm) || undefined,
+    leftMm: geom?.leftMm ?? mm(settings?.receiptMarginLeft),
+    rightMm: geom?.rightMm ?? mm(settings?.receiptMarginRight),
+    contentWidthMm: geom?.contentWidthMm ?? mm(settings?.receiptPrintWidthMm) ?? undefined,
     font,
   };
+}
+
+/**
+ * Finish a slip: cut unless the printer is configured not to, and beep if it
+ * is configured to.
+ *
+ * Both were settings a shop could switch in Printer Center that the raw path
+ * never read. The beep goes BEFORE the cut so it sounds as the slip is
+ * finished rather than after the paper has already been handed over.
+ */
+function finishSlip(d: EscposDoc, geom?: SlipGeometry): void {
+  if (geom?.beep) d.beep();
+  if (geom?.autoCut === false) { d.feed(3); return; }
+  d.cut();
 }
 
 // ------------------------------------------------------------
 // CUSTOMER RECEIPT
 // ------------------------------------------------------------
-export function buildReceiptBytes(order: Order, settings: RestaurantSettings): number[] {
+export function buildReceiptBytes(order: Order, settings: RestaurantSettings, geom?: SlipGeometry): number[] {
   const s: any = settings || {};
   const compact = !!s.receiptCompactMode;
   const sym = s.currencySymbol || 'Rs ';
-  const d = new EscposDoc(paperOf(s), docOptionsOf(s));
+  const d = new EscposDoc(paperOf(s, geom), docOptionsOf(s, undefined, geom));
   // ===== RAW TEXT SIZE =====
   // 'large' prints the item rows and the total at double HEIGHT (GS ! keeps
   // the width, so the line still fits the same number of characters). The
@@ -383,7 +438,7 @@ export function buildReceiptBytes(order: Order, settings: RestaurantSettings): n
   d.bold(false);
   // Compact saves paper in the BODY. The clearance the blade needs is
   // physical and identical in both modes, so it is not reduced here.
-  d.cut();
+  finishSlip(d, geom);
   return d.bytes();
 }
 
@@ -399,11 +454,22 @@ export interface KotOpts {
   station?: string;
 }
 
-export function buildKotBytes(order: Order, settings: RestaurantSettings, opts: KotOpts = {}): number[] {
+export function buildKotBytes(
+  order: Order,
+  settings: RestaurantSettings,
+  opts: KotOpts = {},
+  geom?: SlipGeometry,
+): number[] {
   const s: any = settings || {};
-  const d = new EscposDoc(paperOf(s), docOptionsOf(s));
+  const d = new EscposDoc(paperOf(s, geom), docOptionsOf(s, undefined, geom));
 
-  d.center().bold(true).size(2, 2);
+  d.center();
+  // ===== THE TICKET BELONGS TO THE RESTAURANT =====
+  // The rendered KOT has always carried the shop's name. The raw one did not,
+  // so switching a kitchen printer to raw quietly stripped it off every
+  // ticket — the same slip, the same shop, one of them anonymous.
+  if (s.kotShowShopName !== false && s.name) d.bold(true).fit(String(s.name)).bold(false);
+  d.bold(true).size(2, 2);
   d.line(opts.updateMode ? 'KOT UPDATE' : 'KITCHEN ORDER');
   d.size(1, 1);
   if (opts.station) d.line(opts.station.toUpperCase());
@@ -439,7 +505,10 @@ export function buildKotBytes(order: Order, settings: RestaurantSettings, opts: 
   d.center();
   if (s.kotFooterNote !== '') d.line(s.kotFooterNote || 'Please check the order before preparing');
   if (s.kotThankYouText !== '') d.line(s.kotThankYouText || '- Thank You -');
-  d.cut();
+  // One small developer credit under the shop's own footer, the same line the
+  // display screens carry. A shop can turn it off.
+  if (s.kotShowDeveloperCredit !== false) d.line(DEVELOPER_CREDIT);
+  finishSlip(d, geom);
   return d.bytes();
 }
 
@@ -453,9 +522,9 @@ export interface TokenData {
   when?: Date;
 }
 
-export function buildTokenBytes(data: TokenData, settings: RestaurantSettings): number[] {
+export function buildTokenBytes(data: TokenData, settings: RestaurantSettings, geom?: SlipGeometry): number[] {
   const s: any = settings || {};
-  const d = new EscposDoc(paperOf(s), docOptionsOf(s));
+  const d = new EscposDoc(paperOf(s, geom), docOptionsOf(s, undefined, geom));
   const total = (data.items || []).reduce((a, i) => a + (i.qty || 0), 0);
 
   d.center();
@@ -475,7 +544,7 @@ export function buildTokenBytes(data: TokenData, settings: RestaurantSettings): 
   d.size(3, 3).bold(true).line(String(data.orderNumber)).size(1, 1).bold(false);
   d.line('TOKEN NUMBER');
   d.line('Hand over to the tandoor counter');
-  d.cut();
+  finishSlip(d, geom);
   return d.bytes();
 }
 
@@ -493,10 +562,10 @@ export function buildTokenBytes(data: TokenData, settings: RestaurantSettings): 
  * value, which is inferred rather than declared, and duplicating that shape
  * here would be a second source of truth that could drift.
  */
-export function buildShiftReportBytes(data: any, settings: RestaurantSettings): number[] {
+export function buildShiftReportBytes(data: any, settings: RestaurantSettings, geom?: SlipGeometry): number[] {
   const s: any = settings || data?.settings || {};
   const sym = s.currencySymbol || 'Rs ';
-  const d = new EscposDoc(paperOf(s), docOptionsOf(s));
+  const d = new EscposDoc(paperOf(s, geom), docOptionsOf(s, undefined, geom));
   const m = (n: number) => money(n, sym);
 
   d.center().bold(true).size(2, 2).fit(s.name || 'SHIFT REPORT').size(1, 1);
@@ -575,6 +644,6 @@ export function buildShiftReportBytes(data: any, settings: RestaurantSettings): 
   const tot = data?.totals || {};
   d.bold(true).lr('TOTAL', `${tot.catQty || 0}  ${m(tot.catAmt)}`).bold(false);
   d.center().line(`Printed ${when()}`);
-  d.cut();
+  finishSlip(d, geom);
   return d.bytes();
 }

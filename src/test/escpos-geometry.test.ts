@@ -13,7 +13,7 @@
 // bring the lopsided slip back.
 // ============================================================
 import { describe, it, expect } from 'vitest';
-import { EscposDoc, columnsFor } from '@/printing/escposBuilder';
+import { EscposDoc, columnsFor, buildReceiptBytes, buildKotBytes, buildTokenBytes } from '@/printing/escposBuilder';
 import { buildAlignmentTestBytes } from '@/printing/alignmentTest';
 import { resolveReceiptLayout } from '@/printing/receiptLayout';
 import { repairLegacyMargins, DEFAULT_SIDE_MARGIN_MM, defaultPrinterConfig } from '@/lib/printerSettings';
@@ -201,5 +201,73 @@ describe('device-local margins', () => {
     localStorage.clear();
     savePrintMargins({ top: 0, right: 0, bottom: 0, left: 3, contentWidthMm: 0 });
     expect(hasUnequalSideMargins()).toBe(true);
+  });
+});
+
+// ============================================================
+// THE OTHER HALF OF "THE MARGIN SETTING DOES NOTHING"
+//
+// Fixing the resolver made Printer Settings reach the RENDERED slip. The raw
+// builders were still reading one shop-level field and nothing else — not the
+// printer's own calibration from Printer Center, not the per-slip margins,
+// not the device's. So the same bill moved when printed through the Windows
+// driver and refused to move when printed raw, which is exactly what the shop
+// kept photographing.
+// ============================================================
+describe('the raw builders honour the geometry they are given', () => {
+  const order: any = {
+    id: 'o1', orderNumber: 21, createdAt: new Date().toISOString(),
+    items: [{ id: 'i1', name: 'Zinger Burger', quantity: 2, price: 500 }],
+    total: 1000, orderType: 'takeaway',
+  };
+
+  it('moves a raw receipt by the printer\'s own left margin', () => {
+    const bare = buildReceiptBytes(order, { name: 'SHOP' } as any);
+    const moved = buildReceiptBytes(order, { name: 'SHOP' } as any, { leftMm: 5, rightMm: 0 });
+    expect(word(...findCommand(moved, 0x1d, 0x4c)!.slice(0, 2) as [number, number])).toBe(40); // 5mm
+    // And it is genuinely different from the unconfigured slip.
+    expect(word(...findCommand(bare, 0x1d, 0x4c)!.slice(0, 2) as [number, number])).not.toBe(40);
+  });
+
+  it('moves a raw KOT and a raw token the same way', () => {
+    const kot = buildKotBytes(order, { name: 'SHOP' } as any, {}, { leftMm: 4, rightMm: 1 });
+    expect(word(...findCommand(kot, 0x1d, 0x4c)!.slice(0, 2) as [number, number])).toBe(32);
+
+    const token = buildTokenBytes(
+      { orderNumber: 21, items: [{ name: 'Naan', qty: 3 }] } as any,
+      { name: 'SHOP' } as any,
+      { leftMm: 4, rightMm: 1 },
+    );
+    expect(word(...findCommand(token, 0x1d, 0x4c)!.slice(0, 2) as [number, number])).toBe(32);
+  });
+
+  it('uses the printer\'s paper size, not the shop\'s', () => {
+    // A 58mm kitchen printer under an 80mm shop default used to build its KOT
+    // at 576 dots and have the printer wrap every line.
+    const bytes = buildKotBytes(order, { name: 'SHOP', paperSize: '80mm' } as any, {}, { paper: '58mm', leftMm: 0, rightMm: 0 });
+    expect(word(...findCommand(bytes, 0x1d, 0x57)!.slice(0, 2) as [number, number])).toBe(384);
+  });
+
+  it('leaves an unset margin unset, so the safe inset still applies', () => {
+    // `|| 0` here would turn every unconfigured slip into an explicit zero and
+    // print the first column on the head's very first dot.
+    const bytes = buildReceiptBytes(order, { name: 'SHOP' } as any, {});
+    expect(word(...findCommand(bytes, 0x1d, 0x4c)!.slice(0, 2) as [number, number])).toBe(16);
+  });
+
+  it('respects a printer told not to cut', () => {
+    // Another Printer Center switch the raw path never read.
+    const cutting = buildReceiptBytes(order, { name: 'SHOP' } as any, { autoCut: true });
+    const notCutting = buildReceiptBytes(order, { name: 'SHOP' } as any, { autoCut: false });
+    expect(cutting.some((b, i) => b === 0x1d && cutting[i + 1] === 0x56)).toBe(true);
+    expect(notCutting.some((b, i) => b === 0x1d && notCutting[i + 1] === 0x56)).toBe(false);
+  });
+
+  it('sounds the buzzer only when the printer is set to', () => {
+    const quiet = buildReceiptBytes(order, { name: 'SHOP' } as any, {});
+    const loud = buildReceiptBytes(order, { name: 'SHOP' } as any, { beep: true });
+    const hasBeep = (b: number[]) => b.some((x, i) => x === 0x1b && b[i + 1] === 0x42);
+    expect(hasBeep(quiet)).toBe(false);
+    expect(hasBeep(loud)).toBe(true);
   });
 });

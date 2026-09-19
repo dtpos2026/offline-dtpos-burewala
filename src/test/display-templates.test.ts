@@ -218,3 +218,36 @@ describe('the template picker previews before it applies', () => {
     expect(picker).toContain('var(--dt-');
   });
 });
+
+describe('the kitchen ticket is the restaurant\'s too', () => {
+  const order: any = {
+    id: 'o1', orderNumber: 21, createdAt: new Date().toISOString(),
+    items: [{ id: 'i1', name: 'Zinger Burger', quantity: 2 }],
+    orderType: 'dine_in',
+  };
+  const text = (b: number[]) => Buffer.from(b).toString('latin1');
+
+  it('prints the shop\'s name on the raw KOT, as the rendered one always did', async () => {
+    // Switching a kitchen printer to raw used to strip the shop's name off
+    // every ticket: same slip, same shop, one of them anonymous.
+    const { buildKotBytes } = await import('@/printing/escposBuilder');
+    expect(text(buildKotBytes(order, { name: 'FIRST CHEF' } as any))).toContain('FIRST CHEF');
+  });
+
+  it('carries one developer credit, which a shop can turn off', async () => {
+    const { buildKotBytes } = await import('@/printing/escposBuilder');
+    const on = text(buildKotBytes(order, { name: 'FIRST CHEF' } as any));
+    const off = text(buildKotBytes(order, { name: 'FIRST CHEF', kotShowDeveloperCredit: false } as any));
+    expect(on).toContain(DEVELOPER_CREDIT);
+    expect(off).not.toContain(DEVELOPER_CREDIT);
+    // Once, not twice.
+    expect(on.split(DEVELOPER_CREDIT).length - 1).toBe(1);
+  });
+
+  it('lets a shop drop its own name from the ticket if it wants to', async () => {
+    const { buildKotBytes } = await import('@/printing/escposBuilder');
+    const off = text(buildKotBytes(order, { name: 'FIRST CHEF', kotShowShopName: false } as any));
+    expect(off).not.toContain('FIRST CHEF');
+    expect(off).toContain('KITCHEN ORDER');
+  });
+});

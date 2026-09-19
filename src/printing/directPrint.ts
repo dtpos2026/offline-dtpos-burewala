@@ -18,8 +18,13 @@
 // HTML path, so nothing that worked before can break.
 // ============================================================
 import type { Order, RestaurantSettings } from '@/lib/types';
-import { buildReceiptBytes, buildKotBytes, buildTokenBytes, type KotOpts, type TokenData } from './escposBuilder';
-import { loadPrinterSettings, resolvePrinterForRole, type PrinterSettingsDoc } from '@/lib/printerSettings';
+import {
+  buildReceiptBytes, buildKotBytes, buildTokenBytes,
+  type KotOpts, type TokenData, type SlipGeometry,
+} from './escposBuilder';
+import { resolveSlipMargin, type SlipKind } from '@/lib/slipMargins';
+import { loadPrintMargins } from '@/lib/printMargins';
+import { loadPrinterSettings, resolvePrinterForRole, type PrinterSettingsDoc, type PrinterConfig } from '@/lib/printerSettings';
 import { getDeviceId } from '@/lib/tenant';
 import { ensurePrintAllowedFast } from '@/licensing/printGuard';
 import { appendPrintLog } from '@/lib/printLog';
@@ -121,6 +126,52 @@ export function resolveTarget(slip: DirectSlip, settings: any, override?: string
   return { printerName: settings?.kotPrinter || settings?.defaultPrinter };
 }
 
+/** Which printer config drives this slip, using the same rules as resolveTarget. */
+function configFor(slip: DirectSlip, override?: string): PrinterConfig | undefined {
+  if (override || !psCache) return undefined;
+  const dev = (() => { try { return getDeviceId(); } catch { return undefined; } })();
+  const role: any = slip === 'token' ? 'token' : roleFor(slip);
+  return (resolvePrinterForRole(psCache, role, dev)
+    || (slip !== 'receipt' ? resolvePrinterForRole(psCache, 'kitchen', dev) : undefined)
+    || resolvePrinterForRole(psCache, 'counter', dev)) as PrinterConfig | undefined;
+}
+
+/**
+ * Where this slip should sit on the paper, and how it should finish.
+ *
+ * THE MARGIN SETTINGS THAT DID NOTHING.
+ *
+ * The raw builders used to read the shop-level `receiptMarginLeft` and
+ * nothing else — not the printer's own calibration from Printer Center, not
+ * the per-slip margins, not this device's margins. So a shop that set Left to
+ * 3mm to stop their left edge being clipped watched the raw slip print in
+ * exactly the same place, on every bill, and told us the setting was broken.
+ * It was. The rendered path had been resolving all three correctly the whole
+ * time, which is why the same bill moved through the Windows driver and
+ * refused to move raw.
+ *
+ * Resolution order is the one `slipMargins.ts` documents, most specific
+ * first: this slip kind's own margin, then the printer's calibration, then
+ * the device's. An unset value stays UNDEFINED rather than becoming 0, so the
+ * paper profile's safe inset applies.
+ */
+export function slipGeometryFor(slip: DirectSlip, override?: string): SlipGeometry {
+  const cfg = configFor(slip, override);
+  const device = (() => { try { return loadPrintMargins(); } catch { return { left: undefined, right: undefined } as any; } })();
+  const kind: SlipKind = slip === 'kot' ? 'kot' : slip === 'token' ? 'token' : 'receipt';
+  const m = resolveSlipMargin(kind, cfg?.leftMarginMm, cfg?.rightMarginMm, device.left, device.right);
+  return {
+    paper: cfg?.paperSize as SlipGeometry['paper'],
+    leftMm: m.left,
+    rightMm: m.right,
+    contentWidthMm: cfg?.printWidthMm,
+    // Both are Printer Center switches the raw path never read: a printer set
+    // not to cut still cut, and one set to beep stayed silent.
+    autoCut: cfg ? cfg.autoCut !== false : undefined,
+    beep: cfg ? !!cfg.beep : undefined,
+  };
+}
+
 async function send(bytes: number[], target: DirectTarget, copies: number): Promise<DirectPrintResult> {
   const started = Date.now();
   const bridge = api();
@@ -170,17 +221,19 @@ export async function printDirect(args: DirectPrintArgs): Promise<DirectPrintRes
   const guard = await ensurePrintAllowedFast();
   if (!guard.allowed) return { success: false, error: guard.message || 'Printing is blocked on this device.' };
 
+  const geom = slipGeometryFor(args.slip, args.printerOverride);
+
   let bytes: number[];
   try {
     if (args.slip === 'receipt') {
       if (!args.order) return { success: false, error: 'no order' };
-      bytes = buildReceiptBytes(args.order, settings);
+      bytes = buildReceiptBytes(args.order, settings, geom);
     } else if (args.slip === 'kot') {
       if (!args.order) return { success: false, error: 'no order' };
-      bytes = buildKotBytes(args.order, settings, args.kot || {});
+      bytes = buildKotBytes(args.order, settings, args.kot || {}, geom);
     } else {
       if (!args.token || !args.token.items?.length) return { success: false, error: 'no token items' };
-      bytes = buildTokenBytes(args.token, settings);
+      bytes = buildTokenBytes(args.token, settings, geom);
     }
   } catch (e: any) {
     return { success: false, error: e?.message || 'could not build the slip' };

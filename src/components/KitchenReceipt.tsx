@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { DEVELOPER_CREDIT } from '@/lib/displayTemplates';
 import { createPortal } from 'react-dom';
 import { Order, RestaurantSettings, ReceiptTextStyle } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -759,6 +760,12 @@ export default function KitchenReceipt({ order: rawOrder, settings, showPrintBut
             <div style={{ fontSize: '9px', marginTop: '4px', color: '#333' }}>
               Printed: {date} {time}
             </div>
+          )}
+          {/* One small developer credit, the same line the raw KOT and the
+              display screens carry. The ticket's branding is the shop's —
+              its logo and name are at the top. */}
+          {settings.kotShowDeveloperCredit !== false && (
+            <div style={{ fontSize: '8px', marginTop: '3px', color: '#555' }}>{DEVELOPER_CREDIT}</div>
           )}
         </div>
       </div>
