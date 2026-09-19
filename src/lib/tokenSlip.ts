@@ -11,6 +11,7 @@ import { printNode } from '@/printing';
 import { loadPrinterSettings, resolvePrinterForRole } from '@/lib/printerSettings';
 import { resolvePrintMode } from '@/printing/printMode';
 import { resolveSlipMargin } from '@/lib/slipMargins';
+import { loadPrintMargins } from '@/lib/printMargins';
 import { getDeviceId } from '@/lib/tenant';
 import { appendTokenEntry, getTokenSummary, todayKey } from '@/lib/tokenLedger';
 
@@ -359,6 +360,7 @@ export async function printTokenDirect(
   document.body.appendChild(portal);
   try {
     // Compact Print Mode is GLOBAL — token slips follow it too.
+    const deviceMargins = loadPrintMargins();
     const res = await printNode(portal, {
       paperWidth, printerName, silent: true, copies: 1,
       // The token printer's own mode and geometry, so this slip is positioned
@@ -367,8 +369,11 @@ export async function printTokenDirect(
       compact: !!settingsAny?.receiptCompactMode,
       compactFontSize: settingsAny?.receiptCompactFontSize,
       compactLineHeight: settingsAny?.receiptCompactLineHeight,
-      marginLeftMm: resolveSlipMargin('token', tokenCfg?.leftMarginMm, tokenCfg?.rightMarginMm).left,
-      marginRightMm: resolveSlipMargin('token', tokenCfg?.leftMarginMm, tokenCfg?.rightMarginMm).right,
+      // Device margins are the last fallback, exactly as they are for the
+      // receipt and the KOT. Leaving them out here meant a shop that set
+      // this machine's margins saw every slip move but the token.
+      marginLeftMm: resolveSlipMargin('token', tokenCfg?.leftMarginMm, tokenCfg?.rightMarginMm, deviceMargins.left, deviceMargins.right).left,
+      marginRightMm: resolveSlipMargin('token', tokenCfg?.leftMarginMm, tokenCfg?.rightMarginMm, deviceMargins.left, deviceMargins.right).right,
       contentWidthMm: tokenCfg?.printWidthMm,
       logType: 'other',
     });

@@ -12,7 +12,7 @@ export const APP_NAME = 'DT POS Enterprise';
  * reads it from package.json at runtime via getInstalledVersion() and
  * the UI prefers that value when running inside Electron.
  */
-export const APP_VERSION = '1.6.0';
+export const APP_VERSION = '1.7.0';
 export const APP_VERSION_LABEL = `${APP_NAME} v${APP_VERSION}`;
 // Build stamp from Vite define (see vite.config.ts).
 export const BUILD_STAMP: string = (typeof __BUILD_STAMP__ !== 'undefined' ? __BUILD_STAMP__ : '') as string;

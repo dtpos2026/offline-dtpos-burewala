@@ -11,6 +11,7 @@ import { printNode } from '@/printing';
 import { printDirect } from '@/printing/directPrint';
 import { resolvePrintMode } from '@/printing/printMode';
 import { resolveSlipMargin } from '@/lib/slipMargins';
+import { loadPrintMargins } from '@/lib/printMargins';
 import { loadPrinterSettings, resolvePrinterForRole } from '@/lib/printerSettings';
 import { getDeviceId } from '@/lib/tenant';
 import { appendTokenEntry } from '@/lib/tokenLedger';
@@ -114,6 +115,7 @@ export default function TokenReceipt({ order, settings, autoPrint = false, onAut
           }
         }
 
+        const deviceMargins = loadPrintMargins();
         const res = await printNode(el, {
           paperWidth, printerName, silent: true, copies: 1,
           printMode: tokenPrintMode as any,
@@ -121,8 +123,11 @@ export default function TokenReceipt({ order, settings, autoPrint = false, onAut
           compactFontSize: (settings as any).receiptCompactFontSize,
           compactLineHeight: (settings as any).receiptCompactLineHeight,
           autoCut: settings.autoCut !== false,
-          marginLeftMm: resolveSlipMargin('token', tokenCfg?.leftMarginMm, tokenCfg?.rightMarginMm).left,
-          marginRightMm: resolveSlipMargin('token', tokenCfg?.leftMarginMm, tokenCfg?.rightMarginMm).right,
+          // Device margins are the last fallback, exactly as they are for
+          // the receipt and the KOT. Leaving them out here meant a shop that
+          // set this machine's margins saw every slip move but the token.
+          marginLeftMm: resolveSlipMargin('token', tokenCfg?.leftMarginMm, tokenCfg?.rightMarginMm, deviceMargins.left, deviceMargins.right).left,
+          marginRightMm: resolveSlipMargin('token', tokenCfg?.leftMarginMm, tokenCfg?.rightMarginMm, deviceMargins.left, deviceMargins.right).right,
           contentWidthMm: tokenCfg?.printWidthMm,
         });
         if (res.success) {

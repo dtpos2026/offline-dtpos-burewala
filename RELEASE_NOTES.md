@@ -1,5 +1,146 @@
 # DT POS Enterprise — Release Notes
 
+## v1.7.0 — The margin settings do what they say, and the printer is ready at startup
+
+Three faults that were costing a shop real time every day, and a display
+system built around the point that the screen belongs to the restaurant.
+
+### The Left margin setting did nothing
+
+The layout resolver forced the two side margins to match by taking the
+**smaller** of them. That was written to defend against stale lopsided values
+on machines already in the field, and it did stop those — but it also threw
+away every margin anyone typed by hand. Setting Left to 3 mm to stop the left
+edge being clipped returned 0, the clipping carried on, and the setting looked
+broken because it was.
+
+Stale values now belong to the storage migrations that own them. The resolver
+applies the numbers it is given: 4 mm left with 1 mm right shifts the slip
+right, and stays there. Slack the resolver creates by itself — a calibrated
+width, a clamp against an unreadable slip — is still split evenly, so nothing
+nobody asked for collects on one edge.
+
+### The RAW slip printed clipped on the left
+
+Both side margins defaulted to zero, on the reasoning that the head's own
+~4 mm unmarkable edge already *is* the margin. On a perfectly seated roll that
+holds. On a roll a person loaded by hand it does not: the first markable column
+lands at or past the edge of the paper.
+
+Each paper profile now carries a safe inset in printer dots — **2.0 mm on
+80 mm, 1.5 mm on 58 mm, 2.5 mm on 110 mm** — and that is what an unconfigured
+slip gets. An explicit 0 is still obeyed and still fills the whole head.
+
+Two migrations top up only the side margins that are currently **zero**, once
+per machine. A printer calibrated to 3 mm / 5 mm because that is what squares
+the slip on that hardware keeps those numbers: a non-zero margin is somebody's
+measurement.
+
+### The raw path was reading one setting and ignoring the rest
+
+Fixing the resolver made Printer Settings reach the *rendered* slip. The raw
+ESC/POS builders were still reading a single shop-level field — not the
+printer's own calibration from Printer Center, not the per-slip margins, not
+this device's. So the same bill moved when it went through the Windows driver
+and refused to move when it went raw.
+
+The builders now take a resolved geometry, in the documented order: this slip
+kind's own margin, then the printer's calibration, then the device's. An unset
+value stays unset rather than becoming 0, so the safe inset applies. The same
+resolution carries the printer's **paper size** (a 58 mm kitchen printer under
+an 80 mm shop default was building tickets at 576 dots and letting the printer
+wrap every line), its calibrated width, and two switches the raw path had never
+read at all — a printer set *not* to cut still cut, and one set to beep stayed
+silent. The shift report is treated as the fourth slip kind.
+
+### Every bill queued as Pending until Detect & Save was pressed
+
+Nothing in the print path was broken; it was never told which device to use.
+Startup detection now repairs the three ways a machine got there:
+
+- **nothing configured** — adopt the Windows default printer, with its brand
+  preset and that roll's safe inset;
+- **a name Windows has since renamed** — a driver reinstall turns `POS-80`
+  into `POS-80 (Copy 1)`; the saved name is re-pointed at the real device;
+- **empty role targets** — Printer Center looked correct while the fields the
+  print *queue* reads were blank.
+
+It changes nothing when the configuration is already right, and when Windows
+reports no printers it says so rather than inventing one. **Re-detect** in
+Printer Center runs the same pass instead of only redrawing the list.
+
+### Printer Center, by module
+
+Thirteen cards in one column became eleven modules with a list beside them,
+one shown at a time, remembered per device. On a phone the list is a strip of
+chips above the content. No card was removed.
+
+The new module is the one that was missing: **Role mapping** — which printer
+each slip goes to. There were two lists of printers and nothing joining them, so
+a printer could be added, detected and test-printed successfully while every
+real bill still queued. It shows fallbacks rather than hiding them, and a saved
+name Windows no longer has is flagged and stays selectable.
+
+### Customer Display and Kitchen Display: designs
+
+Ten designs for the screen above the counter, seven for the kitchen board,
+chosen from a picker that **previews before it applies** — these screens are
+usually in another room from the person configuring them.
+
+Templates are data, not components: each is a set of colours and scales applied
+as CSS custom properties to one layout, so ten looks do not become ten places
+an order can fail to appear.
+
+**Automatic mode** reads the screen the display actually opened on. A square or
+portrait panel gets the compact design, which shows *more* rather than the same
+layout squeezed; a large wide TV gets the big-number one. Kitchen ticket columns
+come from the real pixel width instead of CSS breakpoints, because a 1366 px
+monitor and a 4K TV are both "xl" and are not the same board.
+
+### Whose branding this is
+
+Digital Target writes the software. The restaurant it is installed in owns the
+screen its customers look at, and the ticket its kitchen works from. So the
+shop's logo and name are the largest things on both screens and at the top of
+the KOT, and **Powered by Digital Target** is one small line underneath, which
+a shop can switch off.
+
+The rendered KOT always printed the shop's name; the raw one did not, so
+switching a kitchen printer to raw quietly stripped it off every ticket. Both
+print it now.
+
+### Orders and advertising
+
+The customer screen's width split is the shop's: 70/30, 50/50, 30/70,
+orders-only, or any figure typed. On a narrow screen the banners move below the
+orders rather than both being squeezed.
+
+Each banner carries its own fit, position and size, applied as CSS to the
+original file. Nothing is re-encoded on the way in, so a poster is shown at the
+quality it was uploaded at, and **whole image** is the default — a deal with the
+price cropped off it is worse than a black band.
+
+### The second screen updates now
+
+The Kitchen Display and the Customer Display are separate windows running the
+same code, and they only read. The store returns an in-memory cache that only a
+*mutation* replaced — so in a read-only window it was filled when the window
+opened and stayed that way. Both screens showed whatever was on them when the
+shop opened them; a customer's number never moved to READY.
+
+They now listen for the browser's cross-window storage event, which fires in
+every window except the one that wrote. A mutation this window has not flushed
+is written out before the cache is dropped, so a counted bill cannot go with it.
+
+### Screens, click to activate
+
+A screen card in the Display Center opens the display on that screen there and
+then, and shows each screen's shape (16:9, 4:3, portrait) — the property that
+decides how the board is laid out. The list refreshes itself while the card is
+open, so a TV switched on afterwards simply appears.
+
+---
+
 ## v1.6.0 — Customer Display: order-ready screen with your own branding
 
 A second kind of screen, for the person standing at the counter rather than

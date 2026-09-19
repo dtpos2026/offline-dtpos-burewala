@@ -720,6 +720,54 @@ function saveLocal(data: AppData) {
   scheduleFlush();
 }
 
+// ============================================================
+// CROSS-WINDOW SYNC — why the second screen never updated.
+//
+// `loadData()` returns an in-memory `cachedData`, filled once from
+// localStorage and then reused. In the POS window that is correct: every
+// mutation goes through `saveLocal`, which replaces the cache and writes.
+//
+// But the Kitchen Display and the Customer Display are SEPARATE Electron
+// windows running the same code. They only ever read, so nothing in them ever
+// replaced that cache — it was filled when the window opened and stayed that
+// way. Their five-second poll dutifully called `getOrders()` and got the same
+// snapshot every time, so a customer's number never moved to READY, a new
+// ticket never reached the kitchen board, and both screens showed whatever
+// happened to be on them when the shop opened them.
+//
+// The `storage` event is the fix and it is exactly the right one: the browser
+// fires it in every OTHER window when one of them writes, and never in the
+// window that did the writing. Invalidating here and announcing a data change
+// makes the read-only screens live without giving them a write path.
+//
+// The pending-write case. A mutation in THIS window is only in memory for a
+// single microtask before it is flushed. If a remote write lands inside that
+// window, ours is flushed first so it cannot be discarded — which means the
+// remote change is briefly overwritten. That is last-write-wins, which is
+// what this store has always been; the alternative on the table was a second
+// screen that never updates at all.
+// ============================================================
+if (typeof window !== 'undefined') {
+  let announce: ReturnType<typeof setTimeout> | null = null;
+  window.addEventListener('storage', (e) => {
+    if (e.key !== STORAGE_KEY() || e.newValue === null) return;
+    // Never discard a mutation of ours that has not reached disk yet.
+    if (pendingLocalWrite) { try { flushPendingWrite(true); } catch { /* best effort */ } }
+    // Lazy: the next read re-parses. A burst of remote writes therefore costs
+    // one parse per actual read, not one per event.
+    cachedData = null;
+    if (announce) return;
+    announce = setTimeout(() => {
+      announce = null;
+      try {
+        window.dispatchEvent(new CustomEvent(DATA_CHANGE_EVENT, {
+          detail: { collection: '*', collections: ['*'] },
+        }));
+      } catch { /* no window */ }
+    }, 150);
+  });
+}
+
 // Last line of defence: never lose a pending write when the window goes away.
 if (typeof window !== 'undefined') {
   const flushOnExit = () => { try { flushPendingWrite(true); } catch { /* closing anyway */ } };
