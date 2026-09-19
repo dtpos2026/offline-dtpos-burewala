@@ -1,5 +1,66 @@
 # DT POS Enterprise — Release Notes
 
+## v1.10.0 — The money is under test
+
+Nothing a cashier does changes. This release puts the two calculations that
+handle money and stock behind tests, and corrects two claims I made earlier
+that measuring did not support.
+
+### What the customer pays is now a module
+
+The arithmetic between a cart and a grand total — discounts, service charge,
+tax, delivery, rounding — lived inline in POSScreen.tsx among three thousand
+lines of screen. That meant the one calculation in this application that
+handles money was the one calculation nobody could test.
+
+It moved to `src/lib/billTotals.ts` **unchanged**. Every line does what the
+screen did, including the rounding choices, and the 28 tests lock that
+behaviour rather than describe a better version of it — a "tidier" formula
+would be a silent change to what a shop charges.
+
+What is now pinned, with the reason each matters:
+
+- discounts apply only to the **discountable** part, so a staff discount does
+  not come off the cigarettes;
+- the service charge is taken on the **discounted** amount, and tax on the
+  subtotal **plus** the service charge;
+- the shop's own worked example — item 100 → SC 10% → GST 9% → **119.90**;
+- inclusive tax is shown, not added again;
+- delivery is neither discounted nor taxed;
+- rounding is last, so the slip and the till agree;
+- and three stacked discounts on a small bill **cannot take it negative**.
+
+### Stock coming off a sale is under test too
+
+23 tests on the deduction engine, including the fault it was written to end:
+three code paths deducting for the same paid order, so twenty burgers sold
+took sixty off the shelf. Deducting twice is now a test failure.
+
+Also pinned: a running or held bill takes nothing off; a credit sale does;
+recipe units convert properly, because 250 g off a 5 kg bag is 0.25 and not
+250, and getting that wrong empties a store room on paper in one shift; an
+item with both a recipe and a direct link is deducted once, not twice; weight
+items deduct the weight rather than the line count; and a void puts back
+exactly what came off.
+
+### Two corrections
+
+**The bundle.** I said the 1.1 MB main chunk was costing 4–8 seconds because
+xlsx, jsPDF and the charting library were inside it. Measuring says they are
+already separate chunks and only the main one is preloaded, so they load when
+a shop opens the screen that uses them and startup never pays for them. No
+change was made, because there was nothing to fix.
+
+**The types.** I said 534 `any` meant TypeScript was nominal here. Looking
+properly: `types.ts` has none, `printQueue.ts` has two, and the single biggest
+concentration — 62 in `offlineNoCloud.ts` — is deliberate, documented and
+carries its own eslint exemption, because that module is an inert stub
+standing in for a cloud SDK at dozens of legacy call sites that can never
+execute. The core data and printing modules are properly typed. There is no
+cleanup worth the churn.
+
+---
+
 ## v1.9.0 — Faults that leave a trace, and a till you can rebuild
 
 Nothing in this release changes how a bill is taken. It is about the three

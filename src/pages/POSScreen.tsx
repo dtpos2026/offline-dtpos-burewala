@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
+import { computeBillTotals } from '@/lib/billTotals';
 import { Search, Plus, Minus, Trash2, CreditCard, Pause, Weight, Edit3, ShoppingCart, RotateCcw, Delete, User, Phone, Ban, Gift, XCircle, ChefHat, MessageCircle, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
 import { normalizePhone, buildPaidMessage, buildDeliveryMessage, openWhatsApp } from '@/lib/whatsapp';
 import { Button } from '@/components/ui/button';
@@ -746,83 +747,46 @@ export default function POSScreen() {
     if (selectedCartItem === id) setSelectedCartItem(null);
   };
 
-  const subtotal = useMemo(() => cart.reduce((sum, c) => sum + c.lineTotal, 0), [cart]);
+  // ===== WHAT THE CUSTOMER PAYS =====
+  // The arithmetic lives in src/lib/billTotals.ts, unchanged, so the one
+  // calculation in this application that handles money is one a test can
+  // reach. It used to be inline here, among three thousand lines of screen,
+  // which is exactly why it had no tests.
+  const totals = useMemo(() => computeBillTotals({
+    lines: cart.map(c => ({ menuItemId: c.menuItemId, lineTotal: c.lineTotal })),
+    menuItems,
+    settings: settings as any,
+    discountMode,
+    discountAmount: discount,
+    discountPercent: discountPercentInput,
+    promoDiscount: promoApplied?.discount || 0,
+    orderType,
+  }), [cart, menuItems, settings, discountMode, discount, discountPercentInput, promoApplied, orderType]);
 
-  // Discount excluded items (categories + items)
-  const excludedCatIds = settings.discountExcludedCategoryIds || [];
-  const excludedItemIds = settings.discountExcludedItemIds || [];
-  const discountableSubtotal = useMemo(() => {
-    return cart.reduce((sum, c) => {
-      const mi = menuItems.find(m => m.id === c.menuItemId);
-      const excluded = (mi && excludedCatIds.includes(mi.categoryId)) || excludedItemIds.includes(c.menuItemId);
-      return sum + (excluded ? 0 : c.lineTotal);
-    }, 0);
-  }, [cart, menuItems, excludedCatIds, excludedItemIds]);
+  const subtotal = totals.subtotal;
+  const discountableSubtotal = totals.discountableSubtotal;
+  const eventDiscountAmt = totals.eventDiscount;
+  const manualDiscount = totals.manualDiscount;
+  const promoDiscount = totals.promoDiscount;
+  const totalDiscount = totals.totalDiscount;
+  const netSubtotal = totals.netSubtotal;
+  const serviceCharge = totals.serviceCharge;
+  const taxAmount = totals.taxAmount;
+  const deliveryChargeAmt = totals.deliveryCharge;
+  const roundingAdjust = totals.roundingAdjust;
+  const grandTotal = totals.grandTotal;
 
-  // Event discount (auto) — supports both percent and flat PKR
+  // Still read directly by the discount and receipt UI below. They describe
+  // the same settings the totals were computed from, so they are derived the
+  // same way rather than being second-guessed.
   const evtType = (settings.eventDiscountType || 'percent') as 'percent' | 'pkr';
+  const eventPct = evtType === 'percent' ? (settings.eventDiscountPercent || 0) : 0;
   const eventActive = !!settings.eventDiscountEnabled && (
     (evtType === 'percent' && (settings.eventDiscountPercent || 0) > 0) ||
     (evtType === 'pkr' && (settings.eventDiscountAmount || 0) > 0)
   );
-  const eventPct = evtType === 'percent' ? (settings.eventDiscountPercent || 0) : 0;
-  const eventDiscountAmt = !eventActive ? 0
-    : evtType === 'percent'
-      ? Math.round(discountableSubtotal * eventPct / 100)
-      : Math.min(discountableSubtotal, settings.eventDiscountAmount || 0);
-
-  // Manual discount resolution (only one of pkr OR percent active at a time)
-  const manualPercentAmt = discountMode === 'percent'
-    ? Math.round(discountableSubtotal * (discountPercentInput || 0) / 100)
-    : 0;
-  const manualPkrAmt = discountMode === 'pkr' ? (discount || 0) : 0;
-  const manualDiscount = Math.min(manualPercentAmt + manualPkrAmt, discountableSubtotal);
-
-  // Promo code discount (on top of manual + event)
-  const promoDiscount = promoApplied?.discount || 0;
-
-  const totalDiscount = Math.min(discountableSubtotal, eventDiscountAmt + manualDiscount + promoDiscount);
-
-  // ===== Service Charge + GST (client formula) =====
-  // EXCLUSIVE: item 100 → SC 10% = 10 → subtotal 110 → GST 9% = 9.90 → total 119.90
-  // INCLUSIVE: GST is already included in the total — it is only shown separately
-  //            (base = total / 1.09, gst = total × 0.09 / 1.09)
   const scPercent = settings.serviceChargePercent || 0;
-  const netSubtotal = subtotal - totalDiscount;
-  const serviceCharge = Math.round(netSubtotal * scPercent / 100);
   const taxPct = Number((settings as any).taxPercent) || 0;
-  const taxMode = ((settings as any).taxMode as 'exclusive' | 'inclusive') || 'exclusive';
-  const taxableBase = netSubtotal + serviceCharge;
-  let taxAmount = 0;
-  let grandTotal = 0;
-  if (taxPct > 0) {
-    if (taxMode === 'inclusive') {
-      grandTotal = taxableBase;
-      taxAmount = Math.round((taxableBase * taxPct / (100 + taxPct)) * 100) / 100;
-    } else {
-      taxAmount = Math.round((taxableBase * taxPct / 100) * 100) / 100;
-      grandTotal = taxableBase + taxAmount;
-    }
-  } else {
-    taxAmount = settings.taxAmount || 0; // legacy flat tax
-    grandTotal = taxableBase + taxAmount;
-  }
-
-  // ===== Delivery charge (only on delivery orders) =====
-  const deliveryChargeAmt = orderType === 'delivery' ? Number(settings.deliveryCharge || 0) : 0;
-  grandTotal += deliveryChargeAmt;
-
-  // ===== Rounding to nearest 0.05 / 0.10 / 1 (client #5: cents) =====
-  const roundStep = (() => {
-    const m = (settings as any).roundingMode || 'none';
-    return m === '0.05' ? 0.05 : m === '0.10' ? 0.10 : m === '1' ? 1 : 0;
-  })();
-  let roundingAdjust = 0;
-  if (roundStep > 0) {
-    const rounded = Math.round(grandTotal / roundStep) * roundStep;
-    roundingAdjust = Math.round((rounded - grandTotal) * 100) / 100;
-    grandTotal = Math.round(rounded * 100) / 100;
-  }
 
   const paymentReceivedNum = parseFloat(paymentReceived) || 0;
   const changeAmount = paymentReceivedNum - grandTotal;
