@@ -195,7 +195,25 @@ function buildDocument(args: FastPrintArgs, mode: DocumentMode): string {
     /class=("|')([^"']*receipt-print-portal[^"']*)\1/g,
     (m) => (/data-active-print/.test(m) ? m : `${m} data-active-print="true"`),
   );
-  return `${buildHead(args, mode)}<body class="thermal-printing${args.compact ? ' thermal-compact' : ''}"><div class="dt-fast-root receipt-print-portal" data-active-print="true">${body}</div></body></html>`;
+  // ===== THE MEASURING RULE (raster path only) =====
+  //
+  // The raster path screenshots this document and has to know EXACTLY which
+  // columns of that screenshot are the slip. Guessing from the ink does not
+  // work: a bill whose widest line is long and one whose widest line is short
+  // then get cropped differently and scaled differently, so the same shop
+  // with the same settings gets two different widths — and any blank the
+  // capture picked up beside the slip gets scaled in with it, squeezing the
+  // receipt into part of the roll.
+  //
+  // So the document states its own width. This is a hairline the full width
+  // of the slip, printed at the very top. The raster stage reads row one,
+  // takes the first and last inked column as the document's edges, crops to
+  // them and then discards the bar itself. It is the same two columns on
+  // every bill, so the crop is identical on every bill.
+  const rule = mode === 'raster'
+    ? '<div class="dt-measure" aria-hidden="true"></div>'
+    : '';
+  return `${buildHead(args, mode)}<body class="thermal-printing${args.compact ? ' thermal-compact' : ''}"><div class="dt-fast-root receipt-print-portal" data-active-print="true">${rule}${body}</div></body></html>`;
 }
 
 /**

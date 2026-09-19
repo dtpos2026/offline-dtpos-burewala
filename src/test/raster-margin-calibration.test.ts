@@ -22,17 +22,45 @@ import { createRequire } from 'node:module';
 const require_ = createRequire(import.meta.url);
 const {
   escposRasterBytes, rasterGeometry, paperDotsOf,
+  findMeasureRule, cropToMeasureRule,
 } = require_('../../electron/escposRaster.cjs');
 
-/** A NativeImage-shaped stub whose whole width is inked. */
-function slipImage(width: number, height: number, inkFrom = 0, inkTo = width - 1) {
-  const data = Buffer.alloc(width * height * 4, 0xff);
-  for (let y = 0; y < height; y++) {
+/**
+ * A NativeImage-shaped stub.
+ *
+ * `blankRight` is the blank the real capture picks up beside the slip on a
+ * Windows machine — the thing that squeezed the receipt when it was scaled in
+ * with the content. `rule` adds the measuring hairline the raster stage crops
+ * to, which every real raster document now carries.
+ */
+function slipImage(
+  width: number, height: number, inkFrom = 0, inkTo = width - 1,
+  opts: { blankRight?: number; rule?: boolean } = {},
+) {
+  const blankRight = opts.blankRight || 0;
+  const withRule = opts.rule !== false;
+  const total = width + blankRight;
+  const data = Buffer.alloc(total * height * 4, 0xff);
+  const ink = (x: number, y: number) => {
+    const i = (y * total + x) * 4;
+    data[i] = 0; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 255;
+  };
+  // The measuring rule: solid, full document width, two rows tall.
+  if (withRule) {
+    for (let y = 0; y < 2; y++) for (let x = 0; x < width; x++) ink(x, y);
+  }
+  // Body rows carry a wide white gutter, because real text does: a receipt
+  // line is mostly paper. Without one every row would be as solid as the rule
+  // and there would be nothing to tell them apart.
+  const gapFrom = inkFrom + Math.floor((inkTo - inkFrom) * 0.35);
+  const gapTo = inkFrom + Math.floor((inkTo - inkFrom) * 0.65);
+  for (let y = withRule ? 2 : 0; y < height; y++) {
     for (let x = inkFrom; x <= inkTo; x++) {
-      const i = (y * width + x) * 4;
-      data[i] = 0; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 255;
+      if (x >= gapFrom && x <= gapTo) continue;
+      ink(x, y);
     }
   }
+  width = total;
   const make = (w: number, h: number, buf: Buffer): any => ({
     getSize: () => ({ width: w, height: h }),
     toBitmap: () => buf,
@@ -143,34 +171,83 @@ describe('the margin pairs the shop asked to be tested', () => {
   });
 });
 
-describe('the ink crop no longer stretches the slip', () => {
+describe('finding the slip inside the screenshot', () => {
+  const paperDots = paperDotsOf('80mm');
+
+  it('removes the blank the capture picked up beside the slip', () => {
+    // THE NARROW-RECEIPT FAULT. The worker window cannot always be sized to
+    // the document, so the screenshot can carry blank to its right. Scaling
+    // that in with the content shrinks the receipt to fit alongside it — a
+    // narrow slip with a wide band down the right edge.
+    const withBlank = slipImage(800, 60, 0, 799, { blankRight: 400 });
+    const span = inkSpan(escposRasterBytes(withBlank, '80mm', true,
+      { marginLeftMm: 3, marginRightMm: 5 }), paperDots);
+
+    expect(span.first).toBe(3 * DOTS_PER_MM);
+    expect(paperDots - 1 - span.last).toBe(5 * DOTS_PER_MM);
+  });
+
   it('gives two bills of different widths the SAME margins', () => {
-    // THE BUG. The crop measured each capture's own ink and resized it back
-    // up to the content width, so a bill whose widest line was short was
-    // stretched more than one whose widest line was long. Same shop, same
-    // settings, two widths.
-    const paperDots = paperDotsOf('80mm');
-    const wide = slipImage(800, 60, 0, 799);        // a long widest line
-    const narrow = slipImage(800, 60, 100, 699);    // a short one
+    // Cropping to the INK made this fail: a receipt whose widest line is long
+    // and one whose widest line is short were cropped and then scaled
+    // differently, so the same shop with the same settings got two widths.
+    // The measuring rule is identical on every bill, so the crop is too.
+    const wide = slipImage(800, 60, 0, 799, { blankRight: 400 });
+    const narrow = slipImage(800, 60, 100, 699, { blankRight: 400 });
 
     const a = inkSpan(escposRasterBytes(wide, '80mm', true, { marginLeftMm: 3, marginRightMm: 5 }), paperDots);
     const b = inkSpan(escposRasterBytes(narrow, '80mm', true, { marginLeftMm: 3, marginRightMm: 5 }), paperDots);
 
-    // The narrow bill keeps its own inset instead of being stretched out to
-    // the same edges as the wide one.
+    // The wide bill reaches both configured margins...
     expect(a.first).toBe(3 * DOTS_PER_MM);
+    expect(paperDots - 1 - a.last).toBe(5 * DOTS_PER_MM);
+    // ...and the narrow one keeps its own inset rather than being stretched
+    // out to match, which is what "the same scale on every bill" means.
     expect(b.first).toBeGreaterThan(a.first);
+    expect(b.last).toBeLessThan(a.last);
   });
 
-  it('still crops when a caller explicitly asks for it', () => {
-    // The behaviour is kept, just no longer the default.
-    const paperDots = paperDotsOf('80mm');
-    const narrow = slipImage(800, 60, 100, 699);
-    const cropped = inkSpan(
-      escposRasterBytes(narrow, '80mm', true, { marginLeftMm: 3, marginRightMm: 5, cropBlankSides: true }),
-      paperDots,
-    );
-    expect(cropped.first).toBe(3 * DOTS_PER_MM);
+  it('reads the document width from the rule, not from the content', () => {
+    const img = slipImage(800, 40, 200, 599, { blankRight: 300 });
+    const rule = findMeasureRule(img.toBitmap(), 1100, 40);
+    expect(rule).toBeTruthy();
+    expect(rule.first).toBe(0);
+    expect(rule.last).toBe(799);      // the document, not the ink at 200..599
+    expect(rule.barHeight).toBe(2);
+  });
+
+  it('refuses to mistake content for the rule', () => {
+    // A rule is SOLID across its span. A first line of text is not, so a
+    // document without one is rejected instead of being cropped to a word.
+    const noRule = slipImage(800, 40, 100, 699, { rule: false });
+    expect(findMeasureRule(noRule.toBitmap(), 800, 40)).toBeNull();
+
+    const gappy = Buffer.alloc(800 * 10 * 4, 0xff);
+    for (let y = 0; y < 10; y++) {
+      for (const x of [10, 11, 40, 41, 300, 301]) {
+        const i = (y * 800 + x) * 4;
+        gappy[i] = 0; gappy[i + 1] = 0; gappy[i + 2] = 0; gappy[i + 3] = 255;
+      }
+    }
+    expect(findMeasureRule(gappy, 800, 10)).toBeNull();
+  });
+
+  it('falls back to the ink crop when a capture carries no rule', () => {
+    // An older document, or a capture that lost its first rows. The blank
+    // still has to go, even if the crop then varies with the bill.
+    const noRule = slipImage(800, 60, 0, 799, { blankRight: 400, rule: false });
+    const span = inkSpan(escposRasterBytes(noRule, '80mm', true,
+      { marginLeftMm: 3, marginRightMm: 5 }), paperDots);
+    expect(span.first).toBe(3 * DOTS_PER_MM);
+    expect(paperDots - 1 - span.last).toBe(5 * DOTS_PER_MM);
+  });
+
+  it('never prints the rule itself', () => {
+    // It is a measuring mark, not part of the slip.
+    const img = slipImage(800, 60, 0, 799);
+    const cropped = cropToMeasureRule(img);
+    expect(cropped).toBeTruthy();
+    expect(cropped.image.getSize().height).toBe(58);
   });
 });
 
@@ -198,5 +275,35 @@ describe('the printer is told the full head, and positioned by the dots', () => 
     const geom = rasterGeometry('80mm', 60, 60);
     expect(geom.contentDots).toBeGreaterThanOrEqual(32);
     expect(geom.leftDots + geom.contentDots).toBeLessThanOrEqual(geom.paperDots);
+  });
+});
+
+describe('the rule is recognised only when it really is one', () => {
+  it('declines a solid band taller than a hairline could be', () => {
+    // A template with a black header band must not have that band cut off
+    // the top of every slip. The rule is two CSS pixels and the worker never
+    // zooms past 8x, so anything past ~16 rows is somebody's design.
+    const width = 800;
+    const height = 60;
+    const data = Buffer.alloc(width * height * 4, 0xff);
+    for (let y = 0; y < 40; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        data[i] = 0; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 255;
+      }
+    }
+    expect(findMeasureRule(data, width, height)).toBeNull();
+  });
+
+  it('declines a stray mark that is too narrow to be the document', () => {
+    const width = 800;
+    const data = Buffer.alloc(width * 20 * 4, 0xff);
+    for (let y = 0; y < 2; y++) {
+      for (let x = 10; x < 60; x++) {
+        const i = (y * width + x) * 4;
+        data[i] = 0; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 255;
+      }
+    }
+    expect(findMeasureRule(data, width, 20)).toBeNull();
   });
 });

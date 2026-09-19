@@ -144,3 +144,37 @@ describe('the print service honours the mode it is given', () => {
     expect(code).not.toMatch(/injectPrintCss\(\s*paperWidth\s*\)/);
   });
 });
+
+// ============================================================
+// THE MEASURING RULE BELONGS TO THE RASTER DOCUMENT ALONE.
+//
+// It exists so the raster stage can tell which columns of its screenshot are
+// the slip. The Windows driver prints the page as it is, so a rule there
+// would be a black line across the top of every receipt.
+// ============================================================
+describe('the measuring rule', () => {
+  const args = {
+    html: '<div class="print-receipt"><div>FIRST CHEF</div><div>Total 1000</div></div>',
+    paperWidth: '80mm' as const,
+    marginLeftMm: 3,
+    marginRightMm: 5,
+  };
+
+  it('is present in the document the raster stage captures', async () => {
+    const { buildWorkerDocument } = await import('@/printing/fastPrint');
+    expect(buildWorkerDocument(args as any, 'raster').html).toContain('dt-measure');
+  });
+
+  it('is absent from the document the Windows driver prints', async () => {
+    // Otherwise it is a black line across the top of every slip.
+    const { buildWorkerDocument } = await import('@/printing/fastPrint');
+    expect(buildWorkerDocument(args as any, 'html').html).not.toContain('<div class="dt-measure"');
+  });
+
+  it('is styled to the full content width, or it measures nothing', async () => {
+    const { resolveReceiptLayout, layoutCss } = await import('@/printing/receiptLayout');
+    const css = layoutCss(resolveReceiptLayout({ paper: '80mm', leftMm: 3, rightMm: 5 }), 'raster');
+    expect(css).toContain('.dt-measure');
+    expect(css).toMatch(/\.dt-measure\s*\{[^}]*width:\s*100%/);
+  });
+});

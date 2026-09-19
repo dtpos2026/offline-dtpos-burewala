@@ -273,40 +273,145 @@ function cropBlankSides(image, opts = {}) {
 }
 
 /**
+ * Find the document's real edges from the measuring rule at its top.
+ *
+ * The rule (see receiptLayout.ts) is a solid hairline the FULL width of the
+ * slip, printed as the document's first element. So row one tells us exactly
+ * which columns of the screenshot are the slip and which are whatever blank
+ * the capture picked up beside it — on every bill, identically, regardless of
+ * how long that bill's widest line happens to be.
+ *
+ * That last part is the whole point. Cropping to the INK instead made a
+ * receipt with a long widest line and one with a short widest line crop and
+ * then scale differently, so the same shop with the same settings got two
+ * different widths.
+ *
+ * Returns null when no rule is found — an older document, or a capture that
+ * lost its first rows — and the caller falls back to the ink crop.
+ */
+function findMeasureRule(pixels, width, height, cutoff = 200) {
+  if (!width || !height) return null;
+
+  const inkAt = (x, y) => {
+    const i = (y * width + x) * 4;
+    const b = pixels[i] || 0;
+    const g = pixels[i + 1] || 0;
+    const r = pixels[i + 2] || 0;
+    const a = pixels[i + 3] ?? 255;
+    const alpha = a / 255;
+    return (((0.299 * r + 0.587 * g + 0.114 * b) * alpha) + (255 * (1 - alpha))) < cutoff;
+  };
+
+  // Row 0 can catch an antialiased edge, so read the second row where there
+  // is one — the rule is at least two device pixels tall by construction.
+  const probe = Math.min(1, height - 1);
+  let first = -1;
+  let last = -1;
+  for (let x = 0; x < width; x++) {
+    if (inkAt(x, probe)) {
+      if (first === -1) first = x;
+      last = x;
+    }
+  }
+  if (first === -1) return null;
+
+  const span = last - first + 1;
+  // A rule is SOLID across its whole span. A first line of text is not, so a
+  // document without a rule is rejected here rather than mistaken for one.
+  let inked = 0;
+  for (let x = first; x <= last; x++) if (inkAt(x, probe)) inked++;
+  if (inked < span * 0.98) return null;
+  // And it must be a meaningful fraction of the capture, or it is a stray mark.
+  if (span < width * 0.3) return null;
+
+  // How tall is it? Walk down while rows stay solid across the same span.
+  //
+  // The rule is two CSS pixels, and the worker never zooms past 8x, so it
+  // cannot be more than about sixteen device rows. A solid run longer than
+  // MAX_RULE_ROWS is therefore not the rule — it is a template with a black
+  // header band, or a capture of something else entirely. Rather than cut a
+  // shop's own banner off the top of every slip, we decline to recognise a
+  // rule at all and the caller falls back to the ink crop.
+  const MAX_RULE_ROWS = 24;
+  let barHeight = 0;
+  for (let y = 0; y < Math.min(height, MAX_RULE_ROWS + 1); y++) {
+    let solid = 0;
+    for (let x = first; x <= last; x++) if (inkAt(x, y)) solid++;
+    if (solid < span * 0.98) break;
+    barHeight = y + 1;
+  }
+  if (barHeight < 1 || barHeight > MAX_RULE_ROWS || barHeight >= height) return null;
+
+  return { first, last, width: span, barHeight };
+}
+
+/**
+ * Crop a capture to the document itself, using the measuring rule.
+ *
+ * Removes the blank the capture picked up beside the slip AND the rule, so
+ * what is handed to the resize is exactly the slip and nothing else.
+ */
+function cropToMeasureRule(image) {
+  const size = image.getSize();
+  if (!size.width || !size.height) return null;
+  const bitmap = image.toBitmap();
+  const realWidth = Math.max(1, Math.round(bitmap.length / 4 / size.height));
+  const rule = findMeasureRule(bitmap, realWidth, size.height);
+  if (!rule) return null;
+  if (typeof image.crop !== 'function') return null;
+
+  const height = size.height - rule.barHeight;
+  if (height < 1) return null;
+  return {
+    image: image.crop({ x: rule.first, y: rule.barHeight, width: rule.width, height }),
+    trimmedLeft: rule.first,
+    trimmedRight: realWidth - 1 - rule.last,
+  };
+}
+
+/**
  * Full pipeline for an Electron NativeImage. Kept as the one entry point
  * main.cjs calls, so the resize step stays in step with the dot packing.
  */
 function escposRasterBytes(image, paperLabel, autoCut = true, opts = {}) {
   const geom = rasterGeometry(paperLabel, opts.marginLeftMm, opts.marginRightMm);
 
-  // ===== WHY THIS IS OFF BY DEFAULT NOW =====
+  // ===== FINDING THE SLIP INSIDE THE SCREENSHOT =====
   //
-  // Cropping the capture to its ink and then resizing THAT to the content
-  // width stretches the slip to fill whatever room the margins leave. It was
-  // added to rescue a squeezed slip, but the squeeze had a different cause
-  // (the capture was measured with scrollWidth instead of the authored
-  // width), and that is fixed at the source in main.cjs.
+  // The capture is not always exactly the slip. Whether the worker window can
+  // be sized to the document depends on Windows' minimum window width, the
+  // display's scale factor and whether a child overflowed, so on a real
+  // machine there can be blank beside it. That blank has to go before the
+  // resize, or the receipt is scaled down to fit alongside it — the narrow
+  // slip with a wide band down the right.
   //
-  // What it left behind was worse than what it fixed, and it is the reason a
-  // calibration that behaves in Windows Driver mode misbehaves in Auto/RAW:
+  // Cropping to the INK removes it, and that is what shipped first. But the
+  // ink is a different width on every bill, so a receipt whose widest line is
+  // long and one whose widest line is short were cropped and then scaled
+  // differently: same shop, same settings, two widths. Turning the crop off
+  // instead brought the blank straight back.
   //
-  //   • the document is ALREADY authored at exactly the content width, so
-  //     cropping removes the slip's own internal balance and then stretches
-  //     the remainder back over it — the margins are effectively applied and
-  //     then undone;
-  //   • the crop is measured per bill, so a receipt whose widest line is long
-  //     and one whose widest line is short get DIFFERENT scale factors. The
-  //     same shop, the same settings, two bills, two widths.
-  //
-  // With it off the capture maps one-to-one onto the printable dots: the
-  // millimetres the shop typed are the millimetres that come out, and Auto,
-  // RAW and the Windows driver all land in the same place.
+  // So the document now states its own width with a hairline rule across its
+  // first two rows, and that is what we crop to. It is the same two columns
+  // on every bill, so the crop is identical on every bill AND the blank still
+  // goes. The ink crop stays as the fallback for a capture with no rule.
   let trimmed = { trimmedLeft: 0, trimmedRight: 0 };
-  if (opts.cropBlankSides === true && typeof image.crop === 'function') {
+  if (opts.cropBlankSides !== false && typeof image.crop === 'function') {
     try {
-      const r = cropBlankSides(image, opts);
-      image = r.image;
-      trimmed = r;
+      // Preferred: the document told us its own width, so the crop is the
+      // same on every bill.
+      const ruled = cropToMeasureRule(image);
+      if (ruled) {
+        image = ruled.image;
+        trimmed = ruled;
+      } else {
+        // No rule in this capture — an older document, or one whose first
+        // rows were lost. Fall back to the ink, which removes the blank
+        // beside the slip but does vary with the bill's widest line.
+        const r = cropBlankSides(image, opts);
+        image = r.image;
+        trimmed = r;
+      }
     } catch { /* a failed crop must never stop a print */ }
   }
 
@@ -316,9 +421,29 @@ function escposRasterBytes(image, paperLabel, autoCut = true, opts = {}) {
   const resized = src.width === geom.contentDots
     ? image
     : image.resize({ width: geom.contentDots, height: scaledHeight, quality: 'best' });
-  const size = resized.getSize();
 
-  let packed = packDots(resized.toBitmap(), size.width, size.height, geom, opts);
+  // ===== TRUST THE BITMAP, NOT getSize() =====
+  //
+  // `getSize()` reports DEVICE-INDEPENDENT pixels while `toBitmap()` hands
+  // back PHYSICAL ones. On a display running at 125% or 150% — which is the
+  // default on a lot of Windows machines — those two numbers differ, and
+  // reading a 1.25x-wide buffer as if it were 1x walks off the end of every
+  // row. The slip comes out squeezed into part of the roll with a wide blank
+  // band beside it, which is the narrow-receipt report, and it is invisible
+  // on a 100% display.
+  //
+  // The buffer's own length cannot lie: 4 bytes per pixel, so width is
+  // length / 4 / height. That is what the dot packer is given.
+  const size = resized.getSize();
+  const bitmap = resized.toBitmap();
+  const realWidth = size.height > 0
+    ? Math.max(1, Math.round(bitmap.length / 4 / size.height))
+    : size.width;
+  if (realWidth !== size.width && typeof opts.onScaleMismatch === 'function') {
+    try { opts.onScaleMismatch({ reported: size.width, actual: realWidth, height: size.height }); } catch { /* diagnostics only */ }
+  }
+
+  let packed = packDots(bitmap, realWidth, size.height, geom, opts);
 
   // Remove the document's own blank top/bottom, keeping a small deliberate
   // margin. Without this the slip carries its trailing whitespace onto the
@@ -343,6 +468,8 @@ function escposRasterBytes(image, paperLabel, autoCut = true, opts = {}) {
 
 module.exports = {
   inkColumns,
+  findMeasureRule,
+  cropToMeasureRule,
   cropBlankSides,
   trimBlankRows,
   inkCoverage,

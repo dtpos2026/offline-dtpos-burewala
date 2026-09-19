@@ -1,5 +1,54 @@
 # DT POS Enterprise — Release Notes
 
+## v1.7.2 — The receipt fills the roll again
+
+**This fixes a regression I introduced in 1.7.1.** The receipt came out
+narrower than the paper with a right margin well over 10 mm.
+
+### What happened
+
+The raster path screenshots the slip and scales that screenshot to the
+printer's dots. The screenshot is not always exactly the slip: whether the
+hidden worker window can be sized to the document depends on Windows' minimum
+window width, the display's scale factor and whether a child overflowed. On a
+real machine there can be blank beside it — and scaling that blank in with the
+content shrinks the receipt to fit alongside it.
+
+A crop to the slip's **ink** used to remove that blank. In 1.7.1 I turned it
+off, because cropping to the ink has its own fault: the ink is a different
+width on every bill, so a receipt with a long widest line and one with a short
+widest line were cropped and then scaled differently — same shop, same
+settings, two widths. Turning it off fixed that and brought the blank straight
+back. Both behaviours were wrong; I traded one fault for a worse one.
+
+### The fix
+
+The document now **states its own width**. The raster document carries a
+hairline rule across its first two rows, the full width of the slip. The raster
+stage reads row one, takes the first and last inked column as the document's
+edges, crops to exactly those, and discards the rule before anything is printed.
+
+It is the same two columns on every bill, so the crop is identical on every
+bill *and* the blank still goes. The ink crop remains as a fallback for a
+capture with no rule.
+
+Guards, because this runs on hardware I cannot test on: a run of solid rows
+longer than a hairline could be is treated as a shop's own black header band
+and left alone; a mark too narrow to be the document is ignored; and anything
+unrecognised falls back to the ink crop, which is what 1.7.0 did. The rule is
+in the raster document only — the Windows driver prints its page as-is, where a
+rule would be a black line across the top of every receipt.
+
+### Also
+
+`getSize()` reports device-independent pixels while `toBitmap()` returns
+physical ones. On a display running at 125% or 150% — the default on many
+Windows machines — those differ, and reading the wider buffer as if it were the
+narrower one walks off the end of every row. The dot packer now takes its width
+from the buffer's own length, which cannot lie.
+
+---
+
 ## v1.7.1 — The calibration reaches the paper in every mode
 
 Five faults reported from the counter, and the layouts from the mockups.

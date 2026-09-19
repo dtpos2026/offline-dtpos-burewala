@@ -317,6 +317,20 @@ export function layoutCss(layout: ReceiptLayout, mode: LayoutMode, rootClass = '
     box-sizing: border-box !important;
     max-width: 100% !important;
   }
+  /* The measuring rule the raster stage crops to. Full content width, two
+     device pixels tall, solid black — it has to be unmistakable ink in row
+     one, and it is removed again before the slip is packed into dots, so it
+     never reaches the paper. Only the raster document carries one. */
+  .${rootClass} .dt-measure {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 2px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #000 !important;
+    border: 0 !important;
+  }
 `;
 }
 
