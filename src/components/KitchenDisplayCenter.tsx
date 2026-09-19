@@ -13,6 +13,17 @@
 // the OS has them they ARE the same thing to the application: a screen with
 // bounds a window can be placed on. Whichever cable it arrived by, the
 // Kitchen Display lands on the screen you pick.
+//
+// Click to activate
+// -----------------
+// A screen card is a button that opens the display on that screen there and
+// then. Selecting a screen and then hunting for a separate Open button is one
+// step more than the job needs, and the shop is usually standing at the
+// counter with the TV in front of them wanting it on NOW. The separate button
+// stays for the keyboard path and for reopening after a settings change.
+//
+// The list also refreshes itself while this card is on screen, so a TV
+// switched on after the page opened appears without anybody pressing refresh.
 // ============================================================
 import { useCallback, useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
@@ -50,6 +61,25 @@ function api(): any {
   return (window as any).electronAPI;
 }
 
+/**
+ * The screen's shape, in the words people use for it.
+ *
+ * Shown because it is the one property that decides how a board should be laid
+ * out — and, in automatic template mode, the one the app is reading. A shop
+ * seeing "4:3" next to a screen can tell at a glance why it was given the
+ * compact design.
+ */
+function aspectLabel(width: number, height: number): string {
+  if (!width || !height) return 'unknown shape';
+  const r = width / height;
+  if (Math.abs(r - 16 / 9) < 0.06) return '16:9';
+  if (Math.abs(r - 16 / 10) < 0.05) return '16:10';
+  if (Math.abs(r - 4 / 3) < 0.05) return '4:3';
+  if (Math.abs(r - 21 / 9) < 0.1) return '21:9';
+  if (r < 1) return 'portrait';
+  return `${r.toFixed(2)}:1`;
+}
+
 export default function KitchenDisplayCenter({ kitchen }: Props) {
   const [displays, setDisplays] = useState<DisplayInfo[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
@@ -79,20 +109,34 @@ export default function KitchenDisplayCenter({ kitchen }: Props) {
   useEffect(() => {
     refresh();
     // Displays come and go while the app runs — a TV is switched on, a cable
-    // is pulled. Re-read on focus so the list is not stale when it is used.
+    // is pulled. Re-read on focus so the list is not stale when it is used,
+    // and poll slowly while this card is open so a screen switched on with the
+    // page already in front of somebody simply appears.
     const onFocus = () => refresh();
     window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
+    const poll = setInterval(refresh, 4000);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      clearInterval(poll);
+    };
   }, [refresh]);
 
-  const launch = async () => {
-    if (busy) return;
+  /**
+   * Open the display on a screen.
+   *
+   * `displayId` is passed explicitly rather than read from state because a
+   * click on a screen card both selects and opens: reading `selected` here
+   * would use the PREVIOUS selection, since the state update has not landed
+   * by the time the handler runs.
+   */
+  const launch = async (displayId: number | null = selected) => {
+    if (busy || displayId === null) return;
     setBusy(true);
     try {
       const url = content === 'customer'
         ? `${window.location.origin}${window.location.pathname}#/customer-display`
         : `${window.location.origin}${window.location.pathname}#/kds-tv?kitchen=${encodeURIComponent(kitchen)}`;
-      const res = await api().openKdsWindow({ url, displayId: selected, fullscreen: true });
+      const res = await api().openKdsWindow({ url, displayId, fullscreen: true });
       if (res?.success) {
         setOpen(true);
         const d = displays.find(x => x.id === res.displayId);
@@ -201,8 +245,10 @@ export default function KitchenDisplayCenter({ kitchen }: Props) {
               <button
                 key={d.id}
                 type="button"
-                onClick={() => setSelected(d.id)}
-                className={`text-left rounded-lg border p-3 transition-all ${
+                disabled={busy}
+                onClick={() => { setSelected(d.id); void launch(d.id); }}
+                title={`Open the ${content === 'customer' ? 'customer display' : 'kitchen board'} on ${d.label}`}
+                className={`text-left rounded-lg border p-3 transition-all disabled:opacity-60 ${
                   active
                     ? 'border-primary ring-2 ring-primary/30 bg-primary/5'
                     : 'border-border hover:border-primary/40'
@@ -215,11 +261,16 @@ export default function KitchenDisplayCenter({ kitchen }: Props) {
                 <p className="text-xs text-muted-foreground mt-1 font-mono">
                   {d.width} × {d.height}
                   {d.scaleFactor !== 1 ? ` @ ${d.scaleFactor}×` : ''}
+                  {' · '}{aspectLabel(d.width, d.height)}
                 </p>
-                <div className="flex gap-1 mt-2">
+                <div className="flex gap-1 mt-2 flex-wrap">
                   {d.primary && <Badge variant="secondary" className="text-[10px]">Primary</Badge>}
                   {!d.primary && <Badge className="text-[10px] bg-status-success/20 text-status-success border-status-success/30">External</Badge>}
+                  {d.internal && <Badge variant="secondary" className="text-[10px]">Built in</Badge>}
                 </div>
+                <p className="text-[11px] text-primary mt-2 font-medium">
+                  {busy ? 'Opening…' : 'Click to activate'}
+                </p>
               </button>
             );
           })}
@@ -227,7 +278,7 @@ export default function KitchenDisplayCenter({ kitchen }: Props) {
       )}
 
       <div className="flex flex-wrap gap-2">
-        <Button onClick={launch} disabled={busy || selected === null}>
+        <Button onClick={() => launch(selected)} disabled={busy || selected === null}>
           <Tv className="h-4 w-4 mr-1" />
           {open
             ? 'Reopen on this screen'

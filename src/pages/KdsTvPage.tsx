@@ -2,6 +2,11 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { getOrders, getSettings, getKitchens, getMenuItems, onDataChange, setOrderKitchenStatus } from '@/lib/store';
 import { Order, RestaurantSettings, CartItem } from '@/lib/types';
 import { Maximize2, Volume2, VolumeX, AlertTriangle, Clock, ChefHat } from 'lucide-react';
+import {
+  loadKitchenDisplay, resolveKitchenTemplate, kitchenColumns,
+  type KitchenDisplayConfig,
+} from '@/lib/kitchenDisplay';
+import { templateVars, scaledFont, DEVELOPER_CREDIT } from '@/lib/displayTemplates';
 
 function playBeep(urgent = false) {
   try {
@@ -35,6 +40,26 @@ function getKitchenFromUrl(): string {
   } catch { return 'all'; }
 }
 
+/**
+ * The screen's own dimensions, kept current.
+ *
+ * The board is opened full-screen on whichever monitor the shop chose, and
+ * that can be anything from a 4K TV to a 1024x768 panel. Automatic template
+ * mode and the column count both need the real numbers.
+ */
+function useViewport() {
+  const [size, setSize] = useState(() => ({
+    w: typeof window === 'undefined' ? 1920 : window.innerWidth,
+    h: typeof window === 'undefined' ? 1080 : window.innerHeight,
+  }));
+  useEffect(() => {
+    const on = () => setSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  return size;
+}
+
 export default function KdsTvPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [recent, setRecent] = useState<Order[]>([]);
@@ -53,7 +78,14 @@ export default function KdsTvPage() {
   }, [menuItems]);
 
   const activeKitchen = useMemo(() => getKitchenFromUrl(), []);
-  const [soundOn, setSoundOn] = useState(true);
+  const [display, setDisplay] = useState<KitchenDisplayConfig>(() => loadKitchenDisplay());
+  const [soundOn, setSoundOn] = useState(() => loadKitchenDisplay().sound);
+  const { w: vw, h: vh } = useViewport();
+  const template = useMemo(
+    () => resolveKitchenTemplate(display, vw, vh),
+    [display.templateId, display.templateMode, vw, vh], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const columns = kitchenColumns(display, vw, template.density);
   const known = useRef<Set<string>>(new Set());
   const first = useRef(true);
 
@@ -139,6 +171,18 @@ export default function KdsTvPage() {
     return () => clearInterval(t);
   }, []);
 
+  // The board is usually a second window; a settings change in the POS window
+  // has to reach it without the shop restarting the display.
+  useEffect(() => {
+    const onCfg = () => {
+      const next = loadKitchenDisplay();
+      setDisplay(next);
+      setSoundOn(next.sound);
+    };
+    window.addEventListener('dtpos-kitchen-display-changed', onCfg);
+    return () => window.removeEventListener('dtpos-kitchen-display-changed', onCfg);
+  }, []);
+
   // Auto-fullscreen on user gesture (browsers block auto)
   const goFullscreen = () => {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
@@ -176,7 +220,15 @@ export default function KdsTvPage() {
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black text-white overflow-auto" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div
+      className="fixed inset-0 z-[9999] overflow-auto"
+      style={{
+        ...templateVars(template),
+        background: 'var(--dt-bg)',
+        color: 'var(--dt-text)',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+      }}
+    >
       {/* Animations are scoped to this screen and deliberately restrained:
           a kitchen display is watched for hours, so anything that moves
           constantly becomes noise the staff learn to ignore. A card animates
@@ -189,12 +241,12 @@ export default function KdsTvPage() {
           to   { opacity: 1; transform: none; }
         }
         @keyframes kdsNew {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(251,191,36,0.55); }
-          50%      { box-shadow: 0 0 0 10px rgba(251,191,36,0); }
+          0%, 100% { box-shadow: 0 0 0 0 var(--dt-preparing); }
+          50%      { box-shadow: 0 0 0 10px transparent; }
         }
         @keyframes kdsLate {
-          0%, 100% { border-color: rgb(239,68,68); }
-          50%      { border-color: rgb(248,113,113); }
+          0%, 100% { border-color: var(--dt-alert); opacity: 1; }
+          50%      { border-color: var(--dt-alert); opacity: .72; }
         }
         .kds-card { animation: kdsIn .28s cubic-bezier(.2,.7,.3,1) both; }
         .kds-new  { animation: kdsIn .28s cubic-bezier(.2,.7,.3,1) both, kdsNew 1.6s ease-out 3; }
@@ -205,99 +257,165 @@ export default function KdsTvPage() {
         }
       `}</style>
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-gradient-to-r from-zinc-900 via-black to-zinc-900 border-b border-zinc-800 px-6 py-3 flex items-center gap-4">
-        {settings.logo && <img src={settings.logo} alt="" className="h-10 w-10 object-contain rounded" />}
+      {/* ===== HEADER — the RESTAURANT's board =====
+          Its logo and its name are the largest things here. Digital Target
+          built the software and appears once, small, underneath. */}
+      <div
+        className="sticky top-0 z-10 border-b px-6 py-3 flex items-center gap-4"
+        style={{ background: 'var(--dt-accent)', color: 'var(--dt-on-accent)', borderColor: 'var(--dt-border)' }}
+      >
+        {settings.logo && <img src={settings.logo} alt="" className="h-10 w-10 object-contain rounded shrink-0" />}
         <div className="min-w-0">
-          <div className="text-xl font-black uppercase tracking-wide truncate">{settings.name || 'Restaurant'}</div>
-          <div className="text-[10px] text-zinc-500 uppercase tracking-widest">DT POS · Powered by Digital Target</div>
+          <div className="font-black uppercase tracking-wide truncate"
+               style={{ fontSize: scaledFont(1.25, template.typeScale, 0.6) }}>
+            {settings.name || 'Restaurant'}
+          </div>
+          {display.showDeveloperCredit && (
+            <div className="uppercase tracking-widest opacity-50" style={{ fontSize: '10px' }}>
+              {DEVELOPER_CREDIT}
+            </div>
+          )}
         </div>
-        <div className="ml-4 px-4 py-1.5 rounded-md bg-amber-500/20 border border-amber-500/40 text-amber-300 font-black text-sm uppercase tracking-wider">
+        <div
+          className="ml-4 px-4 py-1.5 rounded-md border font-black uppercase tracking-wider shrink-0"
+          style={{
+            borderColor: 'var(--dt-preparing)',
+            color: 'var(--dt-preparing)',
+            fontSize: scaledFont(0.875, template.typeScale, 0.3),
+          }}
+        >
           <ChefHat className="h-4 w-4 inline mr-1.5" />{kitchenName}
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <div className="text-2xl font-black tabular-nums">{new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
-          <button onClick={() => setSoundOn(s => !s)} className="p-2 rounded-md bg-zinc-800 hover:bg-zinc-700">
-            {soundOn ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5 text-zinc-500" />}
+          <div className="font-black tabular-nums" style={{ fontSize: scaledFont(1.5, template.typeScale, 0.7) }}>
+            {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+          </div>
+          <button onClick={() => setSoundOn(s => !s)} className="p-2 rounded-md"
+                  style={{ background: 'rgba(127,127,127,0.25)' }}>
+            {soundOn ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5 opacity-50" />}
           </button>
-          <button onClick={goFullscreen} className="p-2 rounded-md bg-zinc-800 hover:bg-zinc-700">
+          <button onClick={goFullscreen} className="p-2 rounded-md" style={{ background: 'rgba(127,127,127,0.25)' }}>
             <Maximize2 className="h-5 w-5" />
           </button>
         </div>
       </div>
 
       {/* Stats strip */}
-      <div className="px-6 py-2 grid grid-cols-4 gap-3 bg-zinc-950 border-b border-zinc-900">
+      <div className="px-6 py-2 grid grid-cols-4 gap-3 border-b"
+           style={{ background: 'var(--dt-surface)', borderColor: 'var(--dt-border)' }}>
         {[
-          { label: 'ACTIVE', value: visible.length, color: 'text-white' },
-          { label: 'PENDING', value: visible.filter(v => !v.order.kitchenStatus || v.order.kitchenStatus === 'pending').length, color: 'text-amber-400' },
-          { label: 'COOKING', value: visible.filter(v => v.order.kitchenStatus === 'preparing').length, color: 'text-blue-400' },
-          { label: 'DELAYED', value: visible.filter(v => Math.floor((Date.now() - new Date(v.order.createdAt).getTime()) / 60000) >= warn).length, color: 'text-red-500' },
+          { label: 'ACTIVE', value: visible.length, color: 'var(--dt-text)' },
+          { label: 'PENDING', value: visible.filter(v => !v.order.kitchenStatus || v.order.kitchenStatus === 'pending').length, color: 'var(--dt-preparing)' },
+          { label: 'COOKING', value: visible.filter(v => v.order.kitchenStatus === 'preparing').length, color: 'var(--dt-preparing)' },
+          { label: 'DELAYED', value: visible.filter(v => Math.floor((Date.now() - new Date(v.order.createdAt).getTime()) / 60000) >= warn).length, color: 'var(--dt-alert)' },
         ].map(s => (
           <div key={s.label} className="text-center">
-            <div className="text-[10px] text-zinc-500 font-bold tracking-widest">{s.label}</div>
-            <div className={`text-3xl font-black tabular-nums ${s.color}`}>{s.value}</div>
+            <div className="text-[10px] font-bold tracking-widest opacity-60">{s.label}</div>
+            <div className="font-black tabular-nums"
+                 style={{ color: s.color, fontSize: scaledFont(1.875, template.typeScale, 0.9) }}>
+              {s.value}
+            </div>
           </div>
         ))}
       </div>
 
       {/* Order grid */}
-      <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+      {/* Ticket columns come from the screen's real width, not from breakpoints:
+          a 1366-wide monitor and a 3840-wide TV are both "xl" to Tailwind and
+          are not remotely the same board. */}
+      <div
+        className="p-4 grid gap-3"
+        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+      >
         {visible.map(({ order, items }) => {
           const mins = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000);
           const isDelayed = mins >= warn;
           const isWarn = mins >= prep && mins < warn;
           const ks = order.kitchenStatus || 'pending';
           const customerName = (order as any).customerName || order.customer?.name || (order as any).creditCustomerName;
-          const borderClr = isDelayed ? 'border-red-500 ring-2 ring-red-500/50 animate-pulse'
-            : isWarn ? 'border-amber-500'
-            : ks === 'ready' ? 'border-green-500'
-            : ks === 'preparing' ? 'border-blue-500'
-            : 'border-zinc-700';
+          // Status colour comes from the template, so a shop that picks the
+          // Clean board gets its darker, print-legible set and the Colourful
+          // one gets its loud set — same meaning, different palette.
+          const statusClr = isDelayed ? 'var(--dt-alert)'
+            : isWarn ? 'var(--dt-preparing)'
+            : ks === 'ready' ? 'var(--dt-ready)'
+            : ks === 'preparing' ? 'var(--dt-preparing)'
+            : 'var(--dt-border)';
+          const timeClr = isDelayed ? 'var(--dt-alert)' : isWarn ? 'var(--dt-preparing)' : 'var(--dt-ready)';
+          const actionClr = ks === 'pending' ? 'var(--dt-preparing)'
+            : ks === 'accepted' ? 'var(--dt-preparing)'
+            : ks === 'preparing' ? 'var(--dt-ready)'
+            : 'var(--dt-border)';
           const isNew = freshIds.has(order.id);
           return (
             <div
               key={order.id}
-              className={`rounded-xl border-2 bg-zinc-900 p-3 flex flex-col ${borderClr} ${isNew ? 'kds-new' : 'kds-card'} ${isDelayed ? 'kds-late' : ''}`}
+              className={`border-2 p-3 flex flex-col ${isNew ? 'kds-new' : 'kds-card'} ${isDelayed ? 'kds-late' : ''}`}
+              style={{
+                borderRadius: 'var(--dt-radius)',
+                background: 'var(--dt-surface)',
+                borderColor: statusClr,
+              }}
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="text-2xl font-black">#{order.orderNumber}</div>
+                  <div className="font-black" style={{ fontSize: scaledFont(1.5, template.numberScale, 0.8) }}>
+                    #{order.orderNumber}
+                  </div>
                   {isNew && (
-                    <span className="text-[10px] font-black tracking-widest bg-amber-400 text-black rounded px-1.5 py-0.5 shrink-0">
+                    <span className="text-[10px] font-black tracking-widest rounded px-1.5 py-0.5 shrink-0"
+                          style={{ background: 'var(--dt-preparing)', color: 'var(--dt-bg)' }}>
                       NEW
                     </span>
                   )}
                 </div>
-                <div className={`text-sm font-black tabular-nums px-2 py-0.5 rounded ${isDelayed ? 'bg-red-500/20 text-red-400' : isWarn ? 'bg-amber-500/20 text-amber-400' : 'bg-green-500/20 text-green-400'}`}>
+                <div className="font-black tabular-nums px-2 py-0.5 rounded"
+                     style={{ color: timeClr, border: `1px solid ${timeClr}`, fontSize: scaledFont(0.875, template.typeScale, 0.25) }}>
                   {isDelayed ? <AlertTriangle className="h-3.5 w-3.5 inline mr-1" /> : <Clock className="h-3.5 w-3.5 inline mr-1" />}
                   {mins}m
                 </div>
               </div>
-              <div className="text-[11px] text-zinc-400 uppercase tracking-wide mb-2 flex flex-wrap gap-x-2">
+              <div className="uppercase tracking-wide mb-2 flex flex-wrap gap-x-2 opacity-60"
+                   style={{ fontSize: scaledFont(0.7, template.typeScale, 0.2) }}>
                 <span>{order.orderType}</span>
                 {order.tableName && <span>· {order.tableName}</span>}
                 {customerName && <span>· {customerName}</span>}
               </div>
               <div className="space-y-1 flex-1">
                 {items.map(it => (
-                  <div key={it.id} className="bg-black/50 rounded px-2 py-1.5 flex items-center justify-between gap-2">
+                  <div key={it.id} className="rounded px-2 py-1.5 flex items-center justify-between gap-2"
+                       style={{ background: 'rgba(127,127,127,0.16)' }}>
                     <div className="min-w-0">
-                      <div className="font-bold text-sm truncate">{it.name}</div>
-                      {it.note && <div className="text-[10px] italic text-amber-300 truncate">📝 {it.note}</div>}
+                      <div className="font-bold truncate" style={{ fontSize: scaledFont(0.875, template.typeScale, 0.3) }}>
+                        {it.name}
+                      </div>
+                      {it.note && (
+                        <div className="italic truncate" style={{ color: 'var(--dt-preparing)', fontSize: scaledFont(0.7, template.typeScale, 0.2) }}>
+                          📝 {it.note}
+                        </div>
+                      )}
                     </div>
-                    <div className="text-lg font-black text-amber-400 shrink-0">×{it.quantity}</div>
+                    <div className="font-black shrink-0"
+                         style={{ color: 'var(--dt-preparing)', fontSize: scaledFont(1.125, template.numberScale, 0.5) }}>
+                      ×{it.quantity}
+                    </div>
                   </div>
                 ))}
               </div>
-              {order.notes && <div className="mt-2 text-[10px] italic text-amber-300/80">📝 {order.notes}</div>}
+              {order.notes && (
+                <div className="mt-2 italic" style={{ color: 'var(--dt-preparing)', fontSize: scaledFont(0.7, template.typeScale, 0.2) }}>
+                  📝 {order.notes}
+                </div>
+              )}
               <button
                 onClick={() => advance(order.id, ks)}
-                className={`mt-2 w-full py-2 rounded-lg font-black text-xs tracking-wider transition ${
-                  ks === 'pending' ? 'bg-amber-500 hover:bg-amber-400 text-black'
-                    : ks === 'accepted' ? 'bg-blue-500 hover:bg-blue-400 text-white'
-                    : ks === 'preparing' ? 'bg-green-500 hover:bg-green-400 text-white'
-                    : 'bg-zinc-700 hover:bg-zinc-600 text-white'
-                }`}
+                className="mt-2 w-full py-2 font-black tracking-wider transition hover:opacity-85"
+                style={{
+                  borderRadius: 'var(--dt-radius)',
+                  background: actionClr,
+                  color: 'var(--dt-bg)',
+                  fontSize: scaledFont(0.75, template.typeScale, 0.22),
+                }}
               >
                 {labelFor(ks)}
               </button>
@@ -305,10 +423,14 @@ export default function KdsTvPage() {
           );
         })}
         {visible.length === 0 && (
-          <div className="col-span-full text-center py-32">
-            <ChefHat className="h-20 w-20 mx-auto text-zinc-700 mb-4" />
-            <div className="text-2xl font-black text-zinc-600">NO ACTIVE ORDERS</div>
-            <div className="text-sm text-zinc-700 mt-2">Waiting for new orders…</div>
+          <div className="col-span-full text-center py-32 opacity-40">
+            <ChefHat className="h-20 w-20 mx-auto mb-4" />
+            <div className="font-black" style={{ fontSize: scaledFont(1.5, template.typeScale, 0.7) }}>
+              NO ACTIVE ORDERS
+            </div>
+            <div className="mt-2" style={{ fontSize: scaledFont(0.875, template.typeScale, 0.3) }}>
+              Waiting for new orders…
+            </div>
           </div>
         )}
       </div>
@@ -321,30 +443,26 @@ export default function KdsTvPage() {
           still being made until someone sees it. Hence the red treatment and
           the strike-through on the number. */}
       {recent.length > 0 && (
-        <div className="sticky bottom-0 bg-zinc-950/95 backdrop-blur border-t border-zinc-800 px-4 py-2">
+        <div className="sticky bottom-0 backdrop-blur border-t px-4 py-2"
+             style={{ background: 'var(--dt-surface)', borderColor: 'var(--dt-border)' }}>
           <div className="flex items-center gap-3 overflow-x-auto">
-            <span className="text-[10px] font-black tracking-widest text-zinc-500 shrink-0">
+            <span className="text-[10px] font-black tracking-widest opacity-50 shrink-0">
               RECENTLY FINISHED
             </span>
             {recent.map(o => {
               const cancelled = o.status === 'void' || o.status === 'cancelled';
+              const clr = cancelled ? 'var(--dt-alert)' : 'var(--dt-ready)';
               return (
                 <div
                   key={o.id}
-                  className={`kds-strip-item shrink-0 rounded-lg border px-3 py-1.5 flex items-center gap-2 ${
-                    cancelled
-                      ? 'border-red-500/60 bg-red-500/10'
-                      : 'border-green-500/40 bg-green-500/10'
-                  }`}
+                  className="kds-strip-item shrink-0 border px-3 py-1.5 flex items-center gap-2"
+                  style={{ borderRadius: 'var(--dt-radius)', borderColor: clr }}
                 >
-                  <span className={`font-black text-lg tabular-nums ${
-                    cancelled ? 'text-red-400 line-through' : 'text-green-400'
-                  }`}>
+                  <span className={`font-black tabular-nums ${cancelled ? 'line-through' : ''}`}
+                        style={{ color: clr, fontSize: scaledFont(1.125, template.numberScale, 0.5) }}>
                     #{o.orderNumber}
                   </span>
-                  <span className={`text-[10px] font-black tracking-wider ${
-                    cancelled ? 'text-red-300' : 'text-green-300'
-                  }`}>
+                  <span className="text-[10px] font-black tracking-wider" style={{ color: clr }}>
                     {cancelled ? 'CANCELLED' : 'DONE'}
                   </span>
                 </div>

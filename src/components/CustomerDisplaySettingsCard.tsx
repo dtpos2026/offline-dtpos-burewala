@@ -1,14 +1,18 @@
 // ============================================================
 // CUSTOMER DISPLAY SETTINGS
 //
-// Configures the screen above the counter: what it announces, how long a
-// ready order stays up, and the banners or video shown beside the order
-// columns.
+// Configures the screen above the counter: how it looks, how the width is
+// split between orders and advertising, what it announces, how long a ready
+// order stays up, and the banners or video shown beside the order columns.
 //
 // Banners are stored as data URLs in this device's own storage, which is a
 // few megabytes in total. That is a real limit, not a soft one, so the card
 // shows the current size, warns before it becomes a problem, and reports a
 // quota failure plainly instead of pretending the upload worked.
+//
+// The image itself is never re-encoded. A shop that uploads a 1.2 MB poster
+// gets that exact file on the screen; the width, height, fit and position
+// below are applied as CSS at display time, so sizing costs no quality.
 // ============================================================
 import { useEffect, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
@@ -16,24 +20,50 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Monitor, Plus, Trash2, Volume2, Image as ImageIcon, Film } from 'lucide-react';
+import {
+  Monitor, Trash2, Volume2, Image as ImageIcon, Film, Palette, Columns, Settings2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import {
   loadDisplayConfig,
   saveDisplayConfig,
   displayConfigSizeKb,
   announceOrder,
+  mediaStyle,
   type CustomerDisplayConfig,
   type DisplayMedia,
+  type MediaFit,
+  type MediaPosition,
 } from '@/lib/customerDisplay';
+import { templateById } from '@/lib/displayTemplates';
+import DisplayTemplatePicker from '@/components/DisplayTemplatePicker';
+import { getSettings } from '@/lib/store';
 
 /** Beyond this the shop is close to the storage limit. */
 const SIZE_WARN_KB = 3000;
+
+/** The splits a shop actually asks for, plus a free number for anything else. */
+const RATIO_PRESETS = [
+  { value: 70, label: '70 / 30', hint: 'Mostly orders' },
+  { value: 50, label: '50 / 50', hint: 'Even split' },
+  { value: 30, label: '30 / 70', hint: 'Mostly advertising' },
+  { value: 100, label: 'Orders only', hint: 'No banner panel' },
+];
+
+const FITS: Array<{ value: MediaFit; label: string; hint: string }> = [
+  { value: 'contain', label: 'Whole image', hint: 'Nothing cropped, nothing stretched.' },
+  { value: 'cover', label: 'Fill & crop', hint: 'Fills the panel; edges may be cut off.' },
+  { value: 'fill', label: 'Stretch', hint: 'Fills exactly — can distort the picture.' },
+];
+
+const POSITIONS: MediaPosition[] = ['center', 'top', 'bottom', 'left', 'right'];
 
 export default function CustomerDisplaySettingsCard() {
   const [cfg, setCfg] = useState<CustomerDisplayConfig>(() => loadDisplayConfig());
   const fileRef = useRef<HTMLInputElement>(null);
   const [sizeKb, setSizeKb] = useState(0);
+  const [openMedia, setOpenMedia] = useState<string | null>(null);
+  const shopName = (() => { try { return getSettings().name; } catch { return undefined; } })();
 
   useEffect(() => { setSizeKb(displayConfigSizeKb(cfg)); }, [cfg]);
 
@@ -49,6 +79,9 @@ export default function CustomerDisplaySettingsCard() {
 
   const patch = (p: Partial<CustomerDisplayConfig>) => commit({ ...cfg, ...p });
 
+  const patchMedia = (id: string, p: Partial<DisplayMedia>) =>
+    patch({ media: cfg.media.map(m => (m.id === id ? { ...m, ...p } : m)) });
+
   const addImages = async (files: FileList | null) => {
     if (!files?.length) return;
     const added: DisplayMedia[] = [];
@@ -63,13 +96,15 @@ export default function CustomerDisplaySettingsCard() {
         toast.error(`${f.name} is ${(f.size / 1_000_000).toFixed(1)} MB. Use an image under 1.5 MB.`);
         continue;
       }
+      // Read as-is. No canvas, no resize, no re-encode — the screen shows the
+      // file the shop chose, at the quality they chose it at.
       const src = await new Promise<string>((res, rej) => {
         const r = new FileReader();
         r.onload = () => res(String(r.result));
         r.onerror = () => rej(new Error('read failed'));
         r.readAsDataURL(f);
       }).catch(() => '');
-      if (src) added.push({ id: `m${Date.now()}${added.length}`, kind: 'image', src });
+      if (src) added.push({ id: `m${Date.now()}${added.length}`, kind: 'image', src, fit: 'contain', position: 'center' });
     }
     if (added.length) {
       if (commit({ ...cfg, media: [...cfg.media, ...added] })) {
@@ -85,7 +120,10 @@ export default function CustomerDisplaySettingsCard() {
       + 'The video itself is not copied into the settings, only its address, so it must stay where it is.',
     );
     if (!src || !src.trim()) return;
-    if (commit({ ...cfg, media: [...cfg.media, { id: `v${Date.now()}`, kind: 'video', src: src.trim() }] })) {
+    if (commit({
+      ...cfg,
+      media: [...cfg.media, { id: `v${Date.now()}`, kind: 'video', src: src.trim(), fit: 'contain', position: 'center' }],
+    })) {
       toast.success('Video added.');
     }
   };
@@ -110,6 +148,8 @@ export default function CustomerDisplaySettingsCard() {
     window.open('#/customer-display', '_blank');
   };
 
+  const template = templateById('customer', cfg.templateId);
+
   return (
     <Card className="p-4 md:p-6 space-y-5">
       <div className="flex items-start gap-3">
@@ -131,6 +171,85 @@ export default function CustomerDisplaySettingsCard() {
         <Switch id="cd-enabled" checked={cfg.enabled} onCheckedChange={v => patch({ enabled: v })} />
       </div>
 
+      {/* ===== LOOK ===== */}
+      <div className="rounded-md border p-3 space-y-3">
+        <div className="flex items-center gap-2">
+          <Palette className="h-4 w-4" />
+          <Label className="text-sm">Design</Label>
+        </div>
+
+        <div className="flex gap-2 flex-wrap">
+          {(['manual', 'automatic'] as const).map(mode => (
+            <Button
+              key={mode}
+              type="button" size="sm"
+              variant={cfg.templateMode === mode ? 'default' : 'outline'}
+              onClick={() => patch({ templateMode: mode })}
+            >
+              {mode === 'manual' ? 'Choose a design' : 'Match the screen automatically'}
+            </Button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {cfg.templateMode === 'automatic'
+            ? 'The display reads the screen it opens on and picks a design to suit its size and shape — a wide TV gets the large-number layout, a small or square panel gets the compact one. Nothing is stretched to fit.'
+            : 'The design below is used on every screen, whatever its size. The layout still reflows and the type still scales.'}
+        </p>
+
+        {cfg.templateMode === 'manual' && (
+          <DisplayTemplatePicker
+            surface="customer"
+            value={cfg.templateId}
+            shopName={shopName}
+            onApply={id => {
+              if (patch({ templateId: id })) toast.success(`${templateById('customer', id).name} applied.`);
+            }}
+          />
+        )}
+      </div>
+
+      {/* ===== SPLIT ===== */}
+      <div className="rounded-md border p-3 space-y-3">
+        <div className="flex items-center gap-2">
+          <Columns className="h-4 w-4" />
+          <Label className="text-sm">Orders and advertising</Label>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {RATIO_PRESETS.map(r => (
+            <Button
+              key={r.value}
+              type="button" size="sm"
+              variant={cfg.orderRatio === r.value ? 'default' : 'outline'}
+              onClick={() => patch({ orderRatio: r.value })}
+              title={r.hint}
+            >
+              {r.label}
+            </Button>
+          ))}
+        </div>
+        <div className="flex items-end gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Or set the order share exactly (%)</Label>
+            <Input
+              type="number" min={20} max={100} className="w-28"
+              value={cfg.orderRatio}
+              onChange={e => patch({ orderRatio: Math.max(20, Math.min(100, Number(e.target.value) || 70)) })}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground pb-2">
+            {cfg.orderRatio >= 100
+              ? 'The whole screen is orders — banners are not shown.'
+              : `Orders take ${cfg.orderRatio}%, banners ${100 - cfg.orderRatio}%.`}
+            {' '}On a narrow screen the banners move below the orders instead of squeezing both.
+          </p>
+        </div>
+        {cfg.orderRatio !== template.orderRatio && cfg.templateMode === 'manual' && (
+          <p className="text-xs text-muted-foreground">
+            The {template.name} design normally uses {template.orderRatio}%. Your setting wins.
+          </p>
+        )}
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
           <Label className="text-xs">Heading</Label>
@@ -141,6 +260,18 @@ export default function CustomerDisplaySettingsCard() {
           <Input type="number" min={10} max={600} value={cfg.readyHoldSeconds}
                  onChange={e => patch({ readyHoldSeconds: Number(e.target.value) || 90 })} />
         </div>
+      </div>
+
+      <div className="flex items-center justify-between rounded-md border p-3">
+        <div className="space-y-0.5 pr-4">
+          <Label htmlFor="cd-credit" className="text-sm">Show &ldquo;Powered by Digital Target&rdquo;</Label>
+          <p className="text-xs text-muted-foreground">
+            A single small line under your restaurant&rsquo;s name. The screen&rsquo;s
+            branding is yours — your logo and your name are the largest things on it.
+          </p>
+        </div>
+        <Switch id="cd-credit" checked={cfg.showDeveloperCredit}
+                onCheckedChange={v => patch({ showDeveloperCredit: v })} />
       </div>
 
       <div className="rounded-md border p-3 space-y-3">
@@ -177,6 +308,7 @@ export default function CustomerDisplaySettingsCard() {
         )}
       </div>
 
+      {/* ===== BANNERS ===== */}
       <div className="rounded-md border p-3 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <Label className="text-sm">Banners and video</Label>
@@ -199,29 +331,116 @@ export default function CustomerDisplaySettingsCard() {
           </p>
         ) : (
           <div className="space-y-2">
-            {cfg.media.map(m => (
-              <div key={m.id} className="flex items-center gap-3 rounded-md border p-2">
-                {m.kind === 'image'
-                  ? <img src={m.src} alt="" className="h-12 w-20 object-cover rounded bg-muted" />
-                  : <div className="h-12 w-20 rounded bg-muted flex items-center justify-center"><Film className="h-5 w-5" /></div>}
-                <div className="flex-1 min-w-0">
-                  <Input
-                    placeholder="Caption (optional)"
-                    value={m.caption || ''}
-                    className="h-8 text-xs"
-                    onChange={e => patch({
-                      media: cfg.media.map(x => x.id === m.id ? { ...x, caption: e.target.value } : x),
-                    })}
-                  />
-                  {m.kind === 'video' && (
-                    <p className="text-[10px] text-muted-foreground truncate mt-1">{m.src}</p>
+            {cfg.media.map(m => {
+              const open = openMedia === m.id;
+              return (
+                <div key={m.id} className="rounded-md border p-2 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-20 rounded bg-muted overflow-hidden flex items-center justify-center shrink-0">
+                      {m.kind === 'image'
+                        ? <img src={m.src} alt="" style={mediaStyle(m) as React.CSSProperties} />
+                        : <Film className="h-5 w-5" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <Input
+                        placeholder="Caption (optional)"
+                        value={m.caption || ''}
+                        className="h-8 text-xs"
+                        onChange={e => patchMedia(m.id, { caption: e.target.value })}
+                      />
+                      {m.kind === 'video' && (
+                        <p className="text-[10px] text-muted-foreground truncate mt-1">{m.src}</p>
+                      )}
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => setOpenMedia(open ? null : m.id)}
+                            title="Size and position">
+                      <Settings2 className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => remove(m.id)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+
+                  {open && (
+                    <div className="rounded-md bg-muted/40 p-2.5 space-y-2.5">
+                      <div className="space-y-1">
+                        <Label className="text-xs">How it fills the panel</Label>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {FITS.map(f => (
+                            <Button
+                              key={f.value}
+                              type="button" size="sm"
+                              variant={(m.fit || 'contain') === f.value ? 'default' : 'outline'}
+                              className="h-7 text-xs"
+                              onClick={() => patchMedia(m.id, { fit: f.value })}
+                              title={f.hint}
+                            >
+                              {f.label}
+                            </Button>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          {FITS.find(f => f.value === (m.fit || 'contain'))?.hint}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-xs">Position in the panel</Label>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {POSITIONS.map(p => (
+                            <Button
+                              key={p}
+                              type="button" size="sm"
+                              variant={(m.position || 'center') === p ? 'default' : 'outline'}
+                              className="h-7 text-xs capitalize"
+                              onClick={() => patchMedia(m.id, { position: p })}
+                            >
+                              {p}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Width ({m.widthPct ?? 100}% of the panel)</Label>
+                          <Input type="range" min={10} max={100} step={5}
+                                 value={m.widthPct ?? 100}
+                                 onChange={e => patchMedia(m.id, { widthPct: Number(e.target.value) })} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Height ({m.heightPct ?? 100}% of the panel)</Label>
+                          <Input type="range" min={10} max={100} step={5}
+                                 value={m.heightPct ?? 100}
+                                 onChange={e => patchMedia(m.id, { heightPct: Number(e.target.value) })} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-xs">Seconds on screen (blank uses the default)</Label>
+                        <Input type="number" min={2} max={120} className="h-8 w-24"
+                               placeholder={String(cfg.mediaSeconds)}
+                               value={m.seconds ?? ''}
+                               onChange={e => patchMedia(m.id, {
+                                 seconds: e.target.value === '' ? undefined : Number(e.target.value),
+                               })} />
+                        {m.kind === 'video' && (
+                          <p className="text-[11px] text-muted-foreground">
+                            A video always plays to its end, so this is ignored for it.
+                          </p>
+                        )}
+                      </div>
+
+                      <p className="text-[11px] text-muted-foreground">
+                        Sizing is applied to the original file at display time —
+                        nothing is re-saved, so the picture keeps the quality it
+                        was uploaded at.
+                      </p>
+                    </div>
                   )}
                 </div>
-                <Button size="sm" variant="ghost" onClick={() => remove(m.id)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
-            ))}
+              );
+            })}
             <div className="flex items-end gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Seconds per banner</Label>

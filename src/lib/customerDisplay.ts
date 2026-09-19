@@ -18,17 +18,50 @@
 // One branch may run a TV in the lobby and another none at all.
 // ============================================================
 
+import { templateById, pickAutoTemplate, type DisplayTemplate } from './displayTemplates';
+
 export type MediaKind = 'image' | 'video';
+
+/**
+ * How a banner fills its panel.
+ *
+ *  contain — the whole image, letterboxed. Nothing is cropped and nothing is
+ *            distorted. The default, because a shop's deal poster with the
+ *            price cut off it is worse than a black band.
+ *  cover   — fills the panel, cropping the overflow. For photographs.
+ *  fill    — stretches to the panel. Offered because a shop sometimes has
+ *            artwork made for exactly this screen, but it is the only option
+ *            that can distort, so it is never a default.
+ */
+export type MediaFit = 'contain' | 'cover' | 'fill';
+
+/** Where the media sits in its panel when it does not fill it. */
+export type MediaPosition = 'center' | 'top' | 'bottom' | 'left' | 'right';
 
 export interface DisplayMedia {
   id: string;
   kind: MediaKind;
-  /** Data URL for an uploaded image, or a file/URL for a video. */
+  /**
+   * Data URL for an uploaded image, or a file/URL for a video.
+   *
+   * Stored exactly as the file was read. The image is never re-encoded,
+   * resized or passed through a canvas on the way in, so what the shop
+   * uploaded is what the screen shows — the sizing below is applied by CSS at
+   * display time, which costs nothing and loses nothing.
+   */
   src: string;
   /** Shown under the media; optional. */
   caption?: string;
   /** Seconds this item stays on screen. Ignored for video (plays through). */
   seconds?: number;
+  /** How it fills its panel. Defaults to `contain` — never crops, never distorts. */
+  fit?: MediaFit;
+  /** Where it sits when it does not fill the panel. */
+  position?: MediaPosition;
+  /** Share of the panel's width this item uses (10–100%). */
+  widthPct?: number;
+  /** Share of the panel's height this item uses (10–100%). */
+  heightPct?: number;
 }
 
 export interface CustomerDisplayConfig {
@@ -50,6 +83,29 @@ export interface CustomerDisplayConfig {
   media: DisplayMedia[];
   /** Seconds per banner when the item does not set its own. */
   mediaSeconds: number;
+  /** Which look the screen wears. See src/lib/displayTemplates.ts. */
+  templateId: string;
+  /**
+   * 'manual' uses `templateId` as chosen. 'automatic' reads the screen's own
+   * resolution and aspect and picks the template that suits it — so the same
+   * install looks right on a 1920x1080 TV and on a small square panel over a
+   * counter, without anybody being asked to know which to pick.
+   */
+  templateMode: 'manual' | 'automatic';
+  /**
+   * Share of the width the ORDER columns take when banners are shown (%).
+   * 70 / 50 / 30 are the presets; any value from 20 to 100 is allowed.
+   * 100 means the banners are not shown at all.
+   */
+  orderRatio: number;
+  /**
+   * Show the "Powered by Digital Target" line.
+   *
+   * On by default and a single small line. The screen's branding is the
+   * restaurant's — its logo, its name — and this is the developer credit
+   * beneath it, which a shop may turn off.
+   */
+  showDeveloperCredit: boolean;
 }
 
 export const DEFAULT_DISPLAY: CustomerDisplayConfig = {
@@ -64,9 +120,16 @@ export const DEFAULT_DISPLAY: CustomerDisplayConfig = {
   readyHoldSeconds: 90,
   media: [],
   mediaSeconds: 8,
+  templateId: 'premium',
+  templateMode: 'manual',
+  orderRatio: 70,
+  showDeveloperCredit: true,
 };
 
 const KEY = 'dtpos-customer-display-v1';
+
+const FITS = ['contain', 'cover', 'fill'];
+const POSITIONS = ['center', 'top', 'bottom', 'left', 'right'];
 
 function clampNum(n: unknown, min: number, max: number, fallback: number): number {
   const v = Number(n);
@@ -97,9 +160,17 @@ export function loadDisplayConfig(): CustomerDisplayConfig {
               src: String(m.src),
               caption: typeof m.caption === 'string' ? m.caption : undefined,
               seconds: Number.isFinite(Number(m.seconds)) ? clampNum(m.seconds, 2, 120, 8) : undefined,
+              fit: FITS.includes(m.fit) ? m.fit : undefined,
+              position: POSITIONS.includes(m.position) ? m.position : undefined,
+              widthPct: Number.isFinite(Number(m.widthPct)) ? clampNum(m.widthPct, 10, 100, 100) : undefined,
+              heightPct: Number.isFinite(Number(m.heightPct)) ? clampNum(m.heightPct, 10, 100, 100) : undefined,
             }))
         : [],
       mediaSeconds: clampNum(p.mediaSeconds, 2, 120, DEFAULT_DISPLAY.mediaSeconds),
+      templateId: typeof p.templateId === 'string' && p.templateId ? p.templateId : DEFAULT_DISPLAY.templateId,
+      templateMode: p.templateMode === 'automatic' ? 'automatic' : 'manual',
+      orderRatio: clampNum(p.orderRatio, 20, 100, DEFAULT_DISPLAY.orderRatio),
+      showDeveloperCredit: p.showDeveloperCredit !== false,
     };
   } catch {
     return { ...DEFAULT_DISPLAY };
@@ -178,4 +249,49 @@ export function announceOrder(
 /** Stop anything currently being spoken. */
 export function cancelAnnouncements(): void {
   try { window.speechSynthesis?.cancel(); } catch { /* nothing to cancel */ }
+}
+
+
+/**
+ * The template this configuration should render with, for a screen of the
+ * given size.
+ *
+ * In manual mode the shop's choice is returned unchanged. In automatic mode
+ * the screen's own dimensions decide — which is what makes one install look
+ * right on a wide TV and on a small counter panel without anybody choosing.
+ */
+export function resolveDisplayTemplate(
+  cfg: Pick<CustomerDisplayConfig, 'templateId' | 'templateMode'>,
+  width?: number,
+  height?: number,
+): DisplayTemplate {
+  if (cfg.templateMode === 'automatic') {
+    const w = Number.isFinite(Number(width)) ? Number(width) : 0;
+    const h = Number.isFinite(Number(height)) ? Number(height) : 0;
+    return pickAutoTemplate('customer', w, h);
+  }
+  return templateById('customer', cfg.templateId);
+}
+
+/**
+ * The CSS a single media item is displayed with.
+ *
+ * Built here rather than in the page so the settings preview and the real
+ * screen cannot disagree about what a shop's sizing will actually look like.
+ */
+export function mediaStyle(m: DisplayMedia): Record<string, string> {
+  const fit: MediaFit = m.fit || 'contain';
+  const pos: MediaPosition = m.position || 'center';
+  const objectPosition =
+    pos === 'top' ? 'center top'
+    : pos === 'bottom' ? 'center bottom'
+    : pos === 'left' ? 'left center'
+    : pos === 'right' ? 'right center'
+    : 'center center';
+  return {
+    width: `${m.widthPct ?? 100}%`,
+    height: `${m.heightPct ?? 100}%`,
+    objectFit: fit,
+    objectPosition,
+  };
 }

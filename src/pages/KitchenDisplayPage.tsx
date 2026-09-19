@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Clock, CheckCircle, ChefHat, AlertTriangle, ChefHat as PrepIcon, Bell, Check, Maximize2, Minimize2, Volume2, VolumeX, ThumbsUp, Truck, Tv } from 'lucide-react';
 import KitchenDisplayCenter from '@/components/KitchenDisplayCenter';
 import CustomerDisplaySettingsCard from '@/components/CustomerDisplaySettingsCard';
+import KitchenDisplaySettingsCard from '@/components/KitchenDisplaySettingsCard';
 
 function getTimerInfo(createdAt: string, settings: RestaurantSettings) {
   const preparingThreshold = Math.max(1, settings.kitchenPreparingMinutes || 5);
@@ -207,6 +208,7 @@ export default function KitchenDisplayPage() {
       {showDisplayCenter && (
         <div className="mb-4 space-y-4">
           <KitchenDisplayCenter kitchen={activeKitchen} />
+          <KitchenDisplaySettingsCard />
           <CustomerDisplaySettingsCard />
         </div>
       )}
