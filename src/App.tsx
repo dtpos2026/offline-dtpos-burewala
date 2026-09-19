@@ -92,6 +92,7 @@ import { isCloudConfigured, cloudAuth } from '@/lib/offlineNoCloud';
 import { getTenantId, clearTenant } from '@/lib/tenant';
 import { isPublicTenantRoute, applyPublicTenantFromUrl } from '@/lib/publicTenant';
 import { verifyStartupAuth } from '@/lib/startupVerify';
+import { installGlobalFaultHandlers } from '@/lib/faultLog';
 import { forceLogoutAndWipe } from '@/lib/sessionIsolation';
 import { onAuthStateChanged, signOut } from '@/lib/offlineNoCloud';
 
@@ -118,6 +119,10 @@ const App = () => {
   const [ready, setReady] = useState(false);
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem('pos-splash-seen'));
   const [hashTick, setHashTick] = useState(0);
+  // Anything that escapes every catch in the app now leaves a line in the
+  // rolling log instead of being a blank screen with no record of why.
+  useEffect(() => { installGlobalFaultHandlers(); }, []);
+
   useEffect(() => {
     const onHash = () => setHashTick(t => t + 1);
     window.addEventListener('hashchange', onHash);

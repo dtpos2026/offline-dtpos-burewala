@@ -454,6 +454,29 @@ ipcMain.handle('db-log', async (_e, level, event, detail) => {
   return { success: true };
 });
 
+// ============================================================
+// THE APP CAN WRITE TO ITS OWN LOG.
+//
+// There is a rolling log file with rotation, and until now only the main
+// process could reach it. Everything that went wrong in the POS itself —
+// which is where the shop's work happens — was swallowed by a bare `catch`
+// and left no trace at all.
+//
+// That is why a support call starts with "it stopped working" and cannot go
+// any further. A line in this file is the difference between guessing and
+// reading.
+// ============================================================
+ipcMain.handle('app-log', async (_event, level, event, detail) => {
+  try {
+    const lvl = ['INFO', 'WARN', 'ERROR'].includes(String(level).toUpperCase())
+      ? String(level).toUpperCase() : 'INFO';
+    appendLog(lvl, String(event || 'event').slice(0, 200), String(detail || '').slice(0, 2000));
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.handle('db-read-log', async () => {
   try {
     if (!fs.existsSync(LOG_FILE)) return { success: true, data: '' };

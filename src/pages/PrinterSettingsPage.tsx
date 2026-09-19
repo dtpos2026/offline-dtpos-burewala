@@ -18,7 +18,7 @@
 import { useEffect, useState } from 'react';
 import {
   Activity, Printer, Route, Zap, LayoutTemplate, Ruler, Crosshair,
-  Sliders, SlidersHorizontal, FileText, Ticket,
+  Sliders, SlidersHorizontal, FileText, Ticket, LifeBuoy,
 } from 'lucide-react';
 
 import PrinterSettingsPanel from '@/components/PrinterSettingsPanel';
@@ -35,6 +35,7 @@ import PrinterHealthCard from '@/components/PrinterHealthCard';
 import PrinterRoleMappingCard from '@/components/PrinterRoleMappingCard';
 import ReceiptTemplateCard from '@/components/ReceiptTemplateCard';
 import PremiumTemplateGallery from '@/components/PremiumTemplateGallery';
+import DiagnosticsCard from '@/components/DiagnosticsCard';
 
 interface Module {
   id: string;
@@ -125,6 +126,13 @@ const MODULES: Module[] = [
     blurb: 'Send a sample slip and see exactly what comes out.',
     icon: FileText,
     render: () => <TestPrintCard />,
+  },
+  {
+    id: 'support',
+    label: 'Diagnostics & setup',
+    blurb: 'One file for support, and one that rebuilds this till on a new PC.',
+    icon: LifeBuoy,
+    render: () => <DiagnosticsCard />,
   },
   {
     id: 'tokens',

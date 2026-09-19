@@ -698,19 +698,76 @@ function scheduleFlush() {
  * @param immediateDisk skip the Electron debounce (used for counted bills,
  *        logout and window close, where losing the write is not acceptable).
  */
+// ===== THE QUOTA CLIFF =====
+//
+// localStorage is roughly 5–10 MB and the whole database goes into ONE key.
+// A busy shop passes that in a few months, and then `setItem` throws on every
+// write — which, until now, landed in a `console.error` nobody reads. The
+// cashier would have carried on taking bills that were not being saved.
+//
+// On Windows the desktop app is not actually relying on localStorage: the
+// JSON file written below is the durable store, and localStorage is only a
+// cache so the UI can paint before the file is read. So when the quota is
+// reached the right thing is to keep the file writes going, stop trying to
+// mirror a blob that no longer fits, and SAY SO — loudly enough that somebody
+// acts on it, once, rather than every write.
+let quotaExceeded = false;
+
+function isQuotaError(e: any): boolean {
+  const name = String(e?.name || '');
+  return name === 'QuotaExceededError'
+    || name === 'NS_ERROR_DOM_QUOTA_REACHED'
+    || /quota/i.test(String(e?.message || ''));
+}
+
+/** Has this machine outgrown the browser cache? For the Diagnostics screen. */
+export function isLocalCacheFull(): boolean { return quotaExceeded; }
+
 function flushPendingWrite(immediateDisk = false) {
   if (!pendingLocalWrite || !cachedData) return;
   pendingLocalWrite = false;
   const json = JSON.stringify(cachedData);
-  try { localStorage.setItem(STORAGE_KEY(), json); } catch (e) { console.error('[store] localStorage write failed', e); }
+  // Once the cache is known full, stop paying to serialise into it on every
+  // write. The file below still has everything.
+  if (!quotaExceeded) {
+    try {
+      localStorage.setItem(STORAGE_KEY(), json);
+    } catch (e) {
+      if (isQuotaError(e)) {
+        quotaExceeded = true;
+        // The file is the durable store in the desktop app, so this is not
+        // data loss there — but in a browser build it IS, and either way the
+        // shop needs to know their history has outgrown the cache.
+        void import('./faultLog')
+          .then(m => m.reportFault(
+            'store: local cache full',
+            `The browser cache is full (${Math.round(json.length / 1024)} KB). `
+            + (isElectron()
+              ? 'The desktop app keeps writing its data file, so nothing is lost — but archive old orders to bring this back under control.'
+              : 'Sales may stop being saved. Archive old orders now.'),
+            isElectron() ? 'WARN' : 'ERROR',
+          ))
+          .catch(() => { /* the console line below still stands */ });
+        console.error('[store] localStorage is full — falling back to the data file only', e);
+      } else {
+        void import('./faultLog').then(m => m.reportFault('store: local cache write', e)).catch(() => {});
+      }
+    }
+  }
   if (isElectron()) {
     if (writeTimer) { clearTimeout(writeTimer); writeTimer = null; }
     if (immediateDisk) {
-      dbWrite(json).catch(err => console.error('[electron] write fail:', err));
+      // This is the write that matters on Windows. A failure here IS data
+      // loss, so it is reported rather than logged to a console nobody reads.
+      dbWrite(json).catch(err => {
+        void import('./faultLog').then(m => m.reportFault('store: data file write', err)).catch(() => {});
+      });
     } else {
       writeTimer = setTimeout(() => {
         writeTimer = null;
-        dbWrite(json).catch(err => console.error('[electron] write fail:', err));
+        dbWrite(json).catch(err => {
+          void import('./faultLog').then(m => m.reportFault('store: data file write', err)).catch(() => {});
+        });
       }, 200);
     }
   }

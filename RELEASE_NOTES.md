@@ -1,5 +1,83 @@
 # DT POS Enterprise — Release Notes
 
+## v1.9.0 — Faults that leave a trace, and a till you can rebuild
+
+Nothing in this release changes how a bill is taken. It is about the three
+things that go wrong in month six rather than in a demo.
+
+### A failure now leaves a trace
+
+This codebase carries hundreds of bare `catch {}` blocks, and most of them are
+right to swallow — a failed log line must not take a bill down with it. But the
+same habit had been applied to failures that matter, and those vanished, which
+is why a support call could only ever start and end with "it stopped working".
+
+`reportFault` is the other half of that pattern. The catch still swallows, so
+nothing changes for the cashier; the failure is now written into the rolling
+`app.log` the desktop app already keeps, and into a short in-memory list the
+Diagnostics screen shows. Anything that escapes every catch in the app —
+an uncaught error, an unhandled promise — is caught by a global net and
+recorded too, instead of being a blank screen with no record of why.
+
+### Running out of storage is visible instead of silent
+
+The whole database goes into one localStorage key, against a browser quota of
+roughly 5–10 MB. A busy counter passes that in months, and every write then
+threw into a `console.error` nobody reads — the cashier carrying on taking
+bills that were not being saved.
+
+On Windows the desktop app is not actually relying on that cache: the JSON data
+file is the durable store. So a full quota now stops the pointless mirroring,
+keeps the file writes going, and **reports it once, loudly**, instead of failing
+quietly forever. A failed write to the data file — which on Windows really is
+data loss — is reported rather than logged to a console.
+
+### The order archive stops growing forever
+
+`archiveOrders` merged every order a shop had ever taken into another single
+localStorage key, with no cap, sharing the same budget as the live database.
+
+It keeps the newest 20,000 now — a shop doing 150 bills a day holds well over a
+year, which is more than the reports screens ask for. If storage is tight
+anyway it halves rather than losing the archive to a failed write, and says so.
+Day Close backups still hold everything, so nothing dropped here was the only
+copy.
+
+### This machine's setup survives the machine
+
+Every printer margin on a counter was found by somebody standing at a printer
+with a ruler, and none of it lived anywhere but that PC's browser storage. A
+dead hard disk cost a day.
+
+**Printer Center → Diagnostics & setup** now saves one JSON file carrying the
+lot: print margins, per-slip margins, printers with their roles and modes,
+print quality, calibration, both display designs, the announcement voice and
+output. Restoring it on a replacement computer takes a minute.
+
+It deliberately carries **no** sales, orders, customers, staff or licence keys —
+that is the shop's data, it has its own backup, and mixing them would make a
+settings file something you could not safely hand to anybody. Keys are listed
+explicitly rather than swept up by prefix, so a future release cannot quietly
+start exporting something that should stay on the machine.
+
+### One file for support
+
+The same screen exports a diagnostics file: app version, screen and platform,
+the last 500 log lines, recent faults, the print log, the printer configuration
+and the machine setup — plus a note field, because what the shop was doing when
+it went wrong is usually the most useful line in the whole report.
+
+### A correction on startup speed
+
+An earlier suggestion of mine said the 1.1 MB main bundle was costing 4–8
+seconds because xlsx, jsPDF and the charting library were bundled into it. That
+was wrong, and measuring said so: those are already separate chunks and only
+the main one is preloaded, so they load when a shop opens the screen that uses
+them and startup never pays for them. No change was made, because there was
+nothing to fix.
+
+---
+
 ## v1.8.0 — The boards as drawn, and the number spoken in Urdu
 
 ### The screens now match the printed designs

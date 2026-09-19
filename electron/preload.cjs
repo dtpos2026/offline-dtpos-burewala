@@ -83,6 +83,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbListBackups: () => ipcRenderer.invoke('db-list-backups'),
   dbLog: (level, event, detail) => ipcRenderer.invoke('db-log', level, event, detail),
   dbReadLog: () => ipcRenderer.invoke('db-read-log'),
+  // Write a line into the app's own rolling log file, so a fault in the POS
+  // leaves a trace instead of vanishing into a bare catch.
+  appLog: (level, event, detail) => ipcRenderer.invoke('app-log', level, event, detail),
   getDataPath: () => ipcRenderer.invoke('get-data-path'),
   getDataPaths: () => ipcRenderer.invoke('get-data-paths'),
   openDataFolder: (which) => ipcRenderer.invoke('open-data-folder', which),
