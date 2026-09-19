@@ -17,6 +17,7 @@ import { createPortal } from 'react-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { Ruler } from 'lucide-react';
 import { printNode } from '@/printing';
@@ -25,9 +26,9 @@ import {
   buildAlignmentTestBytes,
   alignmentFontPx,
 } from '@/printing/alignmentTest';
-import { resolveReceiptLayout, expectedMargins } from '@/printing/receiptLayout';
+import { resolveReceiptLayout, expectedMargins, computeMarginCorrection } from '@/printing/receiptLayout';
 import { PAPER_PROFILE_LIST, type PaperProfileId } from '@/printing/paperProfile';
-import { loadPrintMargins, equaliseSideMargins } from '@/lib/printMargins';
+import { loadPrintMargins, savePrintMargins, equaliseSideMargins } from '@/lib/printMargins';
 import { loadPrinterSettings, savePrinterSettings, resolvePrinterForRole, equalisePrinterMargins, type PrinterConfig } from '@/lib/printerSettings';
 import { getDeviceId } from '@/lib/tenant';
 
@@ -54,6 +55,9 @@ export default function PrintAlignmentTestCard() {
     return () => { alive = false; };
   }, []);
 
+  // What the shop measured off the printed slip with a ruler.
+  const [measuredLeft, setMeasuredLeft] = useState('');
+  const [measuredRight, setMeasuredRight] = useState('');
   const [marginTick, setMarginTick] = useState(0);
   // Re-read after an equalise so the panel and the slip agree immediately.
   const device = useMemo(() => { void marginTick; return loadPrintMargins(); }, [marginTick]);
@@ -69,6 +73,11 @@ export default function PrintAlignmentTestCard() {
     [paper, leftMm, rightMm, contentWidthMm],
   );
   const gaps = expectedMargins(layout, 'html');
+
+  const correction = useMemo(() => {
+    if (measuredLeft.trim() === '' || measuredRight.trim() === '') return null;
+    return computeMarginCorrection(layout, Number(measuredLeft), Number(measuredRight));
+  }, [layout, measuredLeft, measuredRight]);
 
   const rawAvailable = !!(window as any).electronAPI?.printRaw;
 
@@ -124,6 +133,45 @@ export default function PrintAlignmentTestCard() {
         setCounter(equalisePrinterMargins(counter, next));
       }
       setMarginTick(t => t + 1);
+    } catch (e: any) {
+      toast.error(`Could not update the margins: ${e?.message || String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Write one pair of side margins to whichever store is in force. */
+  const writeMargins = async (left: number, right: number) => {
+    savePrintMargins({ ...loadPrintMargins(), left, right });
+    if (counter) {
+      const all = await loadPrinterSettings();
+      await savePrinterSettings({
+        ...all,
+        printers: all.printers.map(p =>
+          p.id === counter.id ? { ...p, leftMarginMm: left, rightMarginMm: right } : p),
+      });
+      setCounter({ ...counter, leftMarginMm: left, rightMarginMm: right });
+    }
+    setMarginTick(t => t + 1);
+  };
+
+  /**
+   * Turn two ruler measurements into the margins that centre the slip.
+   *
+   * This is the step that used to be an evening of print, look, adjust, print
+   * again — which is how a client arrived at Left 3 / Right 5 for their own
+   * machine. The measurement is theirs; the arithmetic does not have to be.
+   */
+  const applyCorrection = async () => {
+    if (busy || !correction) return;
+    setBusy(true);
+    try {
+      await writeMargins(correction.leftMm, correction.rightMm);
+      setMeasuredLeft('');
+      setMeasuredRight('');
+      toast.success(
+        `Margins set to ${correction.leftMm} / ${correction.rightMm} mm. Print the slip again to confirm on paper.`,
+      );
     } catch (e: any) {
       toast.error(`Could not update the margins: ${e?.message || String(e)}`);
     } finally {
@@ -261,6 +309,72 @@ export default function PrintAlignmentTestCard() {
         <Button variant="outline" onClick={() => run('driver')} disabled={busy}>
           Print via Windows driver
         </Button>
+      </div>
+
+      {/* ===== MEASURE, THEN LET THE APP DO THE ARITHMETIC =====
+          Finding the pair that squares a slip used to be an evening of print,
+          look, adjust, print again — which is how a client arrived at Left 3 /
+          Right 5 for their own machine. The measurement has to be theirs; the
+          sum does not. Half the difference between the two gaps moves from the
+          wide side to the narrow one, and the slip is centred. */}
+      <div className="rounded-md border p-3 space-y-3">
+        <div>
+          <Label className="text-sm">Measured on the printed slip</Label>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Print the slip, measure the blank paper at each edge with a ruler,
+            and type both figures. The margins that centre it are worked out
+            for you — no trial and error.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {([
+            ['Left gap (mm)', measuredLeft, setMeasuredLeft],
+            ['Right gap (mm)', measuredRight, setMeasuredRight],
+          ] as const).map(([label, value, set]) => (
+            <div key={label} className="space-y-1">
+              <Label className="text-xs">{label}</Label>
+              <Input
+                type="number" min={0} max={40} step={0.5}
+                placeholder="0.0"
+                value={value}
+                onChange={e => set(e.target.value)}
+                className="h-9"
+              />
+            </div>
+          ))}
+        </div>
+
+        {correction && (
+          <div className="space-y-2">
+            {Math.abs(correction.widthMismatchMm) > 3 && (
+              <p className="text-xs text-status-warning">
+                Those two gaps add up to {Math.abs(correction.widthMismatchMm)}&nbsp;mm
+                {correction.widthMismatchMm > 0 ? ' more' : ' less'} blank paper than
+                this profile expects. That means the slip is printing at the wrong
+                <b> width</b>, not just off-centre — check the paper profile above
+                and the printer's own paper size first. Moving the margins would
+                only hide it.
+              </p>
+            )}
+            {correction.applicable ? (
+              <>
+                <p className="text-xs">
+                  The slip is {Math.abs(correction.offsetMm)}&nbsp;mm too far to the{' '}
+                  <b>{correction.offsetMm > 0 ? 'right' : 'left'}</b>. Setting the
+                  margins to <b>{correction.leftMm}&nbsp;/&nbsp;{correction.rightMm}&nbsp;mm</b> centres it.
+                </p>
+                <Button size="sm" onClick={applyCorrection} disabled={busy}>
+                  Apply {correction.leftMm} / {correction.rightMm} mm
+                </Button>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Both edges already match within half a millimetre — this slip is
+                centred. Nothing to change.
+              </p>
+            )}
+          </div>
+        )}
       </div>
       {!rawAvailable && (
         <p className="text-xs text-muted-foreground">

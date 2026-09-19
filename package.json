@@ -21,7 +21,8 @@
     "dist:dir": "npm run build && electron-builder --win nsis --dir",
     "build:all": "npm run build && npm run build:superadmin",
     "build:superadmin": "npm --prefix superadmin install && npm --prefix superadmin run build",
-    "superadmin": "npm --prefix superadmin run dev"
+    "superadmin": "npm --prefix superadmin run dev",
+    "package:release": "node scripts/package-release.mjs"
   },
   "dependencies": {
     "@fontsource/jetbrains-mono": "^5.2.8",

@@ -349,3 +349,78 @@ export function expectedMargins(layout: ReceiptLayout, mode: LayoutMode): Layout
     rightGapMm: round1(headInset + layout.rightMm),
   };
 }
+
+/**
+ * What to change the margins to, from the gaps a person measured with a ruler.
+ *
+ * Why this exists
+ * ---------------
+ * A client found by trial that Left 3 / Right 5 squared their slip in Windows
+ * Driver mode. That is a real measurement of a real machine and it is kept —
+ * but arriving at it took an evening of print, look, adjust, print again, and
+ * every shop with a slightly differently-seated roll has to repeat it.
+ *
+ * The arithmetic is not hard once the numbers are on paper. The slip is
+ * off-centre by half the difference between the two gaps, so moving that half
+ * from the wide side to the narrow one centres it. This does the sum, applies
+ * the same clamps the resolver does, and hands back the two numbers to save.
+ *
+ * What it will NOT quietly absorb
+ * -------------------------------
+ * If the two measured gaps do not ADD UP to the blank paper this layout
+ * should be leaving, the slip is not merely off-centre — it is printing at
+ * the wrong width, which is a paper profile or a driver scaling fault that
+ * moving margins cannot fix and would only disguise. That is reported as
+ * `widthMismatchMm` so the caller can say so instead of handing over numbers
+ * that make the next slip wrong in a new way.
+ */
+export interface MarginCorrection {
+  /** Left margin (mm) to save. */
+  leftMm: number;
+  /** Right margin (mm) to save. */
+  rightMm: number;
+  /** How far the slip is off centre, positive meaning "too far left". */
+  offsetMm: number;
+  /**
+   * Measured blank paper minus what this layout should leave blank. Near zero
+   * is healthy. A large value means the slip is printing at the wrong WIDTH,
+   * and no margin change will fix that.
+   */
+  widthMismatchMm: number;
+  /** True when the correction is within the range the resolver will honour. */
+  applicable: boolean;
+}
+
+export function computeMarginCorrection(
+  layout: ReceiptLayout,
+  measuredLeftMm: number,
+  measuredRightMm: number,
+): MarginCorrection {
+  const ml = Number(measuredLeftMm);
+  const mr = Number(measuredRightMm);
+  if (!Number.isFinite(ml) || !Number.isFinite(mr) || ml < 0 || mr < 0) {
+    return {
+      leftMm: layout.leftMm, rightMm: layout.rightMm,
+      offsetMm: 0, widthMismatchMm: 0, applicable: false,
+    };
+  }
+
+  // Half the difference moves from the wide side to the narrow one.
+  const offsetMm = round1((ml - mr) / 2);
+  const left = Math.max(0, Math.min(MAX_MARGIN_MM, round1(layout.leftMm - offsetMm)));
+  const right = Math.max(0, Math.min(MAX_MARGIN_MM, round1(layout.rightMm + offsetMm)));
+
+  // What this layout should be leaving blank in total, from the paper edges.
+  const expected = expectedMargins(layout, 'html');
+  const widthMismatchMm = round1((ml + mr) - (expected.leftGapMm + expected.rightGapMm));
+
+  return {
+    leftMm: left,
+    rightMm: right,
+    offsetMm,
+    widthMismatchMm,
+    // A correction big enough to hit the clamp is not a calibration, it is a
+    // sign the wrong paper profile is selected.
+    applicable: Math.abs(offsetMm) > 0.05 && Math.abs(offsetMm) <= MAX_MARGIN_MM,
+  };
+}

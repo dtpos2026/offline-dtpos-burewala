@@ -139,6 +139,43 @@ then, and shows each screen's shape (16:9, 4:3, portrait) — the property that
 decides how the board is laid out. The list refreshes itself while the card is
 open, so a TV switched on afterwards simply appears.
 
+### Calibrating from a ruler instead of by trial
+
+A client found by trial that Left 3 mm / Right 5 mm squared their slip in
+Windows Driver mode. That is a real measurement of real hardware and it is
+kept — but arriving at it took an evening of print, look, adjust, print again,
+and every shop whose roll sits slightly differently has to repeat it.
+
+The Alignment Test now takes the two gaps measured off the printed slip and
+works out the margins that centre it. If the two figures do not add up to the
+blank paper the profile expects, it says the slip is printing at the wrong
+**width** — a paper profile or driver scaling fault — instead of moving
+margins to disguise it.
+
+### Switches that did nothing
+
+Printer Center showed five toggles and two were read by nothing. **ESC/POS**
+said exactly what Print Mode → Raw says; a shop that turned it on got no raw
+printing and no explanation. It is gone, and stored values are folded into
+Print Mode once per machine so the intent survives the switch.
+
+**Browser Backup** would have restored a fallback that was removed on purpose:
+at an unattended counter it put a modal print dialog in front of the cashier
+*and reported the job as successful*, so a dead printer froze the till and hid
+the failure. The browser build still falls back to the browser's own dialog by
+itself. A switch whose honest label would be "freeze the till and hide the
+error" should not exist.
+
+**Auto Cut** and **Beep** were in the same state until this release — stored,
+shown, and never read by the raw path. They are read now.
+
+### Packaging
+
+`npm run package:release` produces the ZIP a client is sent, and
+`POS_TEST_CHECKLIST_v1.7.md` is the hardware sheet to work through with it.
+The ZIP is source, not an installer: `electron-builder --win nsis` has to run
+on Windows to produce an EXE that has actually been near the target platform.
+
 ---
 
 ## v1.6.0 — Customer Display: order-ready screen with your own branding

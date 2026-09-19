@@ -44,8 +44,20 @@ export interface PrinterConfig {
   autoCut: boolean;
   beep: boolean;
   copies: number;
-  escposMode: boolean;          // ESC/POS raw mode (forced ON for LAN)
-  browserBackup: boolean;       // allow browser fallback when EXE offline
+  /**
+   * @deprecated The old spelling of `printMode: 'raw'`. Folded into
+   * `printMode` by `foldLegacyEscposMode` and no longer shown in the UI.
+   * `resolvePrintMode` still honours it for configs that arrive unmigrated.
+   */
+  escposMode: boolean;
+  /**
+   * @deprecated Never read, and what it promised was removed on purpose: at an
+   * unattended counter the browser fallback put a modal print dialog in front
+   * of the cashier and reported the job as successful, so a dead printer froze
+   * the till AND hid the failure. The browser build still falls back to the
+   * browser's own dialog on its own. Kept so stored configs still parse.
+   */
+  browserBackup: boolean;
   enabled: boolean;
   /** Fallback print mode when the primary path fails or driver is unknown.
    *  - html   : Electron webContents.print (HTML/CSS rendering via Windows driver)
@@ -80,7 +92,7 @@ function readLocal(): PrinterSettingsDoc {
       // lopsided 3mm/10mm default on disk, so repairing only the factory
       // default would leave every existing client printing lopsided. The
       // repair is applied on read and persists on the next save.
-      printers: applySafeInset(repairLegacyMargins(Array.isArray(data.printers) ? data.printers : [])),
+      printers: foldLegacyEscposMode(applySafeInset(repairLegacyMargins(Array.isArray(data.printers) ? data.printers : []))),
       deviceAssignments: data.deviceAssignments || {},
     };
   } catch (e) {
@@ -115,7 +127,7 @@ export async function loadPrinterSettings(): Promise<PrinterSettingsDoc> {
       if (snap.exists()) {
         const data = snap.data() as PrinterSettingsDoc;
         const merged = {
-          printers: applySafeInset(repairLegacyMargins(data.printers || [])),
+          printers: foldLegacyEscposMode(applySafeInset(repairLegacyMargins(data.printers || []))),
           deviceAssignments: data.deviceAssignments || {},
         };
         try { writeLocal(merged); } catch {}
@@ -161,7 +173,7 @@ export function subscribePrinterSettings(
         if (!snap.exists()) return;
         const data = snap.data() as PrinterSettingsDoc;
         const merged = {
-          printers: applySafeInset(repairLegacyMargins(data.printers || [])),
+          printers: foldLegacyEscposMode(applySafeInset(repairLegacyMargins(data.printers || []))),
           deviceAssignments: data.deviceAssignments || {},
         };
         try { writeLocal(merged); } catch {}
@@ -339,6 +351,61 @@ export function applySafeInset(printers: PrinterConfig[]): PrinterConfig[] {
     try { window.dispatchEvent(new CustomEvent('dtpos-printer-settings-changed')); } catch { /* no window in tests */ }
   } catch (e) {
     console.warn('[printerSettings] safe inset could not be persisted; it will run again', e);
+  }
+
+  return out;
+}
+
+// ============================================================
+// THE DUPLICATE RAW SWITCH, folded into one.
+//
+// Printer Center carried an "ESC/POS" toggle (`escposMode`) that said exactly
+// what `printMode: 'raw'` says — and nothing read it. A shop that turned it on
+// got no raw printing and no explanation, which is the worst kind of setting:
+// one that looks like it works.
+//
+// The toggle is gone. Stored values are folded into `printMode` once per
+// machine, so a shop that DID turn it on now gets the raw printing they asked
+// for instead of having their intent deleted along with the switch. A printer
+// already set to an explicit mode is left alone — that choice is newer and
+// more specific.
+// ============================================================
+const RAW_MODE_FOLD_FLAG = 'dtpos-printer-escpos-folded-v1';
+
+export function foldLegacyEscposMode(printers: PrinterConfig[]): PrinterConfig[] {
+  if (!printers.length) return printers;
+  try { if (localStorage.getItem(RAW_MODE_FOLD_FLAG) === '1') return printers; } catch { return printers; }
+
+  let changed = false;
+  const out = printers.map((p) => {
+    if (!(p as any).escposMode) return p;
+    const mode = p.printMode;
+    // An explicit choice wins; only 'auto' or nothing is filled in.
+    if (mode === 'raw' || mode === 'driver') return p;
+    changed = true;
+    return { ...p, printMode: 'raw' as const };
+  });
+
+  if (!changed) {
+    try { localStorage.setItem(RAW_MODE_FOLD_FLAG, '1'); } catch { /* best effort */ }
+    return printers;
+  }
+
+  // Same rule as the margin passes: the flag goes down only once the values
+  // are on disk, so a failed write means this runs again rather than the
+  // shop's setting being lost.
+  try {
+    const raw = localStorage.getItem(LOCAL_KEY);
+    const existing = raw ? JSON.parse(raw) : {};
+    localStorage.setItem(LOCAL_KEY, JSON.stringify({
+      ...existing,
+      printers: out,
+      updatedAt: new Date().toISOString(),
+    }));
+    localStorage.setItem(RAW_MODE_FOLD_FLAG, '1');
+    try { window.dispatchEvent(new CustomEvent('dtpos-printer-settings-changed')); } catch { /* no window in tests */ }
+  } catch (e) {
+    console.warn('[printerSettings] ESC/POS fold could not be persisted; it will run again', e);
   }
 
   return out;

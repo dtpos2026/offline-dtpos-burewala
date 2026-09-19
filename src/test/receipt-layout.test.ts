@@ -16,6 +16,7 @@ import { describe, it, expect } from 'vitest';
 import {
   resolveReceiptLayout,
   expectedMargins,
+  computeMarginCorrection,
   pageWidthMmFor,
   contentOffsetMmFor,
   layoutCss,
@@ -240,5 +241,90 @@ describe('alignment test slip', () => {
     expect(text).toContain('80mm');
     expect(text).toContain('576');
     expect(text).toContain('raw-escpos');
+  });
+});
+
+// ============================================================
+// CALIBRATION FROM A RULER
+//
+// A client found by trial that Left 3 / Right 5 squared their slip in Windows
+// Driver mode. That is a real measurement of a real machine and it is kept —
+// but arriving at it took an evening of print, look, adjust, print again, and
+// every shop whose roll sits slightly differently has to repeat it.
+//
+// The measurement has to be theirs. The arithmetic does not.
+// ============================================================
+describe('turning two ruler measurements into margins', () => {
+  it('moves half the difference from the wide edge to the narrow one', () => {
+    // Printed with 4/4 but measured 2mm left and 8mm right: 3mm too far left.
+    const layout = resolveReceiptLayout({ paper: '80mm', leftMm: 4, rightMm: 4 });
+    const fix = computeMarginCorrection(layout, 2, 8);
+    expect(fix.offsetMm).toBe(-3);
+    expect(fix.leftMm).toBe(7);
+    expect(fix.rightMm).toBe(1);
+    expect(fix.applicable).toBe(true);
+
+    // What the ruler would read next time. Note this is measured-plus-delta,
+    // NOT expectedMargins(): the whole reason a correction is needed is that
+    // the machine prints somewhere the configured geometry does not predict,
+    // and asserting against the prediction would only re-state the config.
+    const nextLeft = 2 + (fix.leftMm - layout.leftMm);
+    const nextRight = 8 + (fix.rightMm - layout.rightMm);
+    expect(nextLeft).toBeCloseTo(nextRight, 1);
+  });
+
+  it('gets as close as it can when one side would have to go negative', () => {
+    // Nothing can print left of the paper. A 3mm correction on a 2mm right
+    // margin gives back 1mm of the asymmetry, and the shop can run the
+    // measurement again rather than being handed an impossible number.
+    const layout = resolveReceiptLayout({ paper: '80mm', leftMm: 2, rightMm: 2 });
+    const fix = computeMarginCorrection(layout, 2, 8);
+    expect(fix.rightMm).toBe(0);
+    expect(fix.leftMm).toBe(5);
+    const nextLeft = 2 + (fix.leftMm - layout.leftMm);
+    const nextRight = 8 + (fix.rightMm - layout.rightMm);
+    expect(Math.abs(nextLeft - nextRight)).toBeLessThan(Math.abs(2 - 8));
+  });
+
+  it('reproduces the pair the client found by hand', () => {
+    // Their slip sat 1mm right of centre on a 3/5 machine; the same sum that
+    // took an evening takes one measurement.
+    const layout = resolveReceiptLayout({ paper: '80mm', leftMm: 4, rightMm: 4 });
+    const fix = computeMarginCorrection(layout, 9, 7);
+    expect(fix.leftMm).toBe(3);
+    expect(fix.rightMm).toBe(5);
+  });
+
+  it('says there is nothing to do when the slip is already centred', () => {
+    const layout = resolveReceiptLayout({ paper: '80mm', leftMm: 2, rightMm: 2 });
+    expect(computeMarginCorrection(layout, 6, 6).applicable).toBe(false);
+    // Half a millimetre is inside what a ruler can honestly resolve.
+    expect(computeMarginCorrection(layout, 6, 6.1).applicable).toBe(false);
+  });
+
+  it('flags a WIDTH fault instead of hiding it behind a margin change', () => {
+    // A slip printing far too narrow leaves much more blank paper than the
+    // profile expects. Nudging margins would disguise a wrong paper profile.
+    const layout = resolveReceiptLayout({ paper: '80mm', leftMm: 2, rightMm: 2 });
+    const fix = computeMarginCorrection(layout, 14, 18);
+    expect(fix.widthMismatchMm).toBeGreaterThan(3);
+  });
+
+  it('refuses nonsense rather than writing a bad margin', () => {
+    const layout = resolveReceiptLayout({ paper: '80mm', leftMm: 2, rightMm: 2 });
+    for (const bad of [[-1, 4], [NaN, 4], [4, NaN]] as const) {
+      const fix = computeMarginCorrection(layout, bad[0], bad[1]);
+      expect(fix.applicable).toBe(false);
+      expect(fix.leftMm).toBe(layout.leftMm);
+      expect(fix.rightMm).toBe(layout.rightMm);
+    }
+  });
+
+  it('never produces a margin the resolver would clamp away', () => {
+    const layout = resolveReceiptLayout({ paper: '80mm', leftMm: 2, rightMm: 2 });
+    const fix = computeMarginCorrection(layout, 0, 40);
+    expect(fix.leftMm).toBeGreaterThanOrEqual(0);
+    expect(fix.leftMm).toBeLessThanOrEqual(20);
+    expect(fix.rightMm).toBeGreaterThanOrEqual(0);
   });
 });

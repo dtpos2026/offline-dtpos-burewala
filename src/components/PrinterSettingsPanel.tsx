@@ -722,12 +722,29 @@ export default function PrinterSettingsPanel() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4 pt-4 border-t">
+              {/* ===== SWITCHES THAT ACTUALLY DO SOMETHING =====
+                  Two used to sit here and did not.
+
+                  "ESC/POS" said exactly what Print Mode -> Raw says, and
+                  nothing read it: a shop that turned it on got no raw printing
+                  and no explanation. Stored values are folded into Print Mode
+                  once per machine, so the intent survives the switch going.
+
+                  "Browser Backup" would have restored a fallback that was
+                  deliberately removed: at an unattended counter it put a modal
+                  print dialog in front of the cashier AND reported the job as
+                  successful, so a dead printer both froze the till and hid the
+                  failure. The browser build still falls back to the browser's
+                  own dialog by itself, which is the real backup and needs no
+                  switch. A switch whose honest label would be "freeze the till
+                  and hide the error" should not exist.
+
+                  Auto Cut and Beep were in the same state until this release —
+                  stored, shown, and read by nothing. They are read now. */}
+              <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t">
                 <ToggleRow label="Enabled" v={p.enabled} on={(v) => updatePrinter(idx, { enabled: v })} />
                 <ToggleRow label="Auto Cut" v={p.autoCut} on={(v) => updatePrinter(idx, { autoCut: v })} />
                 <ToggleRow label="Beep" v={p.beep} on={(v) => updatePrinter(idx, { beep: v })} />
-                <ToggleRow label="ESC/POS" v={p.escposMode} on={(v) => updatePrinter(idx, { escposMode: v })} />
-                <ToggleRow label="Browser Backup" v={p.browserBackup} on={(v) => updatePrinter(idx, { browserBackup: v })} />
               </div>
 
               <div className="flex justify-end mt-3">

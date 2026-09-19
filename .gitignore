@@ -33,6 +33,9 @@ dist-ssr
 
 # Electron builds
 electron-release/
+
+# Packaged release ZIPs — built by `npm run package:release`, never committed.
+release/
 dist-installer/
 dist/
 
