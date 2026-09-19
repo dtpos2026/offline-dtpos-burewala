@@ -42,6 +42,25 @@ export interface PaperProfile {
   charsFontA: number;
   /** Monospace columns in Font B. */
   charsFontB: number;
+  /**
+   * Blank dots the slip is pushed in from the head's first markable column,
+   * expressed in DOTS so it stays exact at 203 DPI.
+   *
+   * Why this is not zero
+   * --------------------
+   * `printableMm` is what the head CAN mark, measured from its own dot 0.
+   * Where dot 0 falls on the paper depends on how the roll sits in the
+   * mechanism, and on a hand-loaded 80mm roll that is never perfect. Printing
+   * from dot 0 puts the first character on the very first markable column,
+   * so any misalignment at all shaves the left edge off — the reported
+   * "RAW print ka left side cut ho raha hai".
+   *
+   * A small inset absorbs that. It is derived, not guessed: one sixteenth of
+   * the head's width, floored to whole dots, which is 2.0mm on 80mm, 1.5mm on
+   * 58mm and 2.6mm on 110mm — the same relative safety on every roll. A shop
+   * that measures its own printer still overrides it in Printer Settings.
+   */
+  safeMarginDots: number;
 }
 
 /**
@@ -60,6 +79,9 @@ export const PAPER_PROFILES: Record<PaperProfileId, PaperProfile> = {
     dots: 384,
     charsFontA: 32,
     charsFontB: 42,
+    // 12 dots = 1.5mm. Narrower than the 80mm inset on purpose: on a 48mm
+    // head every millimetre is a character of receipt width.
+    safeMarginDots: 12,
   },
   '80mm': {
     id: '80mm',
@@ -69,6 +91,10 @@ export const PAPER_PROFILES: Record<PaperProfileId, PaperProfile> = {
     dots: 576,
     charsFontA: 48,
     charsFontB: 64,
+    // 16 dots = 2.0mm, the value measured on the FIT FP-1100 and the
+    // BIXOLON SRP-352plusIII: enough to survive a hand-loaded roll, small
+    // enough that the slip still fills the paper.
+    safeMarginDots: 16,
   },
   '110mm': {
     id: '110mm',
@@ -78,6 +104,9 @@ export const PAPER_PROFILES: Record<PaperProfileId, PaperProfile> = {
     dots: 832,
     charsFontA: 69,
     charsFontB: 92,
+    // 20 dots = 2.5mm. A wide roll wanders more in the mechanism and has
+    // width to spare.
+    safeMarginDots: 20,
   },
 };
 
@@ -109,6 +138,24 @@ export function printableDotsOf(value: unknown): number {
   return paperProfileOf(value).dots;
 }
 
+/**
+ * Default blank inset (mm) at each edge for this paper.
+ *
+ * This is the number Printer Settings starts a new printer at and the number
+ * the layout falls back to when nothing has been configured. It comes from
+ * the paper profile rather than from a constant in the layout code, which is
+ * what makes it a printer/paper calculation instead of a magic number: change
+ * the head and the safe margin changes with it.
+ */
+export function safeMarginMmOf(value: unknown): number {
+  return paperProfileOf(value).safeMarginDots / DOTS_PER_MM;
+}
+
+/** The same value in printer dots, for the ESC/POS paths. */
+export function safeMarginDotsOf(value: unknown): number {
+  return paperProfileOf(value).safeMarginDots;
+}
+
 /** Monospace columns for the chosen ESC/POS font. */
 export function columnsOf(value: unknown, font: 'A' | 'B' = 'A'): number {
   const p = paperProfileOf(value);
@@ -130,6 +177,14 @@ export function assertProfileConsistency(): void {
     if (p.printableMm >= p.paperMm) {
       throw new Error(
         `Paper profile ${p.id} claims a printable width (${p.printableMm}mm) that is not narrower than the roll (${p.paperMm}mm)`,
+      );
+    }
+    // A safe inset is meant to absorb a loading error, not to narrow the
+    // slip. Beyond a sixteenth of the head it stops being a safety margin
+    // and starts being a layout decision the shop did not make.
+    if (p.safeMarginDots < 0 || p.safeMarginDots > p.dots / 16) {
+      throw new Error(
+        `Paper profile ${p.id} has an unreasonable safe margin: ${p.safeMarginDots} dots of ${p.dots}`,
       );
     }
   }

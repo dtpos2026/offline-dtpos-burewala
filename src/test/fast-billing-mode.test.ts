@@ -120,10 +120,18 @@ describe('enlarged text wraps on word boundaries', () => {
     // GS ! doubles the glyph, so half as many characters fit. The builder did
     // not track this and the printer hard-wrapped mid-word: the client's slip
     // read "FIRST CHEF PIZZA & BUR / GER".
-    const d = new EscposDoc('80mm');
+    // Measured against the document's OWN column count, not the bare paper
+    // profile's: side margins legitimately remove columns, and hard-coding the
+    // unmargined figure would make this test fail for the right reason.
+    const d = new EscposDoc('80mm', { leftMm: 0, rightMm: 0 });
     expect(d.effectiveCols).toBe(columnsFor('80mm'));
     d.size(2, 2);
     expect(d.effectiveCols).toBe(Math.floor(columnsFor('80mm') / 2));
+
+    const inset = new EscposDoc('80mm');
+    expect(inset.effectiveCols).toBe(inset.layout.columnsFontA);
+    inset.size(2, 2);
+    expect(inset.effectiveCols).toBe(Math.floor(inset.layout.columnsFontA / 2));
   });
 
   it('breaks a long shop name between words, not inside one', () => {
@@ -135,7 +143,7 @@ describe('enlarged text wraps on word boundaries', () => {
   });
 
   it('restores the full column count when the size goes back to normal', () => {
-    const d = new EscposDoc('80mm');
+    const d = new EscposDoc('80mm', { leftMm: 0, rightMm: 0 });
     d.size(2, 2);
     d.size(1, 1);
     expect(d.effectiveCols).toBe(columnsFor('80mm'));

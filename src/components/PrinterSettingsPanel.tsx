@@ -32,6 +32,7 @@ import {
 import { getPrinters, isElectron, printReceiptNative, type SystemPrinterInfo } from '@/lib/electron';
 import { matchPrinter } from '@/printing/printerMatch';
 import { detectPrinterBrand, applyPreset } from '@/lib/printerPresets';
+import { autoDetectPrinters } from '@/printing/printerAutoDetect';
 import {
   subscribePendingJobs,
   retryCloudJob,
@@ -79,6 +80,16 @@ export default function PrinterSettingsPanel() {
     if (!isElectron()) return;
     setDetecting(true);
     try {
+      // Re-detect is the same pass that runs at startup, not just a list
+      // refresh: it re-points a saved name at the device Windows now calls it,
+      // and fills the role targets the print queue reads. Pressing this button
+      // used to only redraw the list, which is why the fix had to be finished
+      // by hand with Detect and then Save.
+      const repair = await autoDetectPrinters();
+      if (repair.created || repair.relinked.length || repair.filledRoles.length) {
+        loadPrinterSettings().then(setSettings);
+        if (showToast) toast.success(repair.message);
+      }
       const list = await getPrinters();
       setSystemPrinters(list || []);
         try {
@@ -89,7 +100,9 @@ export default function PrinterSettingsPanel() {
             setPrinterPorts(map);
           }
         } catch {}
-      if (showToast) toast.success(`Detected ${list?.length || 0} printer(s)`);
+      if (showToast && !(repair.created || repair.relinked.length || repair.filledRoles.length)) {
+        toast.success(`Detected ${list?.length || 0} printer(s) — configuration already correct.`);
+      }
     } catch (e: any) {
       if (showToast) toast.error('Detect failed: ' + (e?.message || e));
     } finally {

@@ -20,10 +20,15 @@
 // "right margin is much larger than the left" report, exactly.
 //
 // So both paths now describe their geometry through `resolveReceiptLayout`
-// and render it through `layoutCss`, and the invariant below is asserted by
-// the test suite on every paper profile and both modes:
+// and render it through `layoutCss`, and the test suite asserts on every
+// paper profile and both modes that:
 //
-//     left gap === right gap        (within one printer dot)
+//     equal margins in  ->  left gap === right gap   (within one printer dot)
+//     left 4mm in       ->  left gap is 4mm wider than the bare head inset
+//
+// The second line matters as much as the first. Making the slip symmetric was
+// only ever half the job; a shop also has to be able to nudge it, because the
+// roll does not always sit the same way in every machine.
 //
 // One data model, two renderers
 // -----------------------------
@@ -63,23 +68,29 @@ const MAX_MARGIN_MM = 20;
 export interface ReceiptLayoutInput {
   paper: PaperProfileId | string;
   /**
-   * Allow left and right to differ.
+   * Kept for callers that still pass it. It no longer changes anything.
    *
-   * Off by default, and that default is load-bearing. Asymmetric values have
-   * reached this resolver from several directions — an old shipped default, a
-   * stale migration, a restored backup, a half-finished calibration — and
-   * every one of them printed a slip hard against the left edge with a wide
-   * band down the right. Equalising here means no stored value, however it
-   * got there, can produce a lopsided slip again.
+   * An earlier version of this resolver forced left and right to match by
+   * taking the SMALLER of the two. That was written to defend against stale
+   * lopsided values on deployed machines, and it did — but it also threw away
+   * every margin a shop deliberately typed. Setting Left 3 / Right 0 produced
+   * 0 / 0, so the left edge still printed off the paper and the setting looked
+   * broken, because it was. Stale values are now dealt with once by the
+   * storage migrations that own them, which is where that belongs; this
+   * function's job is to apply the numbers it is given.
    *
-   * A caller that is deliberately compensating for one machine's head offset
-   * — a calibration preview, or a future per-printer override — passes `true`.
-   * Routine printing does not, so a bad stored pair cannot reach the paper.
+   * @deprecated Asymmetric margins are always honoured now.
    */
   allowAsymmetric?: boolean;
-  /** Left margin (mm) from Printer Settings. */
+  /**
+   * Left margin (mm) from Printer Settings.
+   *
+   * Left undefined, the paper profile's safe inset applies. That is not the
+   * same as 0: an explicit 0 means "print from the head's first column", and
+   * is obeyed.
+   */
   leftMm?: number;
-  /** Right margin (mm) from Printer Settings. */
+  /** Right margin (mm) from Printer Settings. Undefined means the safe inset. */
   rightMm?: number;
   /**
    * Hard override of the content width (mm) from printer calibration. When
@@ -127,27 +138,32 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 /**
  * Work out where a slip sits on the paper.
  *
- * Left and right stay independent — asking for 4mm left and 1mm right shifts
- * the content right rather than re-centring it — but the DEFAULT is equal,
- * and any slack this module creates on its own (a calibration override, a
- * clamp) is always split evenly. That is the difference between the old
- * behaviour and this one: slack never silently collects on the right.
+ * Two rules, and no others:
+ *
+ *  1. The margins given are the margins applied. 4mm left with 1mm right
+ *     shifts the slip right; it is not quietly re-centred, and it is not
+ *     quietly flattened to 1mm a side. A shop that types a number into
+ *     Printer Settings must be able to see that number on the paper, or the
+ *     setting is a lie and the next fault report is unanswerable.
+ *  2. Slack this module creates by itself — a calibration width that does not
+ *     fill the head, a clamp against an unreadable slip — is split evenly, so
+ *     nothing the shop did NOT ask for ever piles up on one edge.
+ *
+ * With nothing configured both sides get the paper profile's safe inset, so
+ * the out-of-the-box slip is centred AND clear of the edge.
  */
 export function resolveReceiptLayout(input: ReceiptLayoutInput): ReceiptLayout {
   const profile = paperProfileOf(input.paper);
   const { paperMm, printableMm, dots: printableDots } = profile;
 
-  let leftMm = toMm(input.leftMm, 0);
-  let rightMm = toMm(input.rightMm, 0);
-
-  // ===== SYMMETRY IS THE DEFAULT =====
-  // Take the SMALLER side: the larger one is the inflated value that created
-  // the wide band, and widening both would eat printable width the slip needs.
-  if (!input.allowAsymmetric && Math.abs(leftMm - rightMm) > 0.05) {
-    const side = Math.min(leftMm, rightMm);
-    leftMm = side;
-    rightMm = side;
-  }
+  // Unset falls back to the paper's own safe inset; an explicit number — 0
+  // included — is applied exactly as typed. This is the whole of the margin
+  // policy, and it is deliberately short: every past lopsided-slip report
+  // traced back to this function second-guessing the value it was handed.
+  const safeMm = profile.safeMarginDots / DOTS_PER_MM;
+  const leftGiven = Number.isFinite(Number(input.leftMm));
+  let leftMm = toMm(input.leftMm, safeMm);
+  let rightMm = toMm(input.rightMm, safeMm);
 
   const finish = (contentMm: number, left: number, right: number): ReceiptLayout => {
     const contentDots = Math.round(contentMm * DOTS_PER_MM);
@@ -176,8 +192,11 @@ export function resolveReceiptLayout(input: ReceiptLayoutInput): ReceiptLayout {
   if (Number.isFinite(override) && override > 0) {
     const contentMm = Math.max(MIN_CONTENT_MM, Math.min(printableMm, round1(override)));
     const spare = Math.max(0, printableMm - contentMm);
-    // Honour an explicit left offset when it fits; otherwise centre.
-    const left = leftMm > 0 && leftMm <= spare ? leftMm : round1(spare / 2);
+    // An explicit left offset is honoured when it fits. The safe inset is NOT
+    // an explicit offset — it is a floor for the unconfigured case — so a
+    // calibrated width with no margins set stays centred rather than being
+    // nudged off by a default the shop never chose.
+    const left = leftGiven && leftMm > 0 && leftMm <= spare ? leftMm : round1(spare / 2);
     return finish(contentMm, left, round1(spare - left));
   }
 

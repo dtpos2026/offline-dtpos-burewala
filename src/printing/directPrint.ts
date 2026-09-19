@@ -72,6 +72,20 @@ export function prewarmDirectPrint() {
     .finally(() => { psLoading = null; });
 }
 
+// ===== KEEP THE WARM CACHE HONEST =====
+// This cache is read on every direct print, and it was filled once at
+// startup. Startup auto-detection, and the shop editing Printer Center, both
+// write new printer settings AFTER that — so without this the first bill of
+// the session could still be sent to the name the machine had before the
+// repair, and the change would only take effect on the next restart.
+if (typeof window !== 'undefined') {
+  window.addEventListener('dtpos-printer-settings-changed', () => {
+    psCache = null;
+    psLoading = null;
+    prewarmDirectPrint();
+  });
+}
+
 function roleFor(slip: DirectSlip): 'counter' | 'kitchen' {
   return slip === 'receipt' ? 'counter' : 'kitchen';
 }

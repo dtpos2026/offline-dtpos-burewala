@@ -6,6 +6,8 @@
 // can tune to its own printer.
 // ============================================================
 
+import { safeMarginMmOf } from '@/printing/paperProfile';
+
 export interface PrintMargins {
   top: number;
   right: number;
@@ -18,24 +20,29 @@ export interface PrintMargins {
 
 const KEY = 'dtpos-print-margins';
 /**
- * Equal 2mm side margins. The slip is laid out inside the head's printable
- * width, so 2mm a side is genuinely 2mm of blank paper on each edge rather
- * than a guess that the driver may or may not honour.
- */
-/**
- * Zero side margins by default.
+ * The safe inset the 80mm profile calculates, on both sides.
  *
- * On an 80mm roll the head can only mark the middle ~72mm, so roughly 4mm of
- * each edge is ALREADY blank paper that no setting can print on. That inset is
- * the visual margin. Adding 2mm on top of it narrowed the slip to 68mm while
- * the Windows driver path was filling the full 72mm — which is why the raw
- * slip came out both lopsided AND narrower than the driver's.
+ * These margins are device-level and the device does not know which roll is
+ * loaded, so the standard 80mm head is the reference; a printer configured
+ * for another paper carries its own margins in Printer Settings and those win.
  *
- * Zero here means: use everything the head can reach, and let the paper's own
- * unprintable edge be the margin. It is also what makes the raw path and the
- * driver path produce the same width.
+ * Why not zero. An earlier build defaulted both sides to 0 on the reasoning
+ * that the head's own ~4mm unmarkable edge already IS the margin. On a
+ * perfectly loaded roll that holds. On a hand-loaded one it does not: the
+ * first markable column lands at or past the paper's edge and the left side
+ * of every RAW slip prints clipped — reported from the shop floor as "RAW
+ * print ka left side cut ho raha hai". The inset comes from the paper
+ * profile so it tracks the head rather than being a number typed in here.
  */
-export const DEFAULT_MARGINS: PrintMargins = { top: 0, right: 0, bottom: 0, left: 0, contentWidthMm: 0 };
+const SAFE_SIDE_MM = safeMarginMmOf('80mm');
+
+export const DEFAULT_MARGINS: PrintMargins = {
+  top: 0,
+  right: SAFE_SIDE_MM,
+  bottom: 0,
+  left: SAFE_SIDE_MM,
+  contentWidthMm: 0,
+};
 // ============================================================
 // ONE-TIME GEOMETRY MIGRATION
 //
@@ -61,13 +68,45 @@ const GEOM_FLAG = 'dtpos-print-geometry-v5';
 // later downgrades and upgrades again is migrated rather than skipped.
 const SUPERSEDED_FLAGS = ['dtpos-print-geometry-v2', 'dtpos-print-geometry-v3', 'dtpos-print-geometry-v4'];
 
+// ============================================================
+// SAFE-INSET TOP-UP (v6)
+//
+// v5 set both side margins to 0 on every machine it reached. That removed the
+// lopsided band, and it also removed the only thing standing between the
+// first character and the edge of the paper — which is how the left-clipping
+// report arrived. v6 raises a side margin back to the profile's safe inset
+// ONLY where it is currently zero.
+//
+// The "only where zero" part is the whole point. A shop that calibrated its
+// own printer to 3mm left and 5mm right because that is what squares the slip
+// on their machine keeps those numbers: a non-zero margin is somebody's
+// measurement, and this migration does not know better than the paper.
+// ============================================================
+const SAFE_FLAG = 'dtpos-print-safe-inset-v6';
+
 try {
   if (typeof localStorage !== 'undefined' && !localStorage.getItem(GEOM_FLAG)) {
     localStorage.setItem(KEY, JSON.stringify(DEFAULT_MARGINS));
     localStorage.setItem(GEOM_FLAG, '1');
+    localStorage.setItem(SAFE_FLAG, '1');
     for (const old of SUPERSEDED_FLAGS) {
       try { localStorage.removeItem(old); } catch { /* best effort */ }
     }
+  } else if (typeof localStorage !== 'undefined' && !localStorage.getItem(SAFE_FLAG)) {
+    const raw = localStorage.getItem(KEY);
+    const cur = raw ? JSON.parse(raw) : null;
+    if (cur && typeof cur === 'object') {
+      const left = Number(cur.left) || 0;
+      const right = Number(cur.right) || 0;
+      if (left === 0 || right === 0) {
+        localStorage.setItem(KEY, JSON.stringify({
+          ...cur,
+          left: left === 0 ? SAFE_SIDE_MM : left,
+          right: right === 0 ? SAFE_SIDE_MM : right,
+        }));
+      }
+    }
+    localStorage.setItem(SAFE_FLAG, '1');
   }
 } catch {}
 

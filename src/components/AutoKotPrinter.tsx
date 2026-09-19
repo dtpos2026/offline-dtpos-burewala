@@ -21,6 +21,7 @@ import KitchenReceipt from '@/components/KitchenReceipt';
 import ReceiptPreview from '@/components/ReceiptPreview';
 import TokenReceipt from '@/components/TokenReceipt';
 import { prewarmDirectPrint } from '@/printing/directPrint';
+import { autoDetectPrintersOnStartup } from '@/printing/printerAutoDetect';
 import { forceExitThermalPrintMode } from '@/lib/thermal-print';
 import type { Order } from '@/lib/types';
 import { prewarmPrintGuard } from '@/licensing/printGuard';
@@ -82,6 +83,11 @@ export default function AutoKotPrinter() {
   // Licence guard ko pehle se garam kar lo — pehle bill par zero intezar.
   useEffect(() => {
     prewarmPrintGuard();
+    // Bring the saved printer configuration in line with what Windows has
+    // installed BEFORE the first bill. Without this a fresh machine, or one
+    // whose printer was renamed by a driver reinstall, queues every bill as
+    // Pending until somebody opens Printer Center and presses Detect & Save.
+    autoDetectPrintersOnStartup();
     // Printer mapping ko pehle se load kar lo — pehla direct print bhi bina rukey.
     prewarmDirectPrint();
     // Printer config bhi pehle se garam — pehla bill bhi bina rukey chhape.

@@ -96,34 +96,65 @@ describe('equal margins', () => {
     expect(layout.leftMm).toBeCloseTo(layout.rightMm, 1);
   });
 
-  it('equalises an asymmetric pair unless the caller opts in', () => {
-    // Asymmetric values reached this resolver from an old shipped default, a
-    // stale migration and a restored backup, and every one printed a slip hard
-    // against the left edge with a wide band down the right. Equalising here
-    // means no stored value, however it got there, can do that again.
-    const fixed = resolveReceiptLayout({ paper: '80mm', leftMm: 3, rightMm: 10 });
-    expect(fixed.leftMm).toBe(fixed.rightMm);
-    // The SMALLER side wins: widening both would eat printable width.
-    expect(fixed.leftMm).toBe(3);
+  it('applies an asymmetric pair exactly as it was set', () => {
+    // THE SETTING-DOES-NOTHING BUG.
+    //
+    // A previous version of this resolver forced the two sides to match by
+    // taking the SMALLER of them, to defend against stale lopsided values on
+    // deployed machines. It did stop those — and it also silently discarded
+    // every margin a shop typed by hand. A cashier who set Left 3 to stop the
+    // left edge being clipped got 0 back, the clipping continued, and the
+    // margin setting looked broken because it was.
+    //
+    // Stale values are now the storage migrations' problem, where they belong.
+    // This function applies the numbers it is handed.
+    const layout = resolveReceiptLayout({ paper: '80mm', leftMm: 3, rightMm: 0 });
+    expect(layout.leftMm).toBe(3);
+    expect(layout.rightMm).toBe(0);
+    expect(layout.leftDots).toBe(24);        // 3mm x 8 dots/mm
+    expect(layout.contentMm).toBe(69);       // 72 printable - 3 left
+
+    // And it has to reach the paper, not just the object: the gap measured
+    // from the physical edge grows by exactly the 3mm that was asked for.
+    const bare = expectedMargins(resolveReceiptLayout({ paper: '80mm', leftMm: 0, rightMm: 0 }), 'raster');
+    const moved = expectedMargins(layout, 'raster');
+    expect(moved.leftGapMm - bare.leftGapMm).toBeCloseTo(3, 1);
   });
 
-  it('honours an explicit calibration when asymmetry is opted into', () => {
-    // Compensating for one machine's head offset is the one legitimate reason
-    // for the two sides to differ.
-    const layout = resolveReceiptLayout({ paper: '80mm', leftMm: 6, rightMm: 1, allowAsymmetric: true });
-    expect(layout.leftMm).toBe(6);
-    expect(layout.rightMm).toBe(1);
-    expect(layout.contentMm).toBe(65);
+  it('honours the driver-mode pair the shop measured for itself', () => {
+    // The 3mm/5mm a client found by trial on their own hardware. Whatever the
+    // defaults say, these are measurements and they survive.
+    const layout = resolveReceiptLayout({ paper: '80mm', leftMm: 3, rightMm: 5 });
+    expect(layout.leftMm).toBe(3);
+    expect(layout.rightMm).toBe(5);
+    expect(layout.contentMm).toBe(64);
   });
 
-  it('fills the full printable width when no margin is set', () => {
-    // The head already cannot mark ~4mm of each edge, and that inset IS the
-    // visual margin. Subtracting more made the raw slip narrower than the
-    // same bill printed through the Windows driver.
+  it('keeps a slip clear of the paper edge when nothing is configured', () => {
+    // Zero on both sides was the previous default. It puts the first column on
+    // the head's very first markable dot, and on a hand-loaded roll that is at
+    // or past the edge of the paper — the left side of the RAW slip came out
+    // shaved. An unconfigured machine now gets the profile's safe inset.
     const layout = resolveReceiptLayout({ paper: '80mm' });
+    expect(layout.leftMm).toBe(2);
+    expect(layout.rightMm).toBe(2);
+    expect(layout.leftDots).toBe(16);
+    expect(layout.contentMm).toBe(68);
+
+    // Narrow paper gets a narrower inset: on a 48mm head every millimetre is
+    // a character of receipt width.
+    expect(resolveReceiptLayout({ paper: '58mm' }).leftMm).toBe(1.5);
+  });
+
+  it('still fills the whole head when the margins are explicitly zero', () => {
+    // The safe inset is a default, not a floor. A shop that wants the full
+    // printable width — because their printer is mounted squarely and they
+    // measured it — asks for zero and gets zero.
+    const layout = resolveReceiptLayout({ paper: '80mm', leftMm: 0, rightMm: 0 });
     expect(layout.contentMm).toBe(72);
     expect(layout.contentDots).toBe(576);
     expect(layout.columnsFontA).toBe(48);
+    expect(layout.leftDots).toBe(0);
   });
 });
 
@@ -169,7 +200,7 @@ describe('alignment test slip', () => {
     // If this ever exceeds the column count the ruler wraps on paper and the
     // margins look wrong when they are not. Fix the constant, not the font.
     for (const paper of PROFILES) {
-      const layout = resolveReceiptLayout({ paper, leftMm: 0, rightMm: 0 });
+      const layout = resolveReceiptLayout({ paper });
       const lines = alignmentTestLines({ paper });
       const ruler = lines.find(l => /^=+$/.test(l));
       expect(ruler, `${paper} has no ruler line`).toBeTruthy();
@@ -178,16 +209,28 @@ describe('alignment test slip', () => {
     }
   });
 
-  it('is 48 characters on 80mm and 32 on 58mm', () => {
-    expect(alignmentTestLines({ paper: '80mm' }).find(l => /^=+$/.test(l))!.length).toBe(48);
-    expect(alignmentTestLines({ paper: '58mm' }).find(l => /^=+$/.test(l))!.length).toBe(32);
+  it('rules the full head when the margins are zero, and less when they are not', () => {
+    // The ruler is the measuring instrument on the calibration slip, so it has
+    // to be the width the slip ACTUALLY prints at. Margins genuinely remove
+    // characters — 2mm a side on an 80mm head is 32 dots, which is 2 columns
+    // of Font A at either end — and a ruler that ignored them would make a
+    // correctly-margined slip look short.
+    const full = alignmentTestLines({ paper: '80mm', leftMm: 0, rightMm: 0 });
+    expect(full.find(l => /^=+$/.test(l))!.length).toBe(48);
+    expect(alignmentTestLines({ paper: '58mm', leftMm: 0, rightMm: 0 }).find(l => /^=+$/.test(l))!.length).toBe(32);
+
+    const inset = alignmentTestLines({ paper: '80mm' });
+    const insetLayout = resolveReceiptLayout({ paper: '80mm' });
+    expect(inset.find(l => /^=+$/.test(l))!.length).toBe(insetLayout.columnsFontA);
+    expect(insetLayout.columnsFontA).toBeLessThan(48);
   });
 
   it('puts LEFT and RIGHT hard against opposite edges', () => {
+    const layout = resolveReceiptLayout({ paper: '80mm' });
     const line = alignmentTestLines({ paper: '80mm' }).find(l => l.startsWith('LEFT'))!;
     expect(line.startsWith('LEFT')).toBe(true);
     expect(line.endsWith('RIGHT')).toBe(true);
-    expect(line.length).toBe(48);
+    expect(line.length).toBe(layout.columnsFontA);
   });
 
   it('records the profile, dot width and strategy on the slip itself', () => {

@@ -60,12 +60,19 @@ export function alignmentTestLines(opts: AlignmentTestOptions): string[] {
   const cols = layout.columnsFontA;
   const gaps = expectedMargins(layout, 'html');
 
+  // Nothing on a calibration slip may be wider than the slip. A line the
+  // printer wraps for us destroys the one measurement this slip exists to
+  // make — you cannot tell a wrapped ruler from a mis-set margin on a
+  // photograph. Both helpers therefore clip, and the test suite asserts that
+  // every line fits, on every profile and at every margin.
+  const clip = (s: string) => (s.length > cols ? s.slice(0, cols) : s);
   const centred = (s: string) => {
-    const pad = Math.max(0, Math.floor((cols - s.length) / 2));
-    return ' '.repeat(pad) + s;
+    const text = clip(s);
+    const pad = Math.max(0, Math.floor((cols - text.length) / 2));
+    return ' '.repeat(pad) + text;
   };
   const lr = (l: string, r: string) =>
-    l + ' '.repeat(Math.max(1, cols - l.length - r.length)) + r;
+    clip(l + ' '.repeat(Math.max(1, cols - l.length - r.length)) + r);
 
   return [
     centred('PRINT ALIGNMENT TEST'),
@@ -96,7 +103,7 @@ export function alignmentTestLines(opts: AlignmentTestOptions): string[] {
     lr('Print strategy', opts.strategy || 'unknown'),
     ...(opts.printerName ? [lr('Printer', opts.printerName.slice(0, Math.max(8, cols - 10)))] : []),
     '',
-    centred('Measure both edges with a ruler.'),
+    centred('Measure both paper edges.'),
     centred('They must match within 1 mm.'),
     centred('The = line must NOT wrap.'),
   ];

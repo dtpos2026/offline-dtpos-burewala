@@ -37,22 +37,42 @@ describe('sticky printer geometry', () => {
     }
   });
 
-  it('sets the left margin to zero when no margin is configured', () => {
-    // A leftover non-zero left margin in printer memory is exactly what shifts
-    // the slip right and eats the right edge.
-    const bytes = new EscposDoc('80mm').bytes();
+  it('states the geometry on every job, so a leftover NVRAM margin cannot survive', () => {
+    // GS L and GS W persist in the printer between jobs and are not cleared by
+    // ESC @ on many models. A printer left with a stale left margin shifts and
+    // clips every later job, whatever the POS sends — so both are written
+    // unconditionally, never "only when non-zero".
+    const bytes = new EscposDoc('80mm', { leftMm: 0, rightMm: 0 }).bytes();
     const gsL = findCommand(bytes, 0x1d, 0x4c)!;
     expect(word(gsL[0], gsL[1])).toBe(0);
-  });
-
-  it('sets the print area to the full printable width when unmargined', () => {
-    const bytes = new EscposDoc('80mm').bytes();
     const gsW = findCommand(bytes, 0x1d, 0x57)!;
     expect(word(gsW[0], gsW[1])).toBe(576);
 
-    const narrow = new EscposDoc('58mm').bytes();
+    const narrow = new EscposDoc('58mm', { leftMm: 0, rightMm: 0 }).bytes();
     const gsW58 = findCommand(narrow, 0x1d, 0x57)!;
     expect(word(gsW58[0], gsW58[1])).toBe(384);
+  });
+
+  it('insets an unconfigured slip by the paper profile\'s safe margin', () => {
+    // The RAW slip was printing clipped on the left. Its left margin was zero,
+    // which starts the first column on the head's first markable dot — fine on
+    // a perfectly seated roll and not fine on any other. 16 dots is 2mm.
+    const bytes = new EscposDoc('80mm').bytes();
+    const gsL = findCommand(bytes, 0x1d, 0x4c)!;
+    expect(word(gsL[0], gsL[1])).toBe(16);
+    const gsW = findCommand(bytes, 0x1d, 0x57)!;
+    expect(word(gsW[0], gsW[1])).toBe(576 - 32);
+  });
+
+  it('moves the RAW slip by exactly the millimetres the shop set', () => {
+    // The user-visible half of the same fault: Printer Settings offered a Left
+    // margin, the resolver flattened it away, and the printed slip did not
+    // move. These are the bytes that prove it now does.
+    const bytes = new EscposDoc('80mm', { leftMm: 3, rightMm: 0 }).bytes();
+    const gsL = findCommand(bytes, 0x1d, 0x4c)!;
+    expect(word(gsL[0], gsL[1])).toBe(24);      // 3mm x 8 dots/mm
+    const gsW = findCommand(bytes, 0x1d, 0x57)!;
+    expect(word(gsW[0], gsW[1])).toBe(576 - 24);
   });
 
   it('translates mm margins into the matching dot values', () => {

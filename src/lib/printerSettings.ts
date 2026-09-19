@@ -8,6 +8,7 @@ import { doc, getDoc, setDoc, onSnapshot, Unsubscribe } from '@/lib/offlineNoClo
 import { cloudDb, isCloudConfigured } from './offlineNoCloud';
 import { getTenantId } from './tenant';
 import type { CloudPrintRole } from './cloudPrintJobs';
+import { safeMarginMmOf } from '@/printing/paperProfile';
 
 type Unsub = Unsubscribe | (() => void);
 
@@ -79,7 +80,7 @@ function readLocal(): PrinterSettingsDoc {
       // lopsided 3mm/10mm default on disk, so repairing only the factory
       // default would leave every existing client printing lopsided. The
       // repair is applied on read and persists on the next save.
-      printers: repairLegacyMargins(Array.isArray(data.printers) ? data.printers : []),
+      printers: applySafeInset(repairLegacyMargins(Array.isArray(data.printers) ? data.printers : [])),
       deviceAssignments: data.deviceAssignments || {},
     };
   } catch (e) {
@@ -114,7 +115,7 @@ export async function loadPrinterSettings(): Promise<PrinterSettingsDoc> {
       if (snap.exists()) {
         const data = snap.data() as PrinterSettingsDoc;
         const merged = {
-          printers: repairLegacyMargins(data.printers || []),
+          printers: applySafeInset(repairLegacyMargins(data.printers || [])),
           deviceAssignments: data.deviceAssignments || {},
         };
         try { writeLocal(merged); } catch {}
@@ -160,7 +161,7 @@ export function subscribePrinterSettings(
         if (!snap.exists()) return;
         const data = snap.data() as PrinterSettingsDoc;
         const merged = {
-          printers: repairLegacyMargins(data.printers || []),
+          printers: applySafeInset(repairLegacyMargins(data.printers || [])),
           deviceAssignments: data.deviceAssignments || {},
         };
         try { writeLocal(merged); } catch {}
@@ -180,12 +181,22 @@ export function subscribePrinterSettings(
 /**
  * Equal side margins, in mm, for a newly added printer.
  *
- * Zero, because the thermal head already cannot mark roughly 4mm of each
- * edge — that inset IS the visible blank band, on every 80mm slip. Adding
- * more only narrows the printable content, and it was what made the raw slip
- * come out narrower than the same bill printed through the Windows driver.
+ * Taken from the 80mm paper profile's safe inset rather than written here, so
+ * the value follows the printer geometry instead of being a constant somebody
+ * has to remember to keep in step. `defaultPrinterConfig()` starts every new
+ * printer on 80mm; a printer switched to another roll is re-based onto that
+ * roll's safe inset by `safeMarginsFor()`.
+ *
+ * It is not zero. Zero was tried, and it prints the first column on the head's
+ * very first markable dot — which on a hand-loaded roll is at or past the edge
+ * of the paper, so the left of every RAW slip came out shaved.
  */
-export const DEFAULT_SIDE_MARGIN_MM = 0;
+export const DEFAULT_SIDE_MARGIN_MM = safeMarginMmOf('80mm');
+
+/** The safe inset for a given roll, for printers not on 80mm paper. */
+export function safeMarginsFor(paperSize: PrinterConfig['paperSize']): number {
+  return safeMarginMmOf(paperSize);
+}
 
 /**
  * One-time flag for the equal-margin repair.
@@ -267,6 +278,67 @@ export function repairLegacyMargins(printers: PrinterConfig[]): PrinterConfig[] 
     try { window.dispatchEvent(new CustomEvent('dtpos-printer-settings-changed')); } catch { /* no window in tests */ }
   } catch (e) {
     console.warn('[printerSettings] margin repair could not be persisted; it will run again', e);
+  }
+
+  return out;
+}
+
+// ============================================================
+// SAFE-INSET TOP-UP, once per machine.
+//
+// The equalising repair above left a lot of printers on 0mm/0mm, because that
+// was the default at the time. Zero prints the first column on the head's
+// first markable dot, and on a roll a person loaded by hand that is at or
+// past the paper's edge — the left-clipping fault.
+//
+// This pass raises a side margin to the roll's safe inset ONLY where it is
+// currently zero, and only once. A printer somebody calibrated to 3mm/5mm is
+// left exactly as they set it: a non-zero number is a measurement, and a
+// migration has no standing to overrule one.
+// ============================================================
+const SAFE_INSET_FLAG = 'dtpos-printer-safe-inset-v1';
+
+function safeInsetDone(): boolean {
+  try { return localStorage.getItem(SAFE_INSET_FLAG) === '1'; } catch { return false; }
+}
+
+export function applySafeInset(printers: PrinterConfig[]): PrinterConfig[] {
+  if (!printers.length || safeInsetDone()) return printers;
+
+  let changed = false;
+  const out = printers.map((p) => {
+    const safe = safeMarginsFor(p.paperSize || '80mm');
+    const left = Number(p.leftMarginMm) || 0;
+    const right = Number(p.rightMarginMm) || 0;
+    if (left !== 0 && right !== 0) return p;
+    changed = true;
+    return {
+      ...p,
+      leftMarginMm: left === 0 ? safe : left,
+      rightMarginMm: right === 0 ? safe : right,
+    };
+  });
+
+  if (!changed) {
+    try { localStorage.setItem(SAFE_INSET_FLAG, '1'); } catch { /* best effort */ }
+    return printers;
+  }
+
+  // Same rule as the repair above: the flag goes down only once the values
+  // are on disk, so a failed write means the pass runs again rather than
+  // being silently lost.
+  try {
+    const raw = localStorage.getItem(LOCAL_KEY);
+    const existing = raw ? JSON.parse(raw) : {};
+    localStorage.setItem(LOCAL_KEY, JSON.stringify({
+      ...existing,
+      printers: out,
+      updatedAt: new Date().toISOString(),
+    }));
+    localStorage.setItem(SAFE_INSET_FLAG, '1');
+    try { window.dispatchEvent(new CustomEvent('dtpos-printer-settings-changed')); } catch { /* no window in tests */ }
+  } catch (e) {
+    console.warn('[printerSettings] safe inset could not be persisted; it will run again', e);
   }
 
   return out;
