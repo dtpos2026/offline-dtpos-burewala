@@ -1,5 +1,56 @@
 # DT POS Enterprise — Release Notes
 
+## v1.11.0 — The settings screen, split
+
+Nothing about Settings looks or behaves differently. This is the last item on
+the improvement list, and it is maintenance: a file that had grown to the size
+where people stop changing it.
+
+### What was actually wrong, and what was not
+
+SettingsPage.tsx was 3,989 lines. Two things I had assumed about it turned out
+not to be true when I looked:
+
+- it **already uses tabs**, so there was no wall of scrolling to fix;
+- the tab library **only mounts the tab you are looking at**, so there was no
+  performance cost either.
+
+What was left is the real problem and a narrower one: nineteen tabs in one
+file, where changing the receipt layout means scrolling past the Day Close
+approval flow, and the risk of breaking something while changing something
+else is high enough to make people cautious.
+
+### Three tabs moved out
+
+**Receipt**, **Printer** and **Kitchen ticket** now live in their own files —
+1,450 lines, about a third of the page. Each was chosen because it needed a
+**short list** of things from the page around it, and a short prop list is what
+makes a move like this checkable rather than hopeful:
+
+| Tab | Needs |
+|---|---|
+| Receipt | settings, setSettings, save, sample order |
+| Printer | + installed printers, size presets, auto-start |
+| Kitchen ticket | + kitchens, test print |
+
+Not one line of what those tabs do changed. They read the same settings, save
+through the same handler, and none of them reaches into the store behind the
+page's back — a tab fetching its own copy would drift from the page's, and a
+shop would watch a value change in one place and not the other. Tests pin all
+three, and pin that the prop lists cannot quietly grow back.
+
+The page is now 2,631 lines.
+
+### Two tabs stayed, deliberately
+
+**Day Close** is tangled with navigation, who is logged in, the order list and
+an approval flow: moving it would mean threading twenty values through a prop
+list, which trades one tangle for another. **General** is close behind. Neither
+is worth the risk for a file-size number, and a test records that decision so
+it is not mistaken later for something that was missed.
+
+---
+
 ## v1.10.0 — The money is under test
 
 Nothing a cashier does changes. This release puts the two calculations that
