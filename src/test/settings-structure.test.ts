@@ -29,13 +29,14 @@ const MOVED = [
 ];
 
 describe('every settings tab is still reachable', () => {
-  it('keeps all nineteen tabs', () => {
+  it('keeps all twenty tabs', () => {
     // A tab that disappears in a refactor is a setting a shop can never
     // change again, and nothing will report it.
     const tabs = Array.from(page.matchAll(/TabsContent value="([a-z]+)"/g)).map(m => m[1]);
-    expect(tabs.length).toBe(19);
+    // v1.12 added Screen & Layout.
+    expect(tabs.length).toBe(20);
     expect(new Set(tabs).size).toBe(tabs.length);
-    for (const key of ['general', 'receipt', 'printer', 'kot', 'dayclose', 'theme', 'whatsapp', 'tables']) {
+    for (const key of ['general', 'receipt', 'printer', 'kot', 'dayclose', 'theme', 'whatsapp', 'tables', 'screen']) {
       expect(tabs, `the ${key} tab is gone`).toContain(key);
     }
   });

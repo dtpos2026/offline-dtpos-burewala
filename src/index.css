@@ -273,6 +273,17 @@
     box-shadow: var(--shadow-gold);
   }
 
+  /* Touchscreen tills (v1.12): categories are tapped, so they get a finger-
+     sized target. The size comes from the POS layout engine. */
+  [data-pos-touch="true"] .cat-pill {
+    min-height: var(--pos-touch-target, 44px);
+    display: inline-flex;
+    align-items: center;
+  }
+  [data-pos-density="compact"] .cat-pill {
+    @apply px-3 py-1.5;
+  }
+
   .receipt-paper {
     width: 80mm;
     font-family: 'JetBrains Mono', monospace;

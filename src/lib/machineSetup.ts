@@ -43,6 +43,7 @@ export const SETUP_KEYS: Array<{ key: string; what: string }> = [
   { key: 'dtpos-customer-display-v1', what: 'Customer Display: design, split, banners, voice' },
   { key: 'dtpos-kitchen-display-v1', what: 'Kitchen Display: design and columns' },
   { key: 'dtpos-announce-output-v1', what: 'Which output the announcement chime uses' },
+  { key: 'dtpos-screen-layouts', what: 'POS layout saved for each screen size' },
 
   // --- small conveniences worth keeping ---
   { key: 'dtpos-print-server-enabled', what: 'Print server role for this device' },

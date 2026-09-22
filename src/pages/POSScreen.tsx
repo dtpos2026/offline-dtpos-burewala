@@ -38,6 +38,8 @@ import { t, useLang } from '@/lib/i18n';
 import { getMenuItems as getAllMenuItems } from '@/lib/store';
 import BillingStatusBar from '@/components/BillingStatusBar';
 import { isPrintPreviewEnabled } from '@/lib/printPreferences';
+import { usePosLayout } from '@/hooks/usePosLayout';
+import { saveScreenConfig, RESIZE_HANDLE } from '@/lib/posLayout';
 
 const DEALS_CATEGORY_ID = 'cat-deals';
 
@@ -128,34 +130,32 @@ export default function POSScreen() {
   }, []);
 
 
-  // ===== v1.0.40: Cart column ki chaurai (client: "cart thodi bari ho,
-  // 5-6 items nazar aayen, left-right adjust ho jaye") =====
-  // Cart jitna chaura hoga, keypad utna kam vertical space lega aur item
-  // list ko utni hi zyada jagah milegi. Width drag se badalti hai aur
-  // localStorage me save rehti hai.
-  const CART_W_KEY = 'dtpos-cart-width';
-  const CART_W_MIN = 280;
-  const CART_W_MAX = 560;
-  const CART_W_DEFAULT = 380; // pehle 300 tha — ab default me hi ~5-6 items
-  const [cartWidth, setCartWidth] = useState<number>(() => {
-    try {
-      const v = Number(localStorage.getItem(CART_W_KEY));
-      if (Number.isFinite(v) && v >= CART_W_MIN && v <= CART_W_MAX) return v;
-    } catch {}
-    return CART_W_DEFAULT;
-  });
+  // ===== Cart width (v1.12: per screen) =====
+  // The layout engine (lib/posLayout.ts) sizes the cart from the space this
+  // screen really has. Dragging the handle, or the −/+ in the 3-dot menu,
+  // saves a width for THIS screen only; Reset returns it to automatic.
+  const CART_W_MIN = 260;
+  const CART_W_MAX = 600;
+  const [dragCartWidth, setDragCartWidth] = useState<number | null>(null);
   const resizingRef = useRef(false);
+  const cartWidthRef = useRef(380);
+
+  const saveCartWidth = useCallback((w: number | 'auto') => {
+    const cfg = loadScreenConfigRef.current();
+    saveScreenConfig(screenSigRef.current, { ...cfg, cartWidth: w === 'auto' ? 'auto' : Math.round(Math.min(CART_W_MAX, Math.max(CART_W_MIN, w))) });
+  }, []);
 
   const startCartResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     resizingRef.current = true;
     const startX = e.clientX;
-    const startW = cartWidth;
+    const startW = cartWidthRef.current;
+    let latest = startW;
     const onMove = (ev: MouseEvent) => {
       if (!resizingRef.current) return;
-      // handle cart ke BAAYEN kinare par hai → baayein kheenchne se chaura
-      const next = Math.min(CART_W_MAX, Math.max(CART_W_MIN, startW + (startX - ev.clientX)));
-      setCartWidth(next);
+      // The handle sits on the cart's LEFT edge: dragging left widens it.
+      latest = Math.min(CART_W_MAX, Math.max(CART_W_MIN, startW + (startX - ev.clientX)));
+      setDragCartWidth(latest);
     };
     const onUp = () => {
       resizingRef.current = false;
@@ -163,19 +163,19 @@ export default function POSScreen() {
       document.body.style.userSelect = '';
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
-      setCartWidth(w => { try { localStorage.setItem(CART_W_KEY, String(w)); } catch {} return w; });
+      if (latest !== startW) saveCartWidth(latest);
+      setDragCartWidth(null);
     };
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
-  }, [cartWidth]);
+  }, [saveCartWidth]);
 
   const resetCartWidth = useCallback(() => {
-    setCartWidth(CART_W_DEFAULT);
-    try { localStorage.setItem(CART_W_KEY, String(CART_W_DEFAULT)); } catch {}
-    toast.success('Cart width reset');
-  }, []);
+    saveCartWidth('auto');
+    toast.success('Cart width set to automatic for this screen');
+  }, [saveCartWidth]);
   const [orderType, setOrderType] = useState<OrderType>('dining');
   // Mandatory Order-Type gate: force staff to pick Delivery / Dine-In / Takeaway
   // before adding items to a new cart. Once picked (or once we're editing an
@@ -267,6 +267,30 @@ export default function POSScreen() {
   const [creditAddress, setCreditAddress] = useState('');
 
   const settings = useMemo(() => getSettings(), []);
+
+  // ===== Responsive layout (v1.12) — see lib/posLayout.ts =====
+  const posRootRef = useRef<HTMLDivElement | null>(null);
+  const { layout, config: screenConfig, facts: screenFacts } = usePosLayout(posRootRef, {
+    categoryLayoutSetting: settings.categoryLayout === 'side' ? 'side' : 'top',
+    preferredColumns: settings.menuGridColumns || 6,
+  });
+  const screenSigRef = useRef(screenFacts.signature);
+  screenSigRef.current = screenFacts.signature;
+  const loadScreenConfigRef = useRef(() => screenConfig);
+  loadScreenConfigRef.current = () => screenConfig;
+  const cartWidth = dragCartWidth ?? layout.cartWidth;
+  cartWidthRef.current = cartWidth;
+  const cartDrawer = layout.cartPlacement === 'drawer';
+  const cartBottom = layout.cartPlacement === 'bottom';
+  // The keypad is a module the screen profile can hide; a price or weight
+  // entry still opens it, because that entry has nowhere else to go.
+  const keypadHidden = screenConfig.keypad === 'hide' && !numpadTarget;
+  const keypadOpen = screenConfig.keypad === 'show' || (screenConfig.keypad === 'hide' ? !!numpadTarget : cartUi.numpad);
+  const gridStyle: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: `repeat(${layout.productColumns}, minmax(0, 1fr))`,
+    gap: layout.gap,
+  };
   // Order Taker = create-only mode (no billing / payment / credit / void)
   const isOrderTaker = useMemo(() => (localStorage.getItem('pos-user-role') || '') === 'order_taker', []);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1472,7 +1496,14 @@ export default function POSScreen() {
     // whenever an update banner or a licence-expiry strip appeared above it
     // the POS became taller than its container and the bottom controls
     // scrolled out of reach.
-    <div className="flex h-full min-h-0 overflow-hidden">
+    <div
+      ref={posRootRef}
+      className={`flex h-full min-h-0 overflow-hidden ${cartBottom ? 'flex-col' : ''}`}
+      data-pos-mode={layout.mode}
+      data-pos-density={layout.density}
+      data-pos-touch={layout.touch ? 'true' : 'false'}
+      style={{ ['--pos-touch-target' as string]: `${layout.touchTarget}px` }}
+    >
 
 
       {/* CENTER: Top header + Category ribbon + Items grid */}
@@ -1509,7 +1540,7 @@ export default function POSScreen() {
         </div>
 
         {/* CATEGORY RIBBON — horizontal pills with scroll arrows (TOP layout only) */}
-        {(settings.categoryLayout || 'top') !== 'side' && (
+        {layout.categoryPlacement === 'top' && (
         <div className="relative border-b-2 border-border/60 bg-card/40 shrink-0">
           <button
             type="button"
@@ -1570,8 +1601,8 @@ export default function POSScreen() {
 
         {/* ITEMS AREA — optional left sidebar (SIDE layout) + grid */}
         <div className="flex-1 flex overflow-hidden">
-          {(settings.categoryLayout === 'side') && (
-            <aside className="w-36 md:w-44 shrink-0 border-r-2 border-border/60 bg-card/40 overflow-y-auto pos-scrollbar py-2">
+          {layout.categoryPlacement === 'side' && (
+            <aside style={{ width: layout.categoryWidth }} className="shrink-0 border-r-2 border-border/60 bg-card/40 overflow-y-auto pos-scrollbar py-2">
               <button
                 onClick={() => setSelectedCat('all')}
                 data-active={selectedCat === 'all'}
@@ -1608,7 +1639,7 @@ export default function POSScreen() {
           )}
 
         {/* ITEMS GRID */}
-        <div className="flex-1 overflow-y-auto pos-scrollbar p-3">
+        <div className="flex-1 overflow-y-auto pos-scrollbar" style={{ padding: layout.padding }}>
 
         {/* Advanced-flow breadcrumb + Back button */}
         {(showFlavorGrid || selectedFlavor) && (
@@ -1627,12 +1658,7 @@ export default function POSScreen() {
 
         {/* FLAVOR GRID (advanced flow only) */}
         {showFlavorGrid ? (
-          <div className={{
-            3: 'grid grid-cols-2 sm:grid-cols-3 gap-3',
-            4: 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3',
-            5: 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2',
-            6: 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2',
-          }[settings.menuGridColumns || 6]}>
+          <div style={gridStyle}>
             {flavorList.map(fl => {
               // pick first item in this flavor for a representative image
               const sample = categoryItems.find(it => (it.subCategory || it.flavorGroup || '').trim() === fl);
@@ -1643,11 +1669,11 @@ export default function POSScreen() {
                   className="bg-card rounded-xl text-left hover:shadow-xl hover:ring-2 hover:ring-primary/40 hover:-translate-y-0.5 transition-all duration-200 group overflow-hidden border border-border/50 hover:border-primary/30"
                 >
                   {sample?.image ? (
-                    <div className="w-full h-24 overflow-hidden bg-muted">
+                    <div className="w-full overflow-hidden bg-muted" style={{ height: layout.cardImageHeight }}>
                       <CachedImage src={sample.image} alt={fl} fallbackLabel={fl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
                     </div>
                   ) : (
-                    <div className="w-full h-20 bg-gradient-to-br from-primary/10 to-accent/30 flex items-center justify-center">
+                    <div className="w-full bg-gradient-to-br from-primary/10 to-accent/30 flex items-center justify-center" style={{ height: Math.round(layout.cardImageHeight * 0.8) }}>
                       <span className="text-3xl opacity-50">🍕</span>
                     </div>
                   )}
@@ -1661,12 +1687,7 @@ export default function POSScreen() {
           </div>
         ) : (
         /* Items grid - PREMIUM CARD DESIGN */
-        <div className={{
-          3: 'grid grid-cols-2 sm:grid-cols-3 gap-3',
-          4: 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3',
-          5: 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2',
-          6: 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2',
-        }[settings.menuGridColumns || 6]}>
+        <div style={gridStyle}>
           {filteredItems.map(item => {
             const itemFont = settings.menuItemStyle;
             const itemFontStyle: React.CSSProperties = itemFont && itemFont.font !== 'default' ? {
@@ -1700,17 +1721,17 @@ export default function POSScreen() {
               )}
               {/* Item Image */}
               {item.image ? (
-                <div className="w-full h-24 overflow-hidden bg-muted">
+                <div className="w-full overflow-hidden bg-muted" style={{ height: layout.cardImageHeight }}>
                   <CachedImage src={item.image} alt={item.name} fallbackLabel={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
                 </div>
               ) : (
-                <div className="w-full h-16 bg-gradient-to-br from-primary/8 to-accent/30 flex items-center justify-center">
+                <div className="w-full bg-gradient-to-br from-primary/8 to-accent/30 flex items-center justify-center" style={{ height: Math.round(layout.cardImageHeight * 0.66) }}>
                   <span className="text-2xl opacity-40 group-hover:scale-110 transition-transform duration-200">
                     {categories.find(c => c.id === item.categoryId)?.icon || '🍽️'}
                   </span>
                 </div>
               )}
-              <div className="p-2.5">
+              <div className={layout.density === 'compact' ? 'p-2' : 'p-2.5'}>
                 {/* Item name: one step larger and heavier than before. A cashier
                     scans this grid at arm's length under counter lighting, so
                     readability matters more than density here. A shop that has
@@ -1769,10 +1790,11 @@ export default function POSScreen() {
       </div>
 
 
-      {/* Mobile floating Cart button */}
+      {/* Floating Cart button — only when the screen is too small for a cart column */}
+      {cartDrawer && (
       <button
         onClick={() => setMobileCartOpen(true)}
-        className="md:hidden fixed bottom-4 right-4 z-40 bg-primary text-primary-foreground rounded-full shadow-elegant px-4 py-3 flex items-center gap-2 font-bold text-sm"
+        className="fixed bottom-4 right-4 z-40 bg-primary text-primary-foreground rounded-full shadow-elegant px-4 py-3 flex items-center gap-2 font-bold text-sm"
       >
         <ShoppingCart className="h-4 w-4" />
         Cart
@@ -1780,20 +1802,24 @@ export default function POSScreen() {
           <span className="bg-accent text-primary rounded-full h-5 min-w-5 px-1.5 text-[11px] font-extrabold flex items-center justify-center">{cart.length}</span>
         )}
       </button>
+      )}
 
-      {/* Mobile cart backdrop */}
-      {mobileCartOpen && (
-        <div className="md:hidden fixed inset-0 z-40 bg-black/40" onClick={() => setMobileCartOpen(false)} />
+      {/* Drawer backdrop */}
+      {cartDrawer && mobileCartOpen && (
+        <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setMobileCartOpen(false)} />
       )}
 
       {/* RIGHT: Cart + Calculator + Payment Panel */}
       {/* Drag handle — cart ko chaura/chhota karne ke liye (sirf desktop) */}
+      {layout.cartPlacement === 'side' && (
       <div
         onMouseDown={startCartResize}
         onDoubleClick={resetCartWidth}
-        title="Drag to resize the cart · double-click to reset"
-        className="hidden md:block w-1.5 shrink-0 cursor-col-resize bg-border/40 hover:bg-primary/50 active:bg-primary transition-colors"
+        title="Drag to resize the cart for this screen · double-click for automatic width"
+        style={{ width: RESIZE_HANDLE }}
+        className="shrink-0 cursor-col-resize bg-border/40 hover:bg-primary/50 active:bg-primary transition-colors"
       />
+      )}
       {/* ===== CART COLUMN (v1.0.38 layout fix, v1.0.40 resizable) =====
           Pehle is container par `overflow-y-auto` tha AUR andar item-list par
           bhi — yani NESTED scrolling. Cashier ko totals/payment tak pahunchne
@@ -1802,9 +1828,11 @@ export default function POSScreen() {
           hoti hai; totals, payment aur action buttons hamesha nazar aate hain.
           v1.0.40: chaurai drag se adjust hoti hai (localStorage me save). */}
       <div
-        style={mobileCartOpen ? undefined : { width: cartWidth }}
+        style={cartDrawer ? undefined : cartBottom ? { height: layout.cartHeight } : { width: cartWidth }}
         ref={cartColRef}
-        className={`${mobileCartOpen ? 'fixed inset-y-0 right-0 w-[88%] max-w-[340px] z-50 flex' : 'hidden'} md:relative md:flex bg-pos-cart border-l flex-col shrink-0 shadow-lg min-h-0 overflow-y-auto overflow-x-hidden pos-scrollbar`}
+        className={`${cartDrawer
+          ? (mobileCartOpen ? 'fixed inset-y-0 right-0 w-[88%] max-w-[340px] z-50 flex' : 'hidden')
+          : cartBottom ? 'relative flex w-full border-t-2' : 'relative flex border-l'} bg-pos-cart flex-col shrink-0 shadow-lg min-h-0 overflow-y-auto overflow-x-hidden pos-scrollbar`}
       >
         {/* Cart Header with order type + customer fields — pinned */}
         <div ref={cartHeadRef} className="sticky top-0 z-30 bg-pos-cart px-3 py-2 border-b space-y-1.5 shrink-0">
@@ -1818,9 +1846,9 @@ export default function POSScreen() {
                 jumped wider or squeezed narrower. Resizing now lives in the
                 3-dot menu (and on the drag handle), so nothing in the item
                 area can change the layout. */}
-            <button onClick={() => setMobileCartOpen(false)} className="md:hidden ml-1 text-muted-foreground hover:text-foreground" aria-label="Close">
+            {cartDrawer && <button onClick={() => setMobileCartOpen(false)} className="ml-1 text-muted-foreground hover:text-foreground" aria-label="Close">
               <XCircle className="h-5 w-5" />
-            </button>
+            </button>}
           </h2>
           {/* Order type quick switch — branded, matches sidebar across all themes */}
           <div className="grid grid-cols-3 gap-1">
@@ -2107,20 +2135,21 @@ export default function POSScreen() {
         {/* The keypad is the one region allowed to give up space when the
             window is short. It scrolls inside itself, so shrinking it never
             hides a control — and never pushes the action bar off-screen. */}
+        {!keypadHidden && (
         <div className="border-t-2 border-primary/20 bg-gradient-to-b from-accent/30 to-transparent shrink-0">
           <button
             type="button"
-            onClick={() => setCartUiSection({ numpad: !cartUi.numpad })}
+            onClick={() => { if (screenConfig.keypad === 'auto') setCartUiSection({ numpad: !cartUi.numpad }); }}
             className="w-full px-3 py-1.5 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors shrink-0"
-            title={cartUi.numpad ? 'Minimize keypad' : 'Show keypad'}
+            title={screenConfig.keypad !== 'auto' ? 'Set for this screen in Settings → Screen & Layout' : keypadOpen ? 'Minimize keypad' : 'Show keypad'}
           >
             <span>🔢 Keypad</span>
-            {!cartUi.numpad && numpadValue && (
+            {!keypadOpen && numpadValue && (
               <span className="font-mono text-primary normal-case">{numpadValue}</span>
             )}
-            <span className="ml-auto text-sm leading-none">{cartUi.numpad ? '▾' : '▸'}</span>
+            <span className="ml-auto text-sm leading-none">{keypadOpen ? '▾' : '▸'}</span>
           </button>
-          {cartUi.numpad && (
+          {keypadOpen && (
           <div className="px-3 pb-2">
           {/* Numpad display bar */}
           <div className="bg-card rounded-lg px-3 py-1.5 mb-2 flex items-center justify-between border border-border/50 shadow-sm">
@@ -2177,6 +2206,7 @@ export default function POSScreen() {
               <button
                 key={key}
                 onClick={() => handleNumpadKey(key)}
+                style={layout.touch ? { height: layout.touchTarget - 4 } : undefined}
                 className="h-9 rounded-lg bg-gradient-sidebar border border-sidebar-border text-sidebar-foreground text-sm font-extrabold hover:opacity-90 hover:shadow-lg transition-all duration-150 active:scale-95 flex items-center justify-center shadow-md"
               >
                 {key === '⌫' ? <Delete className="h-5 w-5" /> : key}
@@ -2189,6 +2219,7 @@ export default function POSScreen() {
           </div>
           )}
         </div>
+        )}
         {/* Special Kitchen Note — collapsible (v1.0.38). Note lagi ho to
             header par badge dikhta hai taake collapsed halat me bhi pata chale. */}
         <div className="border-t border-border/50 shrink-0">
@@ -2436,19 +2467,19 @@ export default function POSScreen() {
                   <div className="absolute bottom-full right-2 mb-1 z-50 w-52 rounded-lg border bg-popover shadow-xl overflow-hidden">
                     {/* Cart width — moved off the header so it can never be
                         confused with the per-item quantity buttons. */}
-                    <div className="hidden md:flex items-center gap-2 px-3 py-2 border-b bg-muted/40">
+                    <div className={`${layout.cartPlacement === 'side' ? 'flex' : 'hidden'} items-center gap-2 px-3 py-2 border-b bg-muted/40`}>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Cart width</span>
                       <div className="ml-auto flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => setCartWidth(w => { const n = Math.max(CART_W_MIN, w - 40); try { localStorage.setItem(CART_W_KEY, String(n)); } catch { /* quota */ } return n; })}
+                          onClick={() => saveCartWidth(cartWidth - 40)}
                           disabled={cartWidth <= CART_W_MIN}
                           title="Make the cart narrower"
                           className="h-5 w-5 rounded border text-[12px] leading-none font-bold text-muted-foreground hover:bg-accent disabled:opacity-30"
                         >−</button>
                         <button
                           type="button"
-                          onClick={() => setCartWidth(w => { const n = Math.min(CART_W_MAX, w + 40); try { localStorage.setItem(CART_W_KEY, String(n)); } catch { /* quota */ } return n; })}
+                          onClick={() => saveCartWidth(cartWidth + 40)}
                           disabled={cartWidth >= CART_W_MAX}
                           title="Make the cart wider"
                           className="h-5 w-5 rounded border text-[12px] leading-none font-bold text-muted-foreground hover:bg-accent disabled:opacity-30"
@@ -2456,7 +2487,7 @@ export default function POSScreen() {
                         <button
                           type="button"
                           onClick={resetCartWidth}
-                          title="Reset the cart to its default width"
+                          title="Automatic width for this screen"
                           className="h-5 px-1.5 rounded border text-[9px] font-bold text-muted-foreground hover:bg-accent"
                         >Reset</button>
                       </div>

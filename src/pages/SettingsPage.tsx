@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import ReceiptSettingsTab from '@/components/settings/ReceiptSettingsTab';
 import PrinterSettingsTab from '@/components/settings/PrinterSettingsTab';
+import ScreenLayoutTab from '@/components/settings/ScreenLayoutTab';
 import KotSettingsTab from '@/components/settings/KotSettingsTab';
 import { useNavigate } from 'react-router-dom';
 import { printShiftReport } from '@/components/ShiftReport';
@@ -435,6 +436,7 @@ export default function SettingsPage() {
             { title: 'General', emoji: '⚙️', items: [
               { v: 'general',  label: 'General',          emoji: '🏪', desc: 'Restaurant info, currency' },
               { v: 'theme',    label: 'Theme',            emoji: '🎨', desc: 'Color scheme & look' },
+              { v: 'screen',   label: 'Screen & Layout',  emoji: '🖥️', desc: 'POS layout for this screen' },
               { v: 'location', label: 'Location & Privacy', emoji: '🔒', desc: 'GPS tracking controls' },
             ]},
             { title: 'Operations', emoji: '🛠️', items: [
@@ -1952,6 +1954,10 @@ export default function SettingsPage() {
         </TabsContent>
 
         {/* Display Settings Tab */}
+        <TabsContent value="screen" className="space-y-4">
+          <ScreenLayoutTab settings={settings} />
+        </TabsContent>
+
         <TabsContent value="display" className="space-y-4">
           <div className="border rounded-lg p-4 space-y-4">
             <h3 className="text-sm font-bold">📺 Customer Display / Kitchen Screen</h3>

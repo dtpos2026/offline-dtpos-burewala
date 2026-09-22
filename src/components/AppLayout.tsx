@@ -1,4 +1,6 @@
 import { t as tr, useLang as useAppLang } from '@/lib/i18n';
+import { useScreenConfig } from '@/hooks/usePosLayout';
+import { shouldCollapseMenu } from '@/lib/posLayout';
 import { ReactNode, useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -329,6 +331,16 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
   const isDisplaySurface = DISPLAY_SURFACES.some(r => location.pathname.startsWith(r));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('pos-sidebar-collapsed') === '1');
+  // On the POS screen the menu gives its width to the products when the
+  // screen is tight (Settings → Screen & Layout). The header button still
+  // opens it for this visit.
+  const { facts: screenFacts, config: screenConfig } = useScreenConfig();
+  const isPosScreen = location.pathname === '/';
+  const [posMenuOverride, setPosMenuOverride] = useState<boolean | null>(null);
+  const menuCollapsed = isPosScreen
+    ? (posMenuOverride ?? (shouldCollapseMenu(screenFacts.windowW, screenFacts.windowH, screenConfig)
+        || (screenConfig.menuCollapse === 'auto' && collapsed)))
+    : collapsed;
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [zoom, setZoom] = useState(() => {
     const saved = localStorage.getItem('desi-pos-zoom');
@@ -456,7 +468,7 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar userRole={userRole} onLogout={onLogout} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} />
+      <Sidebar userRole={userRole} onLogout={onLogout} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={menuCollapsed} />
 
       {mobileOpen && (
         <div className="fixed inset-0 bg-foreground/40 backdrop-blur-sm z-40 lg:hidden" onClick={() => setMobileOpen(false)} />
@@ -471,8 +483,8 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
           </button>
           <button
             className="hidden lg:flex items-center justify-center h-7 w-7 rounded-md text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-foreground/15 transition-smooth"
-            onClick={() => setCollapsed(c => !c)}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            onClick={() => (isPosScreen ? setPosMenuOverride(!menuCollapsed) : setCollapsed(c => !c))}
+            title={menuCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             <Menu className="h-4 w-4" />
           </button>
