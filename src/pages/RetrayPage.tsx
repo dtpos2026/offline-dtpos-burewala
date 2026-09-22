@@ -7,11 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Printer, Eye, CreditCard, Ban, XCircle, RotateCcw, ChefHat, Globe } from 'lucide-react';
+import { Printer, Eye, CreditCard, Ban, XCircle, RotateCcw, ChefHat, Globe, PauseCircle, PlayCircle } from 'lucide-react';
 import ReceiptPreview from '@/components/ReceiptPreview';
 import KitchenReceipt from '@/components/KitchenReceipt';
 import ReasonDialog from '@/components/ReasonDialog';
-import { enqueueKot, enqueueReceipt, enqueueReceiptOnPay , enqueueToken } from '@/lib/printQueue';
+import { enqueueKot, enqueueReceipt, enqueueToken } from '@/lib/printQueue';
+import { billStatus } from '@/lib/billStatus';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import ReceivePaymentButton from '@/components/ReceivePaymentButton';
@@ -19,20 +20,37 @@ import { balanceDue } from '@/lib/sales';
 
 type ReasonAction = { type: 'void' | 'cancelled'; order: Order } | null;
 
+const OPEN_STATUSES = new Set(['running', 'hold', 'credit_pending', 'partial', 'pending_approval']);
+const isToday = (iso?: string) => !!iso && new Date(iso).toDateString() === new Date().toDateString();
+
+/** Open bills, or today's paid bills (for View / Reprint only). */
+function loadBills(scope: 'open' | 'paid'): Order[] {
+  return getOrders().filter(o => (scope === 'open'
+    ? OPEN_STATUSES.has(o.status)
+    : (o.status === 'paid' || o.status === 'credit_received') && isToday(o.paidAt || o.createdAt)));
+}
+
 export default function RetrayPage() {
   const settings = getSettings();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'all' | 'dining' | 'delivery' | 'takeaway'>('all');
-  const [orders, setOrders] = useState(() =>
-    getOrders().filter(o => o.status === 'running' || o.status === 'hold' || o.status === 'credit_pending' || o.status === 'partial' || o.status === 'pending_approval')
-  );
+  const [scope, setScope] = useState<'open' | 'paid'>('open');
+  const [orders, setOrders] = useState(() => loadBills('open'));
   const [view, setView] = useState<Order | null>(null);
   const [kitchenView, setKitchenView] = useState<Order | null>(null);
   const [reasonFor, setReasonFor] = useState<ReasonAction>(null);
 
-  const refresh = () =>
-    setOrders(getOrders().filter(o => o.status === 'running' || o.status === 'hold' || o.status === 'credit_pending' || o.status === 'partial' || o.status === 'pending_approval'));
+  const refresh = (next: 'open' | 'paid' = scope) => setOrders(loadBills(next));
+  const switchScope = (next: 'open' | 'paid') => { setScope(next); refresh(next); };
+  const holdCount = scope === 'open' ? orders.filter(o => o.status === 'hold').length : 0;
+
+  /** Hold = finished but not paid. It stays an open bill; the table stays occupied. */
+  const setHold = (o: Order, hold: boolean) => {
+    saveOrder({ ...o, status: hold ? 'hold' : 'running' });
+    toast.success(hold ? `Bill #${o.orderNumber} is on HOLD — UNPAID` : `Bill #${o.orderNumber} is open again`);
+    refresh();
+  };
 
   const filtered = orders
     .filter(o => tab === 'all' || o.orderType === tab)
@@ -55,25 +73,10 @@ export default function RetrayPage() {
     else toast.error('No token printed — either Tandoor Token is off, no category/item is selected in Printing Center, or this order has no token items');
   };
 
+  // Pay opens the payment screen for this bill, so the method, the amount
+  // received and the change are recorded with it.
   const payNow = (o: Order) => {
-    // FIX (client #1/#4): open the payment screen, do not mark as paid directly
     navigate(`/?retrieve=${o.id}&pay=1`);
-    return;
-    // eslint-disable-next-line no-unreachable
-    const now = new Date().toISOString();
-    const paid = {
-      ...o,
-      status: 'paid' as const,
-      paymentMethod: o.paymentMethod || 'cash',
-      paidAt: now,
-      // Integrated flow: paid bill must auto-clear from KDS
-      kitchenStatus: 'served' as const,
-      kitchenStatusAt: now,
-    };
-    saveOrder(paid);
-    try { enqueueReceiptOnPay(paid); } catch {}
-    toast.success(`Bill #${o.orderNumber} paid — receipt printing`);
-    refresh();
   };
 
   const submitReason = (reason: string) => {
@@ -92,17 +95,19 @@ export default function RetrayPage() {
     refresh();
   };
 
-  const statusColor = (s: string) =>
-    s === 'running' ? 'bg-status-success/15 text-status-success border-status-success/30'
-    : s === 'hold' ? 'bg-status-warning/15 text-status-warning border-status-warning/30'
-    : 'bg-amber-500/15 text-amber-700 border-amber-500/30';
-
   return (
     <div className="p-4 lg:p-6 space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h2 className="text-lg font-bold flex items-center gap-2">
-          <RotateCcw className="h-5 w-5 text-primary" /> Retray — Reprint / Pay / Cancel
+          <RotateCcw className="h-5 w-5 text-primary" /> Retrieve — View, Reprint, Hold, Pay, Cancel
         </h2>
+        <div className="flex items-center gap-1 rounded-lg border p-1">
+          <Button size="sm" variant={scope === 'open' ? 'default' : 'ghost'} className="h-8 text-xs" onClick={() => switchScope('open')}>Open bills</Button>
+          <Button size="sm" variant={scope === 'paid' ? 'default' : 'ghost'} className="h-8 text-xs" onClick={() => switchScope('paid')}>Paid today</Button>
+        </div>
+        {holdCount > 0 && (
+          <Badge className="text-xs bg-status-warning text-status-warning-foreground border-status-warning font-extrabold">{holdCount} on HOLD — UNPAID</Badge>
+        )}
         <Input
           placeholder="Search bill #, customer, table, rider…"
           value={search}
@@ -120,13 +125,14 @@ export default function RetrayPage() {
         </TabsList>
         <TabsContent value={tab} className="mt-3">
           {filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No bills to retray</p>
+            <p className="text-sm text-muted-foreground">{scope === 'open' ? 'No open bills.' : 'No bills paid today.'}</p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map(o => {
-                const isUnpaid = (o.amountPaid || 0) <= 0 && o.status !== 'paid';
+                const st = billStatus(o);
+                const open = OPEN_STATUSES.has(o.status);
                 return (
-                <Card key={o.id} className="p-4 space-y-2">
+                <Card key={o.id} className={`p-4 space-y-2 ${st.key === 'hold' ? 'border-2 border-status-warning shadow-[0_0_0_3px_hsl(var(--status-warning)/0.15)]' : ''}`}>
                   <div className="flex items-center justify-between">
                     <span className="font-bold">#{o.orderNumber}</span>
                     <div className="flex gap-1.5 flex-wrap justify-end">
@@ -140,10 +146,7 @@ export default function RetrayPage() {
                           KOT pending
                         </Badge>
                       )}
-                      {isUnpaid && (
-                        <Badge className="text-[10px] bg-destructive text-destructive-foreground border-destructive font-bold tracking-wide">UNPAID</Badge>
-                      )}
-                      <Badge className={`text-[10px] ${statusColor(o.status)}`}>{o.status}</Badge>
+                      <Badge className={`text-[10px] border tracking-wide ${st.className}`}>{st.label}</Badge>
                       <Badge variant="secondary" className="capitalize text-xs">{o.orderType}</Badge>
                     </div>
                   </div>
@@ -159,7 +162,10 @@ export default function RetrayPage() {
                       Paid Rs.{Number(o.amountPaid || 0).toLocaleString()} · Due Rs.{balanceDue(o).toLocaleString()}
                     </p>
                   )}
-                  <p className="text-[10px] text-muted-foreground">{new Date(o.createdAt).toLocaleString('en-PK')}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {new Date(o.createdAt).toLocaleString('en-PK')}
+                    {o.paidAt && o.status !== 'running' && o.status !== 'hold' ? ` · paid ${new Date(o.paidAt).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}` : ''}
+                  </p>
                   <div className="flex gap-1.5 flex-wrap">
                     <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setView(o)}>
                       <Eye className="h-3 w-3 mr-1" /> View
@@ -171,6 +177,7 @@ export default function RetrayPage() {
                     }}>
                       <Printer className="h-3 w-3 mr-1" /> Reprint
                     </Button>
+                    {open && (<>
                     <Button
                       size="sm"
                       variant="outline"
@@ -201,8 +208,19 @@ export default function RetrayPage() {
                       onClick={() => navigate('/?retrieve=' + o.id)}>
                       <RotateCcw className="h-3 w-3 mr-1" /> Edit
                     </Button>
+                    {o.status === 'running' && (
+                      <Button size="sm" variant="outline" className="h-8 text-xs border-status-warning text-status-warning hover:bg-status-warning/10"
+                        onClick={() => setHold(o, true)} title="The guest has finished but not paid yet">
+                        <PauseCircle className="h-3 w-3 mr-1" /> Hold
+                      </Button>
+                    )}
+                    {o.status === 'hold' && (
+                      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setHold(o, false)} title="Open the bill again (still unpaid)">
+                        <PlayCircle className="h-3 w-3 mr-1" /> Resume
+                      </Button>
+                    )}
                     {balanceDue(o) > 0 && (o.status === 'partial' || (o.amountPaid || 0) > 0) && (
-                      <ReceivePaymentButton order={o} onUpdated={refresh} />
+                      <ReceivePaymentButton order={o} onUpdated={() => refresh()} />
                     )}
                     <Button size="sm" className="h-8 text-xs bg-status-success text-status-success-foreground hover:bg-status-success/90"
                       onClick={() => payNow(o)}>
@@ -216,6 +234,7 @@ export default function RetrayPage() {
                       onClick={() => setReasonFor({ type: 'void', order: o })}>
                       <Ban className="h-3 w-3 mr-1" /> Void
                     </Button>
+                    </>)}
                   </div>
                 </Card>
                 );

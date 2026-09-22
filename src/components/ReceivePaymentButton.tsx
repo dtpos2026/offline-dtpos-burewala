@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { CreditCard } from 'lucide-react';
 import { Order, PaymentEntry } from '@/lib/types';
 import { saveOrder, getTables, saveTable, genId } from '@/lib/store';
-import { enqueueReceipt, enqueueReceiptOnPay } from '@/lib/printQueue';
+import { enqueueReceipt, printReceiptAfterPayment } from '@/lib/printQueue';
+import { paidMessage } from '@/lib/billStatus';
 import { toast } from 'sonner';
 
 const PaymentDialog = lazy(() => import('@/components/PaymentDialog'));
@@ -50,9 +51,10 @@ export default function ReceivePaymentButton({ order, onUpdated, size = 'sm', cl
       const t = getTables().find(t => t.id === order.tableId);
       if (t) saveTable({ ...t, status: 'free', currentOrderId: undefined });
     }
-    try { enqueueReceiptOnPay(updated); } catch {}
+    // Saved first; printing follows and can never undo the payment.
+    const printed = printReceiptAfterPayment(updated);
     toast.success(fully
-      ? `Bill #${order.orderNumber} fully paid — receipt printing`
+      ? paidMessage(order.orderNumber, printed.decision, printed.queued)
       : `Rs.${r.totalReceived.toLocaleString()} received · Rs.${Math.max(0, total - newPaid).toLocaleString()} still pending`);
     onUpdated?.();
   };

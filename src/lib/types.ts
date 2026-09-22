@@ -688,6 +688,13 @@ export interface RestaurantSettings {
   kotSilentMode?: boolean;
   /** ON = customer receipt will NOT auto-print on pay (reprint buttons still work). */
   noReceiptOnPay?: boolean;
+  /**
+   * Dining bills only: print the paid receipt automatically when the bill is
+   * paid. Default ON (the behaviour before v1.12). OFF = paying a dining bill
+   * prints nothing and opens no print dialog; the receipt can be reprinted
+   * later from Retrieve / Bill Reprint.
+   */
+  diningReceiptOnPay?: boolean;
   /** OFF = Pay button skips the "Payment Received" screen and completes as cash instantly. Default ON. */
   paymentDialogEnabled?: boolean;
   /** Tandoor Token module: ON = pay par token-category items ka alag token slip tandoor printer pe. */

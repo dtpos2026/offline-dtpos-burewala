@@ -57,6 +57,7 @@ export default function TokenSettingsCard() {
     : 'Nothing selected yet';
   const countsOn = s.tokenCountsInSales !== false;
   const noReceipt = !!s.noReceiptOnPay;
+  const diningReceipt = s.diningReceiptOnPay !== false;
   const kotOn = s.kotEnabled !== false;
   const manualKot = !!s.manualSendToKitchen;
   const kotStrict = s.kotFallbackToReceipt === false; // ON = KOT sirf kitchen printer pe
@@ -336,6 +337,20 @@ export default function TokenSettingsCard() {
           <span className="text-[11px] text-muted-foreground">ON = no customer receipt on payment (Reprint buttons still work)</span>
         </div>
         <Toggle on={noReceipt} onClick={() => save({ noReceiptOnPay: !noReceipt })} />
+      </label>
+
+      <label className={`flex items-center justify-between gap-2 bg-muted/40 px-3 py-2 rounded-lg cursor-pointer ${noReceipt ? 'opacity-60' : ''}`}>
+        <div>
+          <span className="text-xs font-semibold block">Print Receipt Automatically on Dining Payment</span>
+          <span className="text-[11px] text-muted-foreground">
+            {noReceipt
+              ? 'No Receipt on Pay is ON, so no order type prints a receipt on payment.'
+              : diningReceipt
+                ? 'ON = paying a dining bill marks it PAID and prints the paid receipt.'
+                : 'OFF = paying a dining bill marks it PAID without printing or opening a print dialog. Reprint it later from Retrieve or Bill Reprint.'}
+          </span>
+        </div>
+        <Toggle on={diningReceipt} onClick={() => save({ diningReceiptOnPay: !diningReceipt })} />
       </label>
     </Card>
   );

@@ -18,6 +18,7 @@ import { getOrders, saveOrder, getSettings, getMenuItems } from './store';
 import { orderNeedsToken } from './tokenRules';
 import { appendPrintLog } from './printLog';
 import type { Order } from './types';
+import { receiptOnPay, type ReceiptOnPay } from './billStatus';
 import { buildKotRevision, nextKotNo, makeEditLog } from './orderHistory';
 
 export type PrintType = 'kot' | 'receipt' | 'token' | 'rider';
@@ -593,12 +594,26 @@ export function enqueueReceiptOnPay(order: Order, opts: EnqueueOpts = {}) {
     }
   } catch {}
   try {
-    if ((getSettings() as any).noReceiptOnPay) {
-      console.log('%c[DT-Print]', 'color:#f59e0b', 'receipt on pay SKIPPED (noReceiptOnPay ON)', { order: order.orderNumber });
+    const decision = receiptOnPay(order, getSettings());
+    if (decision !== 'print') {
+      console.log('%c[DT-Print]', 'color:#f59e0b', `receipt on pay SKIPPED (${decision})`, { order: order.orderNumber });
       return undefined;
     }
   } catch {}
   return enqueuePrint(order, 'receipt', { force: true, ...opts });
+}
+
+/**
+ * The one call every pay path makes AFTER the paid bill is saved. It never
+ * throws and never touches the order's payment — a printer problem is
+ * reported by the queue on its own, and the bill stays paid.
+ */
+export function printReceiptAfterPayment(order: Order): { decision: ReceiptOnPay; queued: boolean } {
+  let decision: ReceiptOnPay = 'print';
+  try { decision = receiptOnPay(order, getSettings()); } catch { /* default: print */ }
+  let queued = false;
+  try { queued = !!enqueueReceiptOnPay(order); } catch { queued = false; }
+  return { decision, queued };
 }
 
 /**

@@ -518,6 +518,11 @@ export default function TablesPage() {
                 <Badge className={`mt-1.5 text-[10px] font-semibold uppercase tracking-wide ${cfg.badge}`}>
                   {cfg.badgeText}
                 </Badge>
+                {order?.status === 'hold' && (
+                  <Badge className="mt-1 ml-1 text-[10px] font-extrabold uppercase tracking-wide bg-status-warning text-status-warning-foreground border-status-warning">
+                    Hold — Unpaid
+                  </Badge>
+                )}
                 {order && (
                   <p className="text-[10px] mt-1.5 font-semibold text-foreground">
                     #{order.orderNumber} · <span className="text-gold">PKR {order.grandTotal.toLocaleString()}</span>

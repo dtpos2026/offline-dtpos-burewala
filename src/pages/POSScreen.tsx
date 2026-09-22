@@ -26,7 +26,8 @@ import CustomerAutocomplete from '@/components/CustomerAutocomplete';
 import LocationCapture from '@/components/LocationCapture';
 // Phase-1: lazy-load PaymentDialog (heavy child — only mounted on checkout)
 const PaymentDialog = lazy(() => import('@/components/PaymentDialog'));
-import { enqueueKot, enqueueReceipt, enqueueReceiptOnPay, enqueueKotUpdate, enqueueKotCancel, computeKotDiff } from '@/lib/printQueue';
+import { enqueueKot, enqueueReceipt, enqueueReceiptOnPay, enqueueKotUpdate, enqueueKotCancel, computeKotDiff, printReceiptAfterPayment } from '@/lib/printQueue';
+import { billStatus, paidMessage, receiptOnPay } from '@/lib/billStatus';
 import { printTokenDirect, nextTokenSerial } from '@/lib/tokenSlip';
 import { resolveTokenRules, getTokenLinesFromCart } from '@/lib/tokenRules';
 import MinimartPanel from '@/components/MinimartPanel';
@@ -1046,14 +1047,21 @@ export default function POSScreen() {
 
         setLastOrder(updated);
         if (status === 'paid') {
-          if (isPrintPreviewEnabled()) {
-            // Preview mode: pehle screen par bill, Print button se nikle ga.
+          // The bill is already saved as PAID above. Printing only follows it.
+          const decision = receiptOnPay(updated, settings);
+          if (decision === 'skip-dining') {
+            // "Print Receipt Automatically on Dining Payment" is OFF:
+            // no print and no print dialog.
+            toast.success(paidMessage(updated.orderNumber, decision, false));
+          } else if (isPrintPreviewEnabled()) {
+            // Preview mode: the bill shows on screen first; its Print button prints it.
             setReceiptViewOnly(true); setShowReceipt(true);
+            toast.success(`Bill #${updated.orderNumber} paid`);
           } else {
-            try { enqueueReceiptOnPay(updated); } catch {}
+            const r = printReceiptAfterPayment(updated);
             if (settings.showBillOnScreen) { setReceiptViewOnly(true); setShowReceipt(true); }
+            toast.success(paidMessage(updated.orderNumber, r.decision, r.queued));
           }
-          toast.success(`Order #${updated.orderNumber} paid — receipt printing`);
         } else if (status === 'partial') {
           try { enqueueReceiptOnPay(updated); } catch {}
           const due = Math.max(0, (updated.grandTotal || 0) - (updated.amountPaid || 0));
@@ -1160,13 +1168,18 @@ export default function POSScreen() {
       ? settings.autoKotOnOrderTakerSave !== false
       : perTypeAutoNew;
     if (status === 'paid') {
-      if (isPrintPreviewEnabled()) {
+      // The bill is already saved as PAID above. Printing only follows it.
+      const decision = receiptOnPay(order, settings);
+      if (decision === 'skip-dining') {
+        toast.success(paidMessage(order.orderNumber, decision, false));
+      } else if (isPrintPreviewEnabled()) {
         setReceiptViewOnly(true); setShowReceipt(true);
+        toast.success(`Bill #${order.orderNumber} paid`);
       } else {
-        try { enqueueReceiptOnPay(order); } catch {}
+        const r = printReceiptAfterPayment(order);
         if (settings.showBillOnScreen) { setReceiptViewOnly(true); setShowReceipt(true); }
+        toast.success(paidMessage(order.orderNumber, r.decision, r.queued));
       }
-      toast.success(`Order #${order.orderNumber} paid — receipt printing`);
     } else if (status === 'partial') {
       try { enqueueReceiptOnPay(order); } catch {}
       const due = Math.max(0, (order.grandTotal || 0) - (order.amountPaid || 0));
@@ -1355,23 +1368,14 @@ export default function POSScreen() {
   };
 
 
+  // Pay from the Retrieve dialog opens the PAYMENT SCREEN for that bill, the
+  // same as Retrieve → Pay elsewhere, so the method, the amount received and
+  // the change are recorded. (It used to flip the status to paid directly,
+  // with no payment method or amount on the bill.)
   const payBillFromRetrieve = (order: Order) => {
-    const updated = { ...order, status: 'paid' as const, paidAt: new Date().toISOString() };
-    saveOrder(updated);
-    if (order.tableId) {
-      const tables = refreshTables();
-      const t = tables.find(t => t.id === order.tableId);
-      if (t) saveTable({ ...t, status: 'free', currentOrderId: undefined });
-    }
-    setRunningBills(prev => prev.filter(o => o.id !== order.id));
-    setLastOrder(updated);
-    if (isPrintPreviewEnabled()) {
-      setReceiptViewOnly(true); setShowReceipt(true);
-    } else {
-      if (settings.showBillOnScreen) { setReceiptViewOnly(true); setShowReceipt(true); }
-      try { enqueueReceiptOnPay(updated); } catch {}
-    }
-    toast.success(`Bill #${order.orderNumber} paid`);
+    retrieveOrder(order);
+    setShowRunningBills(false);
+    setTimeout(() => setShowPaymentDialog(true), 250);
   };
 
   // ===== Professional keyboard shortcuts (fast billing) =====
@@ -2844,7 +2848,7 @@ export default function POSScreen() {
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex gap-3 text-[10px]">
               <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-status-success" /> Running</span>
-              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-status-warning" /> Hold</span>
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-status-warning" /> Hold — unpaid</span>
             </div>
             {(() => {
               const runCount = filteredBills.filter(o => o.status === 'running').length;
@@ -2905,7 +2909,8 @@ export default function POSScreen() {
                     const table = order.tableId ? tables.find(t => t.id === order.tableId) : null;
                     const waiter = order.waiterId ? waiters.find(w => w.id === order.waiterId) : null;
                     const isRunning = order.status === 'running';
-                    const rowBg = isRunning ? 'bg-status-success/5' : 'bg-status-warning/5';
+                    const rowBg = isRunning ? 'bg-status-success/5' : 'bg-status-warning/15 border-l-4 border-l-status-warning';
+                    const st = billStatus(order);
                     const assignedLabel = order.orderType === 'delivery'
                       ? (order.riderName
                           ? <span><span className="font-semibold">🛵 {order.riderName}</span>{order.riderPhone && <span className="text-muted-foreground"> · {order.riderPhone}</span>}</span>
@@ -2917,8 +2922,8 @@ export default function POSScreen() {
                       <tr key={order.id} className={`border-b hover:bg-accent/50 transition-colors ${rowBg}`}>
                         <td className="py-2 px-2 font-bold">#{order.orderNumber}</td>
                         <td className="py-2 px-2">
-                          <Badge className={`text-[10px] ${isRunning ? 'bg-status-success/20 text-status-success border-status-success/30' : 'bg-status-warning/20 text-status-warning border-status-warning/30'}`}>
-                            {order.status}
+                          <Badge className={`text-[10px] border whitespace-nowrap ${st.className}`}>
+                            {st.label}
                           </Badge>
                         </td>
                         <td className="py-2 px-2">{table?.name || (order.orderType === 'delivery' ? 'DLV' : order.orderType === 'takeaway' ? 'T/A' : '—')}</td>
