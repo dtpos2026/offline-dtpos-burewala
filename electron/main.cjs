@@ -782,83 +782,51 @@ ipcMain.handle('list-serial-ports', async () => {
 
 
 // ============================================================
-// LICENSE: Hardware ID + encrypted local vault
-// Machine fingerprint = CPU model + total RAM + platform + primary
-// MAC + hostname → SHA-256. Yeh reinstall ke baad bhi same rehta
-// hai lekin doosre PC pe alag hoga (device binding ke liye).
+// LICENSE: device identity + encrypted local vault
+// See deviceIdentity.cjs — the identity no longer depends on network
+// adapters, so the licence survives a restart with the internet off.
 // ============================================================
+const { createIdentityStore } = require('./deviceIdentity.cjs');
 
-function computeHardwareId() {
-  try {
-    const cpus = os.cpus();
-    const cpuModel = cpus && cpus.length ? cpus[0].model : 'unknown-cpu';
-    const cores = cpus ? cpus.length : 0;
-    const mem = Math.round(os.totalmem() / (1024 * 1024 * 1024)); // GB
-    const nets = os.networkInterfaces();
-    let mac = '';
-    for (const name of Object.keys(nets).sort()) {
-      for (const ni of nets[name] || []) {
-        if (!ni.internal && ni.mac && ni.mac !== '00:00:00:00:00:00') { mac = ni.mac; break; }
-      }
-      if (mac) break;
-    }
-    const raw = [os.platform(), os.arch(), cpuModel, cores, mem, mac, os.hostname()].join('|');
-    return 'HW-' + crypto.createHash('sha256').update(raw).digest('hex').slice(0, 32).toUpperCase();
-  } catch (e) {
-    appendLog('hardwareId failed ' + e);
-    return 'HW-UNKNOWN';
-  }
+function runQuiet(cmd, args, timeoutMs) {
+  return new Promise((resolve) => {
+    try {
+      const { execFile } = require('child_process');
+      execFile(cmd, args, { timeout: timeoutMs, windowsHide: true },
+        (err, stdout) => resolve(err ? '' : String(stdout || '')));
+    } catch { resolve(''); }
+  });
 }
 
-let _hwid = null;
-ipcMain.handle('get-hardware-id', async () => {
-  if (!_hwid) _hwid = computeHardwareId();
-  return { success: true, hardwareId: _hwid };
+const identityStore = createIdentityStore({
+  userDataDir: () => app.getPath('userData'),
+  run: runQuiet,
+  log: (level, event, detail) => appendLog(level, event, detail),
 });
 
-// --- Encrypted license vault (AES-256-GCM, key derived from HWID) ---
-function vaultPath() {
-  return path.join(app.getPath('userData'), 'license.vault');
-}
-function vaultKey() {
-  if (!_hwid) _hwid = computeHardwareId();
-  return crypto.createHash('sha256').update('dtpos-lic::' + _hwid).digest();
-}
+ipcMain.handle('get-hardware-id', async () => {
+  try { return await identityStore.describe(); }
+  catch (e) { appendLog('ERROR', 'get-hardware-id', String(e)); return { success: false, error: String(e) }; }
+});
 
 ipcMain.handle('license-save', async (_e, payload) => {
-  try {
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-256-gcm', vaultKey(), iv);
-    const data = Buffer.concat([cipher.update(JSON.stringify(payload), 'utf8'), cipher.final()]);
-    const tag = cipher.getAuthTag();
-    fs.writeFileSync(vaultPath(), Buffer.concat([iv, tag, data]));
-    return { success: true };
-  } catch (e) {
-    appendLog('license-save fail ' + e);
+  try { return await identityStore.saveLicense(payload); }
+  catch (e) {
+    appendLog('ERROR', 'license-save', String(e));
     return { success: false, error: String(e) };
   }
 });
 
 ipcMain.handle('license-load', async () => {
-  try {
-    if (!fs.existsSync(vaultPath())) return { success: true, data: null };
-    const buf = fs.readFileSync(vaultPath());
-    const iv = buf.subarray(0, 12);
-    const tag = buf.subarray(12, 28);
-    const data = buf.subarray(28);
-    const decipher = crypto.createDecipheriv('aes-256-gcm', vaultKey(), iv);
-    decipher.setAuthTag(tag);
-    const out = Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
-    return { success: true, data: JSON.parse(out) };
-  } catch (e) {
-    // Tampered ya doosri machine se copy ki hui vault — reject
-    appendLog('license-load fail (tampered/foreign) ' + e);
+  try { return await identityStore.loadLicense(); }
+  catch (e) {
+    appendLog('ERROR', 'license-load', String(e));
     return { success: true, data: null, tampered: true };
   }
 });
 
 ipcMain.handle('license-clear', async () => {
-  try { if (fs.existsSync(vaultPath())) fs.unlinkSync(vaultPath()); return { success: true }; }
+  try { return identityStore.clearLicense(); }
   catch (e) { return { success: false, error: String(e) }; }
 });
 

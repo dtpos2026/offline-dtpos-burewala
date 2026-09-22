@@ -335,6 +335,9 @@ const App = () => {
             expiryDate: lic.expiryDate,
             appVersion,
             activatedAt: lic.activatedAt,
+            lastActivationAt: lic.lastActivationAt || lic.activatedAt,
+            installationId: lic.installationId,
+            slot: lic.slot || 'legacy',
           };
         });
       } catch { /* offline build — ignore */ }

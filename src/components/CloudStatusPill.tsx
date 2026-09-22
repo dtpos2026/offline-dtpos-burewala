@@ -8,6 +8,7 @@ import { subscribeLink, linkLabel, lastSyncAt, type LinkState } from '@/lib/clou
 
 const STYLE: Record<LinkState, { cls: string; Icon: any }> = {
   online:    { cls: 'text-green-700 bg-green-50 border-green-200', Icon: Cloud },
+  connecting: { cls: 'text-slate-600 bg-slate-50 border-slate-200', Icon: Loader2 },
   syncing:   { cls: 'text-blue-700 bg-blue-50 border-blue-200', Icon: Loader2 },
   verifying: { cls: 'text-blue-700 bg-blue-50 border-blue-200', Icon: ShieldCheck },
   error:     { cls: 'text-amber-700 bg-amber-50 border-amber-200', Icon: AlertTriangle },
@@ -27,7 +28,7 @@ export default function CloudStatusPill() {
       title={title}
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${cls}`}
     >
-      <Icon className={`h-3 w-3 ${state === 'syncing' ? 'animate-spin' : ''}`} />
+      <Icon className={`h-3 w-3 ${state === 'syncing' || state === 'connecting' ? 'animate-spin' : ''}`} />
       {linkLabel(state)}
     </span>
   );

@@ -21,6 +21,7 @@ const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databas
 
 export type LinkState =
   | 'offline'      // no internet — local mode
+  | 'connecting'   // network present, server not contacted yet
   | 'online'       // server reachable, everything in sync
   | 'syncing'      // heartbeat in flight
   | 'verifying'    // licence verification in flight
@@ -46,7 +47,8 @@ const LS = {
 };
 
 // ---------- tiny state machine ----------
-let state: LinkState = navigator.onLine ? 'online' : 'offline';
+// "Online" is only ever shown after the server actually answered.
+let state: LinkState = navigator.onLine ? 'connecting' : 'offline';
 const listeners = new Set<(s: LinkState) => void>();
 
 function setState(s: LinkState) {
@@ -251,81 +253,122 @@ export function clearVerdict() {
 }
 
 /**
- * Ask the backend what the Super Admin says about this licence.
- * Returns null when offline / unreachable — callers must fall back to the
- * signed local licence (which carries its own expiry, so an offline machine
- * can never run past its paid period).
+ * Mirror of the verdict kept in the encrypted vault, for the heartbeat and the
+ * status pill. Announces a change so the licence gate re-evaluates.
  */
-export async function verifyLicenseOnline(licenseKey: string): Promise<RemoteVerdict | null> {
-  if (!licenseKey || !navigator.onLine) return null;
-  setState('verifying');
-  const url = `${BASE}/licenseStatus/${docIdFor(licenseKey)}?key=${API_KEY}`;
+export function storeVerdict(v: RemoteVerdict): void {
+  const previous = cachedVerdict();
+  try { localStorage.setItem(LS.verdict, JSON.stringify(v)); } catch { /* quota */ }
+  if (previous?.status !== v.status || previous?.key !== v.key) {
+    try { window.dispatchEvent(new CustomEvent('dtpos-license-verdict', { detail: v })); } catch { /* non-browser */ }
+  }
+}
+
+/** Server answer for one status document. `doc: null` = no record (404). */
+export type StatusFetch =
+  | { reachable: false }
+  | { reachable: true; doc: { status: string; message?: string; updatedAt?: number } | null };
+
+async function fetchStatusDoc(collection: 'licenseStatus' | 'deviceStatus', id: string): Promise<StatusFetch> {
+  if (!id || !navigator.onLine) return { reachable: false };
+  const url = `${BASE}/${collection}/${encodeURIComponent(docIdFor(id))}?key=${API_KEY}`;
   const res = await withTimeout(fetch(url).then(async r => ({ ok: r.ok, status: r.status, body: await r.json().catch(() => null) })), 8000);
-  if (!res) { setState('error'); return null; }
-  // 404 → Super Admin has not published a status yet: treat as active.
-  const status = res.ok ? (readField(res.body, 'status') || 'active') : (res.status === 404 ? 'active' : '');
-  if (!status) { setState('error'); return null; }
-  const verdict: RemoteVerdict = {
-    status: status.toLowerCase(),
-    message: res.ok ? readField(res.body, 'message') : '',
-    checkedAt: Date.now(),
+  if (!res) return { reachable: false };
+  if (res.status === 404) return { reachable: true, doc: null };
+  if (!res.ok) return { reachable: false };
+  return {
+    reachable: true,
+    doc: {
+      status: (readField(res.body, 'status') || 'active').toLowerCase(),
+      message: readField(res.body, 'message') || undefined,
+      updatedAt: Number(readField(res.body, 'updatedAt')) || undefined,
+    },
   };
-  setState('online');
-  return verdict;
 }
 
-/**
- * Per-device status published by Super Admin (`deviceStatus/{deviceId}`).
- * Yeh us waqt bhi chalta hai jab licence key abhi cloud par sync nahi hui.
- */
-export async function verifyDeviceOnline(deviceId: string): Promise<RemoteVerdict | null> {
-  if (!deviceId || !navigator.onLine) return null;
-  const url = `${BASE}/deviceStatus/${encodeURIComponent(docIdFor(deviceId))}?key=${API_KEY}`;
-  const res = await withTimeout(fetch(url).then(async r => ({ ok: r.ok, status: r.status, body: await r.json().catch(() => null) })), 8000);
-  if (!res || (!res.ok && res.status !== 404)) return null;
-  const status = (res.ok ? readField(res.body, 'status') : 'active').toLowerCase() || 'active';
-  const updatedAt = Number(res.ok ? readField(res.body, 'updatedAt') : 0) || 0;
-  return { status, message: res.ok ? readField(res.body, 'message') : '', checkedAt: Date.now(), updatedAt };
-}
-
-/**
- * Licence key + device — jo bhi zyada sakht ho wohi lagta hai. Yehi POS ka
- * asli "kya main chal sakta hoon" sawal hai.
- */
-export async function verifyStatusOnline(
-  licenseKey: string,
-  deviceId?: string,
-  opts: { activatedAt?: number } = {},
-): Promise<RemoteVerdict | null> {
-  const previous = cachedVerdict(licenseKey);
-  const [byKey, rawDevice] = await Promise.all([
-    verifyLicenseOnline(licenseKey),
-    deviceId ? verifyDeviceOnline(deviceId) : Promise.resolve(null),
+/** Licence-wide and per-device status in one round trip. */
+export async function fetchServerStatus(licenseKey: string, deviceId: string): Promise<{
+  reachable: boolean;
+  license: StatusFetch;
+  device: StatusFetch;
+}> {
+  setState('verifying');
+  const [license, device] = await Promise.all([
+    fetchStatusDoc('licenseStatus', licenseKey),
+    fetchStatusDoc('deviceStatus', deviceId),
   ]);
-  // A "deleted" tombstone belongs to the OLD installation. If the shop has
-  // activated a fresh licence AFTER Super Admin removed the device, the
-  // tombstone must not keep blocking the machine — the heartbeat re-registers it.
-  let byDevice = rawDevice;
-  if (
-    byDevice?.status === 'deleted' &&
-    opts.activatedAt &&
-    byDevice.updatedAt &&
-    opts.activatedAt > byDevice.updatedAt
-  ) {
-    byDevice = null;
+  const reachable = license.reachable || device.reachable;
+  setState(reachable ? 'online' : (navigator.onLine ? 'error' : 'offline'));
+  return { reachable, license, device };
+}
+
+// ---------- device slot ledger: licenseDevices/{key} ----------
+// The POS may only ever APPEND its own ID (Firestore rules enforce "exactly one
+// more, nothing removed"), so a shop cannot free a slot by itself. Super Admin
+// removes a device, which frees its slot.
+
+export type SlotClaim =
+  | { result: 'confirmed'; used: number; max: number }
+  | { result: 'denied'; used: number; max: number }
+  | { result: 'unavailable'; reason: string };
+
+function readStringArray(doc: any, name: string): string[] {
+  const values = doc?.fields?.[name]?.arrayValue?.values;
+  return Array.isArray(values) ? values.map((v: any) => String(v?.stringValue || '')).filter(Boolean) : [];
+}
+
+function ledgerBody(devices: string[]) {
+  return JSON.stringify({
+    fields: {
+      devices: { arrayValue: { values: devices.map(d => ({ stringValue: d })) } },
+      updatedAt: { integerValue: String(Date.now()) },
+    },
+  });
+}
+
+/**
+ * Take (or confirm) this computer's slot on the licence.
+ * `decide` is the pure policy from licenseVerdict.ts.
+ */
+export async function claimDeviceSlot(
+  licenseKey: string,
+  deviceId: string,
+  decide: (ledger: string[]) => { outcome: 'present' | 'append' | 'full'; used: number; max: number },
+): Promise<SlotClaim> {
+  if (!licenseKey || !deviceId || !navigator.onLine) return { result: 'unavailable', reason: 'offline' };
+  const docUrl = `${BASE}/licenseDevices/${encodeURIComponent(docIdFor(licenseKey))}`;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const got = await withTimeout(
+      fetch(`${docUrl}?key=${API_KEY}`).then(async r => ({ ok: r.ok, status: r.status, body: await r.json().catch(() => null) })),
+      8000,
+    );
+    if (!got) return { result: 'unavailable', reason: 'timeout' };
+    // 403 = the updated Firestore rules have not been published yet.
+    if (!got.ok && got.status !== 404) return { result: 'unavailable', reason: `http-${got.status}` };
+
+    const ledger = got.ok ? readStringArray(got.body, 'devices') : [];
+    const d = decide(ledger);
+    if (d.outcome === 'present') return { result: 'confirmed', used: d.used, max: d.max };
+    if (d.outcome === 'full') return { result: 'denied', used: d.used, max: d.max };
+
+    const precondition = got.ok
+      ? `currentDocument.updateTime=${encodeURIComponent(String(got.body?.updateTime || ''))}`
+      : 'currentDocument.exists=false';
+    const put = await withTimeout(
+      fetch(`${docUrl}?key=${API_KEY}&${precondition}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: ledgerBody([...Array.from(new Set(ledger)), deviceId]),
+      }).then(r => r.status),
+      8000,
+    );
+    if (put === null) return { result: 'unavailable', reason: 'timeout' };
+    if (put >= 200 && put < 300) return { result: 'confirmed', used: d.used + 1, max: d.max };
+    // 400/409: another computer changed the ledger between our read and write.
+    if (put === 400 || put === 409) continue;
+    return { result: 'unavailable', reason: `http-${put}` };
   }
-  const blocking = (v: RemoteVerdict | null) => !!v && !['active', 'trial'].includes(v.status);
-  const worst = blocking(byDevice) ? byDevice : (blocking(byKey) ? byKey : (byKey || byDevice));
-  if (!worst) return null;
-  worst.key = licenseKey;
-  try { localStorage.setItem(LS.verdict, JSON.stringify(worst)); } catch { /* quota */ }
-  // Notify only when the authoritative access state actually changes. The old
-  // implementation emitted twice per check and App.tsx answered with a full
-  // reload, causing the repeated "Verifying license" screen seen in the POS.
-  if (previous?.status !== worst.status) {
-    try { window.dispatchEvent(new CustomEvent('dtpos-license-verdict', { detail: worst })); } catch { /* non-browser */ }
-  }
-  return worst;
+  return { result: 'unavailable', reason: 'contended' };
 }
 
 // ---------- device heartbeat ----------
@@ -339,6 +382,9 @@ export interface HeartbeatInput {
   expiryDate?: number | null;
   appVersion?: string;
   activatedAt?: number;
+  lastActivationAt?: number;
+  installationId?: string;
+  slot?: string;
 }
 
 export async function sendHeartbeat(input: HeartbeatInput): Promise<boolean> {
@@ -368,6 +414,10 @@ export async function sendHeartbeat(input: HeartbeatInput): Promise<boolean> {
       firstLoginAt: stats.firstLoginAt || 0,
       lastLoginAt: stats.lastLoginAt || 0,
       loginCount: stats.loginCount || 0,
+      installationId: input.installationId || '',
+      activatedAt: input.activatedAt || 0,
+      lastActivationAt: input.lastActivationAt || 0,
+      slot: input.slot || '',
       lastSyncAt: Date.now(),
       lastVerifyAt: verdict?.checkedAt || 0,
       licenseStatus: verdict?.status || 'unknown',
@@ -413,18 +463,24 @@ export function startCloudLink(provider: Provider): () => void {
       if (!navigator.onLine) { setState('offline'); return; }
       const input = await provider();
       if (!input) return;
-       const activatedAt = Number((input as HeartbeatInput & { activatedAt?: number }).activatedAt || 0) || undefined;
-       const verdict = await verifyStatusOnline(input.licenseKey || '', input.deviceId, { activatedAt });
+      // Licence status is fetched by the licence gate's own sync
+      // (licenseSync.ts); the heartbeat only reports. A device the
+      // administrator removed stays removed until it is activated again.
+      const verdict = cachedVerdict(input.licenseKey);
       if (verdict?.status === 'deleted') return;
       await sendHeartbeat(input);
     } catch { setState('error'); }
   };
 
-  const onOnline = () => { setState('online'); void cycle(); };
+  const onOnline = () => { setState('connecting'); void cycle(); };
   const onOffline = () => setState('offline');
   window.addEventListener('online', onOnline);
   window.addEventListener('offline', onOffline);
   window.addEventListener('dtpos-device-location-updated', onOnline);
+  // After a re-activation the verdict flips from "deleted" to "active":
+  // report straight away instead of waiting five minutes.
+  const onVerdict = () => { void cycle(); };
+  window.addEventListener('dtpos-license-verdict', onVerdict);
 
   const kick = setTimeout(cycle, 4000);
   if (timer) clearInterval(timer);
@@ -436,6 +492,7 @@ export function startCloudLink(provider: Provider): () => void {
     window.removeEventListener('online', onOnline);
     window.removeEventListener('offline', onOffline);
     window.removeEventListener('dtpos-device-location-updated', onOnline);
+    window.removeEventListener('dtpos-license-verdict', onVerdict);
   };
 }
 
@@ -443,8 +500,9 @@ export function startCloudLink(provider: Provider): () => void {
 export function linkLabel(s: LinkState): string {
   switch (s) {
     case 'online':    return 'Server Online';
+    case 'connecting': return 'Connecting…';
     case 'syncing':   return 'Syncing…';
-    case 'verifying': return 'License Verified';
+    case 'verifying': return 'Checking License…';
     case 'error':     return 'Connection Error';
     default:          return 'Offline Mode';
   }

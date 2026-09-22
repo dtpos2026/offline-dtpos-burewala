@@ -70,14 +70,12 @@ export default function LoginPage({ onLogin }: Props) {
           setCurrentBranchId(user.branchId);
         }
         try { recordLogin(); } catch { /* activity stats are best effort */ }
-        // Login par licence ki taazgi — background me, screen rukti nahi.
+        // Refresh the licence status in the background — the screen never waits.
         void (async () => {
           try {
-            const { loadLicense } = await import('@/licensing/licenseService');
-            const { verifyLicenseOnline } = await import('@/lib/cloudLink');
+            const { syncLicenseStatus } = await import('@/licensing/licenseSync');
             const { resetPrintGuardCache, prewarmPrintGuard } = await import('@/licensing/printGuard');
-            const lic = await loadLicense();
-            if (lic?.licenseKey && navigator.onLine) await verifyLicenseOnline(lic.licenseKey);
+            await syncLicenseStatus();
             resetPrintGuardCache();
             prewarmPrintGuard();
           } catch { /* offline login must never fail here */ }

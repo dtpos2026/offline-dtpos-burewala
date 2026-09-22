@@ -29,6 +29,7 @@ import {
   type StoredLicense,
 } from '@/licensing/licenseService';
 import { PLAN_LABEL, verifyLicenseKey } from '@/licensing/licenseKey';
+import { syncLicenseStatus } from '@/licensing/licenseSync';
 import { APP_VERSION } from '@/lib/version';
 import { Button } from '@/components/ui/button';
 import dtLogo from '@/assets/dt-mark.png';
@@ -134,19 +135,20 @@ const fieldClass = 'h-11 w-full rounded-md border border-input bg-background px-
 function FooterStrip() {
   return (
     <footer className="mt-5 grid gap-3 border-t border-border pt-4 text-xs text-muted-foreground sm:grid-cols-3">
-      <div className="flex items-center gap-2"><img src={dtLogo} alt="Digital Target" className="h-8 w-8 object-contain" /><span><strong className="block text-foreground">DT POS Enterprise v{APP_VERSION}</strong>Offline Mode</span></div>
+      <div className="flex items-center gap-2"><img src={dtLogo} alt="Digital Target" className="h-8 w-8 object-contain" /><span><strong className="block text-foreground">DT POS Enterprise v{APP_VERSION}</strong>Works fully offline</span></div>
       <div className="space-y-1"><span className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-primary" /> +92 345 1873354</span><span className="flex items-center gap-2"><MessageCircle className="h-3.5 w-3.5 text-primary" /> +92 332 2373354</span></div>
       <div className="space-y-1"><span className="flex items-center gap-2 break-all"><Mail className="h-3.5 w-3.5 shrink-0 text-primary" /> {SUPPORT_EMAIL}</span><span className="flex items-center gap-2"><BadgeCheck className="h-3.5 w-3.5 text-primary" /> Digital Target Support</span></div>
     </footer>
   );
 }
 
-function ActivationScreen({ onDone }: { onDone: () => void }) {
+function ActivationScreen({ onDone, note }: { onDone: () => void; note?: string }) {
   const [form, setForm] = useState({ businessName: '', ownerName: '', mobileNumber: '', licenseKey: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [hardwareId, setHardwareId] = useState('');
   const [receipt, setReceipt] = useState<string | null>(null);
+  const [slotLine, setSlotLine] = useState('');
   // Live read of the typed key: plan, allowed computers and expiry, all offline.
   const [preview, setPreview] = useState<{ plan: string; maxDevices: number; expiry: string } | null>(null);
 
@@ -179,6 +181,10 @@ function ActivationScreen({ onDone }: { onDone: () => void }) {
     setBusy(true);
     const result = await activate({ ...form, licenseKey: form.licenseKey.trim().toUpperCase() }, APP_VERSION);
     if (result.ok) {
+      const s = result.slot;
+      setSlotLine(s?.result === 'confirmed'
+        ? `This computer is registered on the license${s.used && s.max ? ` (${s.used} of ${s.max} computers)` : ''}.`
+        : 'The server could not be reached, so the device limit will be checked the next time this computer is online.');
       try { setReceipt(await buildActivationReceipt()); } catch { onDone(); }
       setBusy(false);
       return;
@@ -202,7 +208,8 @@ function ActivationScreen({ onDone }: { onDone: () => void }) {
           <div className="mt-4 rounded-md border border-primary/20 bg-secondary p-4 text-sm">
             <p className="font-semibold text-foreground">Sign in to DT POS</p>
             <p className="mt-1 text-muted-foreground">Username <strong className="text-foreground">admin</strong> · Password <strong className="text-foreground">admin123</strong> — change it later in Users &amp; Roles.</p>
-            <p className="mt-2 text-xs text-muted-foreground">This computer is now remembered. The license is never asked for again on this machine.</p>
+            <p className="mt-2 text-xs text-muted-foreground">This computer is now remembered — the license is not asked for again on this machine, with or without internet.</p>
+            {slotLine && <p className="mt-1 text-xs text-muted-foreground">{slotLine}</p>}
           </div>
           <Button size="lg" className="mt-3 w-full bg-gradient-primary shadow-elegant" onClick={onDone}>Open DT POS</Button>
         </div>
@@ -214,6 +221,7 @@ function ActivationScreen({ onDone }: { onDone: () => void }) {
   return (
     <AppShell>
       <InfoBanner>Activation is required to run the software · works fully offline.</InfoBanner>
+      {note && <div role="status" className="mt-3 rounded-md border border-status-warning/40 bg-status-warning/10 px-4 py-3 text-sm font-medium text-foreground">{note}</div>}
       <section className="mt-4 rounded-md border border-border bg-card p-5 shadow-card sm:p-7">
         <div className="mb-5 flex items-center gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-md bg-primary text-primary-foreground"><LockKeyhole className="h-5 w-5" /></span>
@@ -236,8 +244,8 @@ function ActivationScreen({ onDone }: { onDone: () => void }) {
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
               {preview.maxDevices === 1
-                ? 'This key belongs to one computer. If it is already running on another PC, Digital Target must approve this machine before you use it here.'
-                : `This key can run on ${preview.maxDevices} computers. Send your activation code so Digital Target can register this machine.`}
+                ? 'This key runs on one computer. With internet on, activation checks that the key is not already in use on another computer.'
+                : `This key can run on ${preview.maxDevices} computers. With internet on, activation checks that a free slot is available.`}
             </p>
           </div>
         )}
@@ -259,17 +267,51 @@ function ActivationScreen({ onDone }: { onDone: () => void }) {
   );
 }
 
-function BlockedScreen({ reason, message, license, onRetry }: { reason: string; message: string; license?: StoredLicense; onRetry: () => void }) {
+const REASON_TITLE: Record<string, string> = {
+  suspended: 'License Suspended',
+  revoked: 'License Revoked',
+  pending: 'License Pending',
+  deleted: 'Computer Removed',
+  'device-limit': 'Device Limit Reached',
+  expired: 'License Expired',
+  'clock-tamper': 'System Clock Changed',
+  'identity-unavailable': 'Computer Identity Unavailable',
+  'device-mismatch': 'License Belongs to Another Computer',
+};
+
+function BlockedScreen({ reason, message, note, license, onRetry }: {
+  reason: string; message: string; note?: string; license?: StoredLicense; onRetry: () => Promise<void>;
+}) {
   const [hardwareId, setHardwareId] = useState('');
+  const [checking, setChecking] = useState(false);
+  const [retryNote, setRetryNote] = useState('');
   useEffect(() => { void getHardwareId().then(setHardwareId); }, []);
+  const retry = async () => {
+    setChecking(true);
+    setRetryNote('');
+    try { await onRetry(); } finally { setChecking(false); }
+    if (typeof navigator !== 'undefined' && !navigator.onLine) setRetryNote('No internet connection — the administrator\'s latest decision cannot be checked right now.');
+  };
+  const reEnter = reason === 'deleted' || reason === 'device-limit' || reason === 'device-mismatch' || reason === 'expired';
   return (
     <AppShell>
       <InfoBanner>This license needs attention before DT POS can open.</InfoBanner>
       <section className="mt-4 rounded-md border border-border bg-card p-6 shadow-card">
-        <div className="text-center"><span className="mx-auto grid h-14 w-14 place-items-center rounded-md bg-destructive text-destructive-foreground"><LockKeyhole className="h-7 w-7" /></span><h2 className="mt-4 text-xl font-bold">License Blocked</h2><p className="mt-2 text-sm text-muted-foreground">{message}</p><p className="mt-1 text-xs font-semibold uppercase text-destructive">{reason}</p></div>
+        <div className="text-center">
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-md bg-destructive text-destructive-foreground"><LockKeyhole className="h-7 w-7" /></span>
+          <h2 className="mt-4 text-xl font-bold">{REASON_TITLE[reason] || 'License Blocked'}</h2>
+          <p className="mt-2 text-sm text-foreground">{message}</p>
+          {note && <p className="mt-2 text-sm text-muted-foreground">Administrator note: {note}</p>}
+          {license?.server?.checkedAt && <p className="mt-2 text-xs text-muted-foreground">Last checked with the server: {new Date(license.server.checkedAt).toLocaleString()}</p>}
+        </div>
         {license && <div className="mt-5 space-y-2 rounded-md bg-muted p-4 text-sm"><Row label="Business" value={license.businessName} /><Row label="License" value={license.licenseKey} mono /><Row label="Plan" value={PLAN_LABEL[license.plan] || license.plan} />{license.expiryDate && <Row label="Expiry" value={new Date(license.expiryDate).toLocaleDateString()} />}</div>}
-        <div className="mt-5 grid gap-3 sm:grid-cols-2"><Button onClick={onRetry}><RefreshCw /> Retry</Button><Button variant="outline" onClick={() => { void clearLicense().then(() => location.reload()); }}><KeyRound /> Enter New Key</Button></div>
-        <p className="mt-4 text-center font-mono text-xs text-muted-foreground">Device: {hardwareId || '…'}</p>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <Button onClick={() => { void retry(); }} disabled={checking}>{checking ? <><RefreshCw className="animate-spin" /> Checking with the server…</> : <><RefreshCw /> Check Again</>}</Button>
+          <Button variant={reEnter ? 'default' : 'outline'} onClick={() => { void clearLicense().then(() => location.reload()); }}><KeyRound /> Enter License Key</Button>
+        </div>
+        {retryNote && <p className="mt-3 text-center text-xs text-muted-foreground">{retryNote}</p>}
+        <p className="mt-4 text-center text-xs text-muted-foreground">Digital Target Support · +92 345 1873354 · {SUPPORT_EMAIL}</p>
+        <p className="mt-1 text-center font-mono text-xs text-muted-foreground">Device: {hardwareId || '…'}</p>
       </section>
       <FooterStrip />
     </AppShell>
@@ -282,39 +324,48 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
 
 export default function LicenseGate({ children }: { children: React.ReactNode }) {
   const [gate, setGate] = useState<GateState>({ state: 'checking' });
-  const check = async () => {
-    setGate({ state: 'checking' });
-    try { setGate(await evaluateGate(APP_VERSION)); } catch { setGate({ state: 'unactivated' }); }
+
+  const applyGate = (next: GateState) => {
+    setGate(prev => (prev.state === next.state && (prev as { reason?: string }).reason === (next as { reason?: string }).reason
+      && prev.state !== 'ok' ? prev : next));
   };
 
-  // Silent re-check — no "Verifying…" screen, so it can run often.
-  // Super Admin ke Suspend / Revoke ka asar ab ~1 minute me aa jata hai
-  // (pehle 6 ghante lagte the).
-  const lastSilent = useRef(0);
-  const silentCheck = async () => {
-    // Throttle: window focus/online/verdict events can fire in bursts. Without
-    // this the gate re-verified constantly (client: "keeps asking again").
+  /** Local decision only — the vault, the signed key and the stored verdict. */
+  const evaluateLocal = async () => {
+    try { applyGate(await evaluateGate(APP_VERSION)); } catch { setGate({ state: 'unactivated' }); }
+  };
+
+  // Server check, throttled: focus / online / timer events arrive in bursts.
+  const lastSync = useRef(0);
+  const backgroundSync = async (force = false) => {
     const now = Date.now();
-    if (now - lastSilent.current < 30_000) return;
-    lastSilent.current = now;
+    if (!force && now - lastSync.current < 30_000) return;
+    lastSync.current = now;
     try {
-      const next = await evaluateGate(APP_VERSION);
-      setGate(prev => (prev.state === next.state && (prev as any).reason === (next as any).reason ? prev : next));
-    } catch { /* offline — keep current state */ }
+      const r = await syncLicenseStatus();
+      if (r.reachable) await evaluateLocal();
+    } catch { /* offline — keep the current decision */ }
+  };
+
+  const check = async () => {
+    setGate({ state: 'checking' });
+    await evaluateLocal();
+    // Only after the POS has opened (or the block is shown) do we ask the server.
+    setTimeout(() => { void backgroundSync(true); }, 1500);
   };
 
   useEffect(() => {
     void check();
-    const timer = setInterval(() => { void silentCheck(); }, 60_000);
-    const onFocus = () => { void silentCheck(); };
-    const onVerdict = () => { void silentCheck(); };
-    window.addEventListener('online', onFocus);
-    window.addEventListener('focus', onFocus);
+    const timer = setInterval(() => { void backgroundSync(); }, 60_000);
+    const onWake = () => { void backgroundSync(); };
+    const onVerdict = () => { void evaluateLocal(); };
+    window.addEventListener('online', onWake);
+    window.addEventListener('focus', onWake);
     window.addEventListener('dtpos-license-verdict', onVerdict);
     return () => {
       clearInterval(timer);
-      window.removeEventListener('online', onFocus);
-      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('online', onWake);
+      window.removeEventListener('focus', onWake);
       window.removeEventListener('dtpos-license-verdict', onVerdict);
     };
   }, []);
@@ -322,8 +373,15 @@ export default function LicenseGate({ children }: { children: React.ReactNode })
   if (gate.state === 'checking') {
     return <AppShell><div className="flex flex-1 flex-col items-center justify-center py-16"><RefreshCw className="h-8 w-8 animate-spin text-primary" /><p className="mt-4 text-sm font-medium text-muted-foreground">Verifying license…</p></div><FooterStrip /></AppShell>;
   }
-  if (gate.state === 'unactivated') return <ActivationScreen onDone={check} />;
-  if (gate.state === 'blocked') return <BlockedScreen reason={gate.reason} message={gate.message} license={gate.license} onRetry={check} />;
+  if (gate.state === 'unactivated') return <ActivationScreen onDone={() => { void check(); }} note={gate.note} />;
+  if (gate.state === 'blocked') {
+    return (
+      <BlockedScreen
+        reason={gate.reason} message={gate.message} note={gate.note} license={gate.license}
+        onRetry={async () => { await backgroundSync(true); await evaluateLocal(); }}
+      />
+    );
+  }
 
   const daysLeft = gate.daysLeft;
   const warn = daysLeft !== null && daysLeft <= 7;
