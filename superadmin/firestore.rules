@@ -27,16 +27,39 @@ service cloud.firestore {
     }
 
     // Authoritative licence status published by Super Admin.
-    // The POS reads it (no account on the shop machine) but can never write it.
+    // The POS reads ONE document it already knows the key for (get); only
+    // signed-in staff may list the collection, so the keys cannot be
+    // enumerated from outside.
     match /licenseStatus/{licenseId} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if request.auth != null;
       allow write: if request.auth != null;
     }
 
-    // Per-device status (Suspend / Revoke for one machine).
+    // Per-device status (Suspend / Revoke / Delete for one machine).
     match /deviceStatus/{deviceId} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if request.auth != null;
       allow write: if request.auth != null;
+    }
+
+    // Device slots per licence (v1.12). A POS may create the list with its
+    // own ID, or append exactly ONE ID keeping every existing one — it can
+    // never remove a computer or free a slot. Staff may do anything.
+    match /licenseDevices/{licenseId} {
+      allow get: if true;
+      allow list: if request.auth != null;
+      allow create: if request.auth != null
+        || (request.resource.data.keys().hasOnly(['devices', 'updatedAt'])
+            && request.resource.data.devices is list
+            && request.resource.data.devices.size() == 1);
+      allow update: if request.auth != null
+        || (request.resource.data.keys().hasOnly(['devices', 'updatedAt'])
+            && request.resource.data.devices is list
+            && request.resource.data.devices.size() == resource.data.devices.size() + 1
+            && request.resource.data.devices.size() <= 50
+            && request.resource.data.devices.hasAll(resource.data.devices));
+      allow delete: if request.auth != null;
     }
 
     // Device heartbeat written by each installation. A POS may create/update
@@ -45,11 +68,11 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null
         || (request.resource.data.deviceId == deviceId
-            && request.resource.data.size() < 40);
+            && request.resource.data.size() < 45);
       allow delete: if request.auth != null;
     }
 
-    // Baaki sab band.
+    // Everything else is closed.
     match /{document=**} {
       allow read, write: if false;
     }

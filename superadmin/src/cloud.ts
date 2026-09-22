@@ -9,7 +9,7 @@
 // ============================================================
 import {
   collection, doc, deleteDoc, setDoc, onSnapshot, query, orderBy, addDoc,
-  updateDoc, serverTimestamp,
+  updateDoc, serverTimestamp, arrayRemove, getDoc,
 } from 'firebase/firestore';
 import {
   onAuthStateChanged, signInWithEmailAndPassword, signOut, type User,
@@ -48,19 +48,15 @@ export async function removeClient(key: string) {
 }
 
 // ---------- devices (live installation monitoring) ----------
-export interface DeviceDoc {
-  deviceId: string;
-  licenseKey?: string;
-  business?: string; owner?: string; phone?: string;
-  plan?: string; expiryDate?: number;
-  appVersion?: string;
-  manufacturer?: string; model?: string; osName?: string; osVersion?: string; hostname?: string;
-  installedAt?: number; firstLoginAt?: number; lastLoginAt?: number; loginCount?: number;
-  lastSyncAt?: number; lastVerifyAt?: number; licenseStatus?: string;
-  country?: string; region?: string; city?: string; locationUpdatedAt?: number;
-  latitude?: number; longitude?: number;
-  locationAccuracyM?: number; locationSource?: string;
-}
+// Three kinds of record, kept apart on purpose:
+//   devices/{id}        REPORTED by the POS (heartbeat) — what the shop's PC says
+//   deviceStatus/{id}   DECIDED by Super Admin for one computer
+//   licenseStatus/{key} DECIDED by Super Admin for every computer on a licence
+//   licenseDevices/{key} which computers hold one of the licence's device slots
+export type { DeviceDoc } from './deviceState';
+import type { DeviceDoc } from './deviceState';
+
+export interface StatusDoc { id: string; status: string; message?: string; updatedAt?: number; by?: string; deviceId?: string }
 
 export function watchDevices(cb: (list: DeviceDoc[]) => void, onErr?: (e: Error) => void) {
   return onSnapshot(
@@ -70,12 +66,38 @@ export function watchDevices(cb: (list: DeviceDoc[]) => void, onErr?: (e: Error)
   );
 }
 
+function watchStatusCollection(name: 'deviceStatus' | 'licenseStatus', cb: (m: Map<string, StatusDoc>) => void, onErr?: (e: Error) => void) {
+  return onSnapshot(
+    collection(db, name),
+    snap => cb(new Map(snap.docs.map(d => [d.id, { id: d.id, ...(d.data() as Omit<StatusDoc, 'id'>) }]))),
+    e => onErr?.(e as Error),
+  );
+}
+
+/** Per-device decisions, keyed by sanitised device ID. */
+export const watchDeviceStatuses = (cb: (m: Map<string, StatusDoc>) => void, onErr?: (e: Error) => void) =>
+  watchStatusCollection('deviceStatus', cb, onErr);
+
+/** Licence-wide decisions, keyed by sanitised licence key. */
+export const watchLicenseStatuses = (cb: (m: Map<string, StatusDoc>) => void, onErr?: (e: Error) => void) =>
+  watchStatusCollection('licenseStatus', cb, onErr);
+
+/** Device slots per licence, keyed by sanitised licence key. */
+export function watchLedgers(cb: (m: Map<string, string[]>) => void, onErr?: (e: Error) => void) {
+  return onSnapshot(
+    collection(db, 'licenseDevices'),
+    snap => cb(new Map(snap.docs.map(d => [d.id, ((d.data() as { devices?: string[] }).devices || []).filter(Boolean)]))),
+    e => onErr?.(e as Error),
+  );
+}
+
+export type LicenceAction = 'active' | 'suspended' | 'revoked' | 'pending';
+
 /**
- * Publish the authoritative licence status. The POS reads this document on
- * every online verification, so Suspend/Activate takes effect by itself —
- * no reinstall, no key change.
+ * Publish the authoritative licence status for EVERY computer on the key.
+ * The POS reads it on its next online check (about once a minute).
  */
-export async function setLicenseStatus(licenseKey: string, status: 'active' | 'suspended' | 'revoked' | 'expired', message = '') {
+export async function setLicenseStatus(licenseKey: string, status: LicenceAction | 'expired', message = '') {
   await setDoc(doc(db, 'licenseStatus', docIdFor(licenseKey)), {
     status, message, updatedAt: Date.now(), by: auth.currentUser?.email || 'admin',
   }, { merge: true });
@@ -85,29 +107,37 @@ export async function setLicenseStatus(licenseKey: string, status: 'active' | 's
 }
 
 /**
- * Per-device status. Yeh us waqt kaam aata hai jab device par licence key
- * abhi tak sync nahi hui — Suspend/Revoke phir bhi us machine par lag jata hai.
+ * Per-device status — affects this one computer only. Other computers on the
+ * same licence are not touched (use the licence status for that).
  */
 export async function setDeviceStatus(deviceId: string, status: 'active' | 'suspended' | 'revoked', message = '') {
-  const updatedAt = Date.now();
   await setDoc(doc(db, 'deviceStatus', docIdFor(deviceId)), {
-    deviceId, status, message, updatedAt, by: auth.currentUser?.email || 'admin',
-  }, { merge: true });
-  // Keep the live monitoring row in sync immediately; previously the action
-  // worked but the table stayed on the old status until the POS heartbeat.
-  await setDoc(doc(db, 'devices', docIdFor(deviceId)), {
-    deviceId, licenseStatus: status, lastVerifyAt: updatedAt,
+    deviceId, status, message, updatedAt: Date.now(), by: auth.currentUser?.email || 'admin',
   }, { merge: true });
 }
 
-/** Permanently remove a reported installation and leave a deleted tombstone.
- * The tombstone blocks that installation from silently reporting again. */
-export async function removeDevice(deviceId: string) {
+/**
+ * Remove one computer: frees its device slot, deletes its heartbeat row and
+ * leaves a "deleted" record so it cannot silently keep running on the old
+ * activation. Entering the licence key on that computer again registers it
+ * again (if a slot is free). Other computers on the licence are not touched.
+ */
+export async function removeDevice(deviceId: string, licenseKey?: string) {
+  const updatedAt = Date.now();
   await setDoc(doc(db, 'deviceStatus', docIdFor(deviceId)), {
-    deviceId, status: 'deleted', message: 'Removed by Super Admin',
-    updatedAt: Date.now(), by: auth.currentUser?.email || 'admin',
+    deviceId, status: 'deleted', message: '', updatedAt, by: auth.currentUser?.email || 'admin',
   }, { merge: true });
+  if (licenseKey) {
+    const ref = doc(db, 'licenseDevices', docIdFor(licenseKey));
+    const snap = await getDoc(ref);
+    if (snap.exists()) await updateDoc(ref, { devices: arrayRemove(deviceId), updatedAt });
+  }
   await deleteDoc(doc(db, 'devices', docIdFor(deviceId)));
+}
+
+/** Clear a removal record, so the computer may report again without re-activation. */
+export async function clearDeviceRemoval(deviceId: string) {
+  await deleteDoc(doc(db, 'deviceStatus', docIdFor(deviceId)));
 }
 
 // ---------- support messages ----------

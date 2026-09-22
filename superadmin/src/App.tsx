@@ -20,11 +20,15 @@ import {
   exportBackup, exportCsv, importBackup, hasDevice, slotUsage, removeDevice, type Client,
 } from './registry';
 import DeviceMap from './DeviceMap';
+import LiveDeviceMap from './LiveDeviceMap';
 import { pinsFrom } from './pins';
 import CloudGate from './CloudGate';
 import Support from './Support';
 import Devices from './Devices';
-import { watchAdmin, adminSignOut, watchClients, pushClient, removeClient } from './cloud';
+import {
+  watchAdmin, adminSignOut, watchClients, pushClient, removeClient,
+  watchLicenseStatuses, setLicenseStatus, docIdFor, type StatusDoc, type LicenceAction,
+} from './cloud';
 import {
   BRAND, BRAND_SOFT, ACCENT, INK, INK_2, TEXT, STRONG, MUTED, LINE, TINT, TINT_2, STATUS,
   card, input, label, primaryBtn, ghostBtn,
@@ -417,6 +421,30 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [editing, setEditing] = useState<Client | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  // Licence-wide decisions on the server — what every POS on the key obeys.
+  const [serverStatus, setServerStatus] = useState<Map<string, StatusDoc>>(new Map());
+  const [statusBusy, setStatusBusy] = useState('');
+  const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => watchLicenseStatuses(setServerStatus, e => setStatusMsg({ ok: false, text: e.message })), []);
+
+  const changeLicence = async (c: Client, status: LicenceAction) => {
+    const explain: Record<LicenceAction, string> = {
+      active: 'Every computer on this licence may run again.',
+      suspended: 'Every computer on this licence shows "Your software license has been suspended by the administrator." until you set it back to Active.',
+      revoked: 'Every computer on this licence shows "Your software license has been revoked."',
+      pending: 'Every computer on this licence shows "Your license/payment is pending. Please contact the administrator."',
+    };
+    if (!confirm(`Set the licence of ${c.business || c.key} to ${status.toUpperCase()}?\n\n${explain[status]}\n\nIt applies the next time each computer is online (about a minute when connected).`)) return;
+    setStatusBusy(c.key);
+    setStatusMsg(null);
+    try {
+      await setLicenseStatus(c.key, status);
+      setClients(p => upsertClient(p, { ...c, suspended: status === 'suspended' || status === 'revoked' }));
+      setStatusMsg({ ok: true, text: `${c.business || c.key}: licence set to ${status.toUpperCase()} on the server.` });
+    } catch (e) {
+      setStatusMsg({ ok: false, text: `Not saved — ${(e as Error).message}` });
+    } finally { setStatusBusy(''); }
+  };
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -509,11 +537,19 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
                         onClick={() => setEditing(c)}
                         title="Change devices, expiry or shop details — and re-issue the key if needed"
                       >Edit</button>
-                      <button
-                        style={{ ...ghostBtn, padding: '5px 10px', fontSize: 11 }}
-                        onClick={() => setClients(p => upsertClient(p, { ...c, suspended: !c.suspended }))}
-                        title="Marks the client in this registry. It does not reach the shop's PC — the POS is offline."
-                      >{c.suspended ? 'Un-suspend' : 'Suspend'}</button>
+                      <select
+                        aria-label="Licence status on the server"
+                        value={(serverStatus.get(docIdFor(c.key))?.status as LicenceAction) || 'active'}
+                        disabled={statusBusy === c.key}
+                        onChange={e => { void changeLicence(c, e.target.value as LicenceAction); }}
+                        title="Licence-wide status on the server — every computer on this key obeys it when online"
+                        style={{ ...ghostBtn, padding: '4px 6px', fontSize: 11 }}
+                      >
+                        <option value="active">Active</option>
+                        <option value="suspended">Suspended</option>
+                        <option value="revoked">Revoked</option>
+                        <option value="pending">Pending payment</option>
+                      </select>
                       <button
                         style={{ ...ghostBtn, padding: '5px 10px', fontSize: 11, marginLeft: 6, color: STATUS.expired.fg }}
                         onClick={() => {
@@ -561,10 +597,16 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
         </div>
       )}
 
+      {statusMsg && (
+        <p role="status" style={{ fontSize: 12.5, fontWeight: 700, marginTop: 12, color: statusMsg.ok ? STATUS.active.fg : STATUS.expired.fg }}>
+          {statusMsg.ok ? '✓' : '✗'} {statusMsg.text}
+        </p>
+      )}
       <p style={{ fontSize: 11.5, color: MUTED, marginTop: 16, lineHeight: 1.7 }}>
-        <b style={{ color: STRONG }}>Note:</b> Suspend is a record in this panel, not a remote kill switch.
-        The POS is fully offline, so the way you control a shop is the expiry date on the key you
-        issue — when it lapses, the software stops until you send a new key.
+        <b style={{ color: STRONG }}>Note:</b> The licence status is stored on the server. Each computer applies it the
+        next time it is online (about once a minute while connected) and keeps it when it goes offline again.
+        A computer that never connects is governed only by the expiry date inside its key.
+        To act on one computer only, use the Devices tab.
       </p>
 
       {editing && (
@@ -853,7 +895,7 @@ function MapTab({ clients, setClients }: { clients: Client[]; setClients: (f: (p
 
       <section style={{ ...card, padding: 20 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-          <h2 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>Device map</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>Activation-code map</h2>
           <span style={{ fontSize: 12, color: MUTED }}>
             {pins.length} device{pins.length === 1 ? '' : 's'} with a location
           </span>
@@ -865,6 +907,8 @@ function MapTab({ clients, setClients }: { clients: Client[]; setClients: (f: (p
         </div>
         <DeviceMap pins={pins} />
       </section>
+
+      <LiveDeviceMap />
     </div>
   );
 }

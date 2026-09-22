@@ -308,10 +308,11 @@ const App = () => {
     return () => { if (unsub) unsub(); };
   }, [cloudMode, tenantReady, superAdmin]);
 
-  // ===== Hybrid link: background licence verification + device heartbeat =====
+  // ===== Hybrid link: device heartbeat =====
+  // Runs whenever the licensed POS is open (also on the login screen), so the
+  // Super Admin "online" indicator means "the POS is running and connected".
   // Never blocks the POS. With no internet the app simply stays in local mode.
   useEffect(() => {
-    if (!loggedIn) return;
     let stop: () => void = () => {};
     let cancelled = false;
     (async () => {
@@ -346,7 +347,7 @@ const App = () => {
       cancelled = true;
       stop();
     };
-  }, [loggedIn]);
+  }, []);
 
   const handleSplashDone = () => {
     sessionStorage.setItem('pos-splash-seen', '1');
