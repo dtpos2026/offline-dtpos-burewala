@@ -1,5 +1,79 @@
 # DT POS Enterprise — Release Notes
 
+## v1.13.3 — Footers cut off, late prints, printer re-detection, text too bold; café templates
+
+- **Reported** by a café in Lahore on a Black Copper "BlackCopper 80mm Series",
+  with photos of nine slips:
+  1. The end of each KOT was cut off — the previous slip's footer ("Printed …",
+     "Powered by …") came out at the top of the next slip.
+  2. Prints came out about 20 seconds late.
+  3. The printer had to be detected and activated again and again.
+  4. Text too bold; the reversed "TOTAL" bar printed almost solid black.
+  5. Asked for café-style receipt templates.
+- **What the photos showed:** the slips that printed complete went through
+  the image route (the slip is sent as a picture in one RAW job); the KOTs
+  with the cut footer went through the Windows-driver route. A thermal
+  driver trims the blank end of the page and cuts straight after the last
+  line it printed, but the cutter sits 15–25 mm above the print head — the
+  last lines were still below the blade.
+- **Causes and fixes:**
+  1. **Renamed printer.** Windows renames a USB printer when it is
+     re-plugged or wakes from sleep ("… (Copy 1)"). The image route opened
+     the saved name exactly, failed, and every slip silently fell back to
+     the Windows driver — slow, and cut through its footer — until someone
+     pressed Re-detect. The image route now resolves the name with the same
+     matcher the other routes use (and re-reads the list and retries once
+     if the printer cannot be opened). Startup detection writes the exact
+     Windows name back into the bill, KOT, token, backup and station
+     printer settings. Resolving runs while the slip renders, is cached, and
+     never holds a slip for more than 1.5 s.
+  2. **Direct-print helper** (the warm PowerShell bridge that sends image
+     slips). A start slower than 8 s left it broken until the app was
+     restarted, so every later slip went to the Windows driver; a helper
+     that died while starting held the slip queue for up to 30 s; after a
+     slow job the next slip paid a full cold start; its error output was
+     never read (a full pipe blocks it); writing to a helper that had just
+     died could raise an error in the app. Now: one slip waits at most 8 s
+     while the helper keeps starting in the background; a dead helper fails
+     the slip at once, is replaced, and its reason is written to the log.
+     The hidden print window is created at startup, so the first bill of
+     the day is no longer the slowest.
+  3. **Footer cut on the driver route.** Driver-route slips now end with an
+     18 mm clearance and a single dot the driver has to print, so the
+     footer is fed past the cutter. The printer's "Bottom (mm)" adds to it
+     (and to the image route's feed before the cut).
+  4. **Too bold.** New **Print Quality → Text weight**:
+     - *Standard* (default): body text regular; headings, item names and
+       totals bold; darkness 6; no extra smear.
+     - *Bold*: each template's own weights.
+     - *Extra bold*: the old default (darkness 7 plus a one-dot smear). It
+       no longer fills one-dot white gaps, so white text inside black bars
+       stays readable.
+
+     A computer on Manual print quality keeps the look it was tuned to
+     (Bold).
+- **New café templates** (Settings → Receipt → Premium templates):
+  - **Café Classic:** a rounded pickup number with the customer's name.
+  - **Coffee House:** a serif "Guest Check" with a soft totals panel.
+  - **Café Counter:** a ticket-style, very large pickup number.
+
+  All three use regular body type, "2 × Item" lines with the unit price
+  underneath, and no solid black blocks. They were checked at 80 mm in the
+  print simulator (no overflow, 2 mm margins), along with the other 25
+  slips.
+- **On site:**
+  1. Install 1.13.3. Printers are re-detected at startup.
+  2. Check that Settings → Printers → Print Quality → Text weight is
+     Standard, then Test Print.
+  3. If a KOT printer was switched to "Windows driver" to work around this,
+     set it back to Automatic.
+  4. If the last line is still close to the cut, raise that printer's
+     "Bottom (mm)".
+  5. If prints are still late, send `DT-POS\logs\app.log` (the "DT-Print"
+     lines show which route each slip took and how long it took).
+- Verified with unit tests, the Chromium print simulator and code review.
+  **Not yet tested on a physical Black Copper printer.**
+
 ## v1.13.2 — Blank slips on Black Copper (and similar printers)
 
 - **Symptom:** on a Black Copper printer the bill/KOT came out as blank paper
