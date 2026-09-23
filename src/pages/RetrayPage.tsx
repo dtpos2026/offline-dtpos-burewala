@@ -11,7 +11,7 @@ import { Printer, Eye, CreditCard, Ban, XCircle, RotateCcw, ChefHat, Globe, Paus
 import ReceiptPreview from '@/components/ReceiptPreview';
 import KitchenReceipt from '@/components/KitchenReceipt';
 import ReasonDialog from '@/components/ReasonDialog';
-import { enqueueKot, enqueueReceipt, enqueueToken } from '@/lib/printQueue';
+import { enqueueKot, enqueueReceipt, enqueueToken, printOnHold, holdMessage } from '@/lib/printQueue';
 import { billStatus } from '@/lib/billStatus';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -47,8 +47,12 @@ export default function RetrayPage() {
 
   /** Hold = finished but not paid. It stays an open bill; the table stays occupied. */
   const setHold = (o: Order, hold: boolean) => {
-    saveOrder({ ...o, status: hold ? 'hold' : 'running' });
-    toast.success(hold ? `Bill #${o.orderNumber} is on HOLD — UNPAID` : `Bill #${o.orderNumber} is open again`);
+    const updated: Order = { ...o, status: hold ? 'hold' : 'running' };
+    saveOrder(updated);
+    // Entering Hold prints the bill (ON HOLD — UNPAID) and any kitchen ticket
+    // that never went out; the state is saved first either way.
+    if (hold && o.status !== 'hold') toast.success(holdMessage(o.orderNumber, printOnHold(updated)));
+    else toast.success(hold ? `Bill #${o.orderNumber} is on HOLD — UNPAID` : `Bill #${o.orderNumber} is open again`);
     refresh();
   };
 

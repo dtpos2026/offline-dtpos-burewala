@@ -695,6 +695,8 @@ export interface RestaurantSettings {
    * later from Retrieve / Bill Reprint.
    */
   diningReceiptOnPay?: boolean;
+  /** Print the customer's bill, marked "ON HOLD (UNPAID)", when a bill is put on Hold. Default ON. */
+  printBillOnHold?: boolean;
   /** OFF = Pay button skips the "Payment Received" screen and completes as cash instantly. Default ON. */
   paymentDialogEnabled?: boolean;
   /** Tandoor Token module: ON = pay par token-category items ka alag token slip tandoor printer pe. */

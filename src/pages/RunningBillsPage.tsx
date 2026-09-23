@@ -7,7 +7,7 @@ import { CreditCard, Eye, Clock, RotateCcw, Ban, Gift, Pause, ChefHat, History }
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ReceiptPreview from '@/components/ReceiptPreview';
 import OrderDetailDialog from '@/components/OrderDetailDialog';
-import { enqueueKot, enqueueReceipt, enqueueReceiptOnPay, enqueueKotUpdate, enqueueKotCancel, computeKotDiff , enqueueToken } from '@/lib/printQueue';
+import { enqueueKot, enqueueReceipt, enqueueReceiptOnPay, enqueueKotUpdate, enqueueKotCancel, computeKotDiff , enqueueToken, printOnHold, holdMessage } from '@/lib/printQueue';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import ReceivePaymentButton from '@/components/ReceivePaymentButton';
@@ -109,7 +109,8 @@ export default function RunningBillsPage() {
       } catch {}
     }
     refresh();
-    toast.success(`Order #${order.orderNumber} marked as ${status}`);
+    if (status === 'hold' && order.status !== 'hold') toast.success(holdMessage(order.orderNumber, printOnHold(updated)));
+    else toast.success(`Order #${order.orderNumber} marked as ${status}`);
   };
 
 

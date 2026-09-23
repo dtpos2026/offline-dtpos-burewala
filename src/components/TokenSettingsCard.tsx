@@ -58,6 +58,7 @@ export default function TokenSettingsCard() {
   const countsOn = s.tokenCountsInSales !== false;
   const noReceipt = !!s.noReceiptOnPay;
   const diningReceipt = s.diningReceiptOnPay !== false;
+  const billOnHold = s.printBillOnHold !== false;
   const kotOn = s.kotEnabled !== false;
   const manualKot = !!s.manualSendToKitchen;
   const kotStrict = s.kotFallbackToReceipt === false; // ON = KOT sirf kitchen printer pe
@@ -351,6 +352,18 @@ export default function TokenSettingsCard() {
           </span>
         </div>
         <Toggle on={diningReceipt} onClick={() => save({ diningReceiptOnPay: !diningReceipt })} />
+      </label>
+
+      <label className="flex items-center justify-between gap-2 bg-muted/40 px-3 py-2 rounded-lg cursor-pointer">
+        <div>
+          <span className="text-xs font-semibold block">Print Bill on Hold</span>
+          <span className="text-[11px] text-muted-foreground">
+            {billOnHold
+              ? 'ON = putting a bill on Hold prints the customer bill marked ON HOLD (UNPAID). Items that never reached the kitchen get their KOT too.'
+              : 'OFF = Hold prints only the KOT for items that never reached the kitchen.'}
+          </span>
+        </div>
+        <Toggle on={billOnHold} onClick={() => save({ printBillOnHold: !billOnHold })} />
       </label>
     </Card>
   );

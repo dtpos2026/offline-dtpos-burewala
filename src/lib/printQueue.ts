@@ -604,6 +604,53 @@ export function enqueueReceiptOnPay(order: Order, opts: EnqueueOpts = {}) {
 }
 
 /**
+ * Whether a bill's kitchen ticket goes out automatically — the same rules the
+ * POS applies to a new running order (master switch, per-order-type switch,
+ * manual "Send to Kitchen" mode).
+ */
+export function autoKotFor(order: Pick<Order, 'orderType'>, s: any = getSettings()): boolean {
+  if (s.kotEnabled === false || s.manualSendToKitchen) return false;
+  const master = s.autoPrintKot ?? s.autoKitchenPrint ?? true;
+  const perType = order.orderType === 'dining' ? (s.autoKotDining ?? master)
+    : order.orderType === 'takeaway' ? (s.autoKotTakeaway ?? master)
+    : order.orderType === 'delivery' ? (s.autoKotDelivery ?? master)
+    : master;
+  return !!perType;
+}
+
+/**
+ * What putting a bill on HOLD prints. Called once, when the bill ENTERS hold
+ * (not on resume, not on every save while held).
+ *
+ *  - the kitchen ticket, if this bill's items never reached the kitchen and
+ *    the shop sends KOTs automatically (a new order saved straight to Hold
+ *    used to skip the kitchen entirely);
+ *  - the customer's bill marked "ON HOLD (UNPAID)", when "Print Bill on
+ *    Hold" is on (default) — the guest has eaten, the bill is presented, the
+ *    payment comes later.
+ *
+ * The queue's own de-duplication still applies, so a double click or two
+ * screens holding the same bill never produce two slips. Never throws.
+ */
+export function printOnHold(order: Order, opts: { kot?: boolean } = {}): { bill: boolean; kot: boolean } {
+  const out = { bill: false, kot: false };
+  try {
+    const s: any = getSettings();
+    if (s.printBillOnHold !== false) out.bill = !!enqueueReceipt(order, { force: true });
+    if (opts.kot !== false && !order.kotPrinted && (order.items || []).length && autoKotFor(order, s)) {
+      out.kot = !!enqueueKot(order);
+    }
+  } catch { /* printing must never undo the hold */ }
+  return out;
+}
+
+/** The cashier's message after a hold, saying only what really happened. */
+export function holdMessage(orderNumber: number | string, printed: { bill: boolean; kot: boolean }): string {
+  const parts = [printed.bill && 'bill', printed.kot && 'kitchen ticket'].filter(Boolean);
+  return `Bill #${orderNumber} is on HOLD — UNPAID${parts.length ? ` · ${parts.join(' and ')} sent to the printer` : ''}`;
+}
+
+/**
  * The one call every pay path makes AFTER the paid bill is saved. It never
  * throws and never touches the order's payment — a printer problem is
  * reported by the queue on its own, and the bill stays paid.

@@ -26,7 +26,7 @@ import CustomerAutocomplete from '@/components/CustomerAutocomplete';
 import LocationCapture from '@/components/LocationCapture';
 // Phase-1: lazy-load PaymentDialog (heavy child — only mounted on checkout)
 const PaymentDialog = lazy(() => import('@/components/PaymentDialog'));
-import { enqueueKot, enqueueReceipt, enqueueReceiptOnPay, enqueueKotUpdate, enqueueKotCancel, computeKotDiff, printReceiptAfterPayment } from '@/lib/printQueue';
+import { enqueueKot, enqueueReceipt, enqueueReceiptOnPay, enqueueKotUpdate, enqueueKotCancel, computeKotDiff, printReceiptAfterPayment, printOnHold, holdMessage } from '@/lib/printQueue';
 import { billStatus, paidMessage, receiptOnPay } from '@/lib/billStatus';
 import { printTokenDirect, nextTokenSerial } from '@/lib/tokenSlip';
 import { resolveTokenRules, getTokenLinesFromCart } from '@/lib/tokenRules';
@@ -1072,8 +1072,12 @@ export default function POSScreen() {
           toast.info(`Order #${updated.orderNumber} marked complimentary`);
         } else if (status === 'cancelled') {
           toast.info(`Order #${updated.orderNumber} cancelled`);
+        } else if (status === 'hold' && existing.status !== 'hold') {
+          // New items already went to the kitchen above (KOT diff); the bill
+          // is printed as ON HOLD (UNPAID) when the bill enters Hold.
+          toast.success(holdMessage(updated.orderNumber, printOnHold(updated, { kot: false })));
         } else {
-          toast.info(`Order #${updated.orderNumber} updated & held`);
+          toast.info(`Order #${updated.orderNumber} updated`);
         }
         clearCart();
         return;
@@ -1185,7 +1189,9 @@ export default function POSScreen() {
       const due = Math.max(0, (order.grandTotal || 0) - (order.amountPaid || 0));
       toast.success(`Order #${order.orderNumber} — Partial paid Rs.${(order.amountPaid||0).toLocaleString()} · Pending Rs.${due.toLocaleString()}`);
     } else if (status === 'hold') {
-      toast.info(`Order #${order.orderNumber} on hold`);
+      // A bill saved straight to Hold used to print nothing at all: not the
+      // kitchen ticket (the order never reached the kitchen) and not the bill.
+      toast.success(holdMessage(order.orderNumber, printOnHold(order, { kot: !isOrderTaker })));
     } else if (isOrderTaker) {
       toast.success(`Order #${order.orderNumber} sent to the kitchen.`);
     } else {
@@ -1364,7 +1370,11 @@ export default function POSScreen() {
       try { enqueueKotCancel(updated); } catch {}
     }
     setRunningBills(prev => prev.map(o => o.id === order.id ? updated : o).filter(o => o.status === 'running' || o.status === 'hold'));
-    toast.success(`Bill #${order.orderNumber} marked as ${status}`);
+    if (status === 'hold' && order.status !== 'hold') {
+      toast.success(holdMessage(order.orderNumber, printOnHold(updated)));
+    } else {
+      toast.success(`Bill #${order.orderNumber} marked as ${status}`);
+    }
   };
 
 
