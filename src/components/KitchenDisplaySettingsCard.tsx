@@ -18,9 +18,10 @@ import { Switch } from '@/components/ui/switch';
 import { ChefHat, Palette, Columns } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  loadKitchenDisplay, saveKitchenDisplay, kitchenColumns,
+  loadKitchenDisplay, saveKitchenDisplay, kitchenColumns, announceKitchenOrder, KITCHEN_ANNOUNCEMENTS,
   type KitchenDisplayConfig,
 } from '@/lib/kitchenDisplay';
+import VoiceStatusPanel from '@/components/VoiceStatusPanel';
 import { templateById } from '@/lib/displayTemplates';
 import DisplayTemplatePicker from '@/components/DisplayTemplatePicker';
 import { getSettings } from '@/lib/store';
@@ -141,6 +142,62 @@ export default function KitchenDisplaySettingsCard() {
           </p>
         </div>
         <Switch id="kd-sound" checked={cfg.sound} onCheckedChange={v => patch({ sound: v })} />
+      </div>
+
+      <div className="rounded-md border p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5 pr-4">
+            <Label htmlFor="kd-announce" className="text-sm">Say the new order number aloud</Label>
+            <p className="text-xs text-muted-foreground">
+              Spoken after the beep when a new ticket (KOT) reaches the board. The board&rsquo;s
+              mute button silences it too.
+            </p>
+          </div>
+          <Switch id="kd-announce" checked={cfg.announce} onCheckedChange={v => patch({ announce: v })} />
+        </div>
+        {cfg.announce && (
+          <div className="space-y-3">
+            {([1, 2] as const).map(slot => {
+              const tpl = slot === 1 ? cfg.announceTemplate : cfg.announceTemplate2;
+              const setLine = (text: string, lang: string) => patch(slot === 1
+                ? { announceTemplate: text, announceLang: lang }
+                : { announceTemplate2: text, announceLang2: lang });
+              return (
+                <div key={slot} className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-xs">{slot === 1 ? 'Announcement' : 'Second language (optional)'}</Label>
+                    {slot === 2 && (
+                      <Switch checked={!!cfg.announceTemplate2}
+                              onCheckedChange={v => setLine(v ? KITCHEN_ANNOUNCEMENTS[2].text : '', 'ur-PK')} />
+                    )}
+                  </div>
+                  {(slot === 1 || !!tpl) && (
+                    <>
+                      <div className="flex flex-wrap gap-1.5">
+                        {KITCHEN_ANNOUNCEMENTS.map(v => (
+                          <Button key={v.id} type="button" size="sm" className="h-7 text-xs"
+                                  variant={tpl === v.text ? 'default' : 'outline'}
+                                  onClick={() => setLine(v.text, v.lang)}>
+                            {v.label}
+                          </Button>
+                        ))}
+                      </div>
+                      <Input value={tpl} onChange={e => setLine(e.target.value, slot === 1 ? cfg.announceLang : cfg.announceLang2)} />
+                    </>
+                  )}
+                </div>
+              );
+            })}
+            <Button size="sm" variant="outline" onClick={async () => {
+              const r = await announceKitchenOrder(25, cfg);
+              if (!r.spoken) toast.error(r.skipped[0] || 'This computer could not speak the announcement.');
+              else if (r.skipped.length) toast.warning(`Played, but: ${r.skipped[0]}`);
+              else toast.success(r.notes.find(n => n.startsWith('Urdu line')) || 'Announcement played.');
+            }}>Test the voice</Button>
+            <VoiceStatusPanel hindiForUrdu={cfg.announceHindiForUrdu}
+                              onHindiForUrdu={v => patch({ announceHindiForUrdu: v })} />
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between rounded-md border p-3">

@@ -94,6 +94,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAutoStart: () => ipcRenderer.invoke('get-auto-start'),
   setAutoStart: (enabled) => ipcRenderer.invoke('set-auto-start', enabled),
 
+  // Windows OneCore speech voices (see electron/windowsSpeech.cjs)
+  ttsVoices: (refresh) => ipcRenderer.invoke('tts-voices', !!refresh),
+  ttsSpeak: (job) => ipcRenderer.invoke('tts-speak', job),
+  ttsCancel: () => ipcRenderer.invoke('tts-cancel'),
+
   // Auto-update
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   downloadAndRunInstaller: (url) => ipcRenderer.invoke('download-and-run-installer', url),

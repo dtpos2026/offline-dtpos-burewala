@@ -19,6 +19,7 @@
 // ============================================================
 
 import { templateById, pickAutoTemplate, type DisplayTemplate } from './displayTemplates';
+import { cancelSpeech, speakLines } from './speech';
 
 export type MediaKind = 'image' | 'video';
 
@@ -91,6 +92,12 @@ export interface CustomerDisplayConfig {
   /** Times an announcement repeats, so a distracted customer still catches it. */
   announceRepeat: number;
   /**
+   * When Windows has no Urdu voice (it ships none), read Urdu lines with the
+   * Hindi voice after rewriting them in Hindi script. Default on; off means
+   * Urdu lines are skipped on such a computer.
+   */
+  announceHindiForUrdu: boolean;
+  /**
    * Play a short chime before the number is spoken.
    *
    * It is the sound that makes the room look up; the words only work on
@@ -152,6 +159,7 @@ export const DEFAULT_DISPLAY: CustomerDisplayConfig = {
   announceTemplate2: '',
   announceLang2: 'ur-PK',
   announceRepeat: 2,
+  announceHindiForUrdu: true,
   announceChime: true,
   showWaitTime: true,
   // Long enough for someone who stepped away to come back and still see it.
@@ -232,6 +240,27 @@ export const ANNOUNCEMENT_VOICES: AnnouncementVoice[] = [
     lang: 'ur-PK',
     text: 'آرڈر نمبر {n} تیار ہے۔',
   },
+  // Hindi script, same spoken words — for a computer with a Hindi voice.
+  // (The Urdu wordings above are also read by the Hindi voice automatically
+  // when no Urdu voice is installed.)
+  {
+    id: 'hi-ready',
+    label: 'Hindi voice — order is ready',
+    lang: 'hi-IN',
+    text: 'ऑर्डर नंबर {n} तैयार है। मेहरबानी करके काउंटर से ले लें।',
+  },
+  {
+    id: 'hi-counter',
+    label: 'Hindi voice — come to the counter',
+    lang: 'hi-IN',
+    text: 'ऑर्डर नंबर {n}, मेहरबानी करके काउंटर पर तशरीफ़ लाएं।',
+  },
+  {
+    id: 'hi-short',
+    label: 'Hindi voice — short',
+    lang: 'hi-IN',
+    text: 'ऑर्डर नंबर {n} तैयार है।',
+  },
 ];
 
 export function voiceById(id: string | undefined): AnnouncementVoice | undefined {
@@ -264,6 +293,7 @@ export function loadDisplayConfig(): CustomerDisplayConfig {
       announceLang2: typeof p.announceLang2 === 'string' && p.announceLang2.trim()
         ? p.announceLang2 : DEFAULT_DISPLAY.announceLang2,
       announceRepeat: clampNum(p.announceRepeat, 1, 5, DEFAULT_DISPLAY.announceRepeat),
+      announceHindiForUrdu: p.announceHindiForUrdu !== false,
       announceChime: p.announceChime !== false,
       showWaitTime: p.showWaitTime !== false,
       readyHoldSeconds: clampNum(p.readyHoldSeconds, 10, 600, DEFAULT_DISPLAY.readyHoldSeconds),
@@ -326,22 +356,20 @@ export function displayConfigSizeKb(cfg: CustomerDisplayConfig): number {
 /**
  * Speak an order number.
  *
- * Uses the browser's own speech synthesis, which is present in Chromium and
- * therefore in the desktop app. It is a genuine best-effort: a machine with
- * no voices installed simply stays silent, and that is reported to the caller
- * rather than pretended away — a shop that turned announcements on deserves
- * to know they are not happening.
+ * Goes through the shared speech service (lib/speech.ts), which waits for
+ * Windows to finish listing its voices and picks one that can actually read
+ * each line: an Urdu line goes to an Urdu voice, or — Windows ships none — is
+ * rewritten in Hindi script for a Hindi voice, or is skipped with a reason.
+ * It is never handed to an English voice to be read as noise. A line that
+ * cannot be spoken is reported, never pretended away; the display carries on
+ * either way.
  */
-export function announceOrder(
+export async function announceOrder(
   orderNumber: number | string,
   cfg: Pick<CustomerDisplayConfig, 'announceTemplate' | 'announceRepeat'>
-     & Partial<Pick<CustomerDisplayConfig, 'announceLang' | 'announceTemplate2' | 'announceLang2'>>,
-): { spoken: boolean; reason?: string } {
+     & Partial<Pick<CustomerDisplayConfig, 'announceLang' | 'announceTemplate2' | 'announceLang2' | 'announceHindiForUrdu'>>,
+): Promise<{ spoken: boolean; reason?: string; notes?: string[] }> {
   try {
-    const synth = typeof window !== 'undefined' ? window.speechSynthesis : undefined;
-    if (!synth) return { spoken: false, reason: 'This device has no speech support.' };
-
-    const times = Math.max(1, Math.min(5, cfg.announceRepeat || 1));
     const lines: Array<{ text: string; lang: string }> = [];
     const add = (tpl: string | undefined, lang: string | undefined) => {
       const text = String(tpl || '').replace(/\{n\}/g, String(orderNumber)).trim();
@@ -351,47 +379,11 @@ export function announceOrder(
     // The second language, when the shop has set one. Most counters here want
     // the number in Urdu and again in English.
     add(cfg.announceTemplate2, cfg.announceLang2);
-
     if (!lines.length) return { spoken: false, reason: 'The announcement text is empty.' };
 
-    // A voice that actually speaks the language, where Windows has one.
-    // Without this an Urdu sentence is handed to an English voice and comes
-    // out as nonsense — the announcement is worse than silence.
-    const voices = (() => { try { return synth.getVoices() || []; } catch { return []; } })();
-    const pickVoice = (lang: string) => {
-      const want = lang.toLowerCase();
-      const base = want.split('-')[0];
-      return voices.find(v => v.lang?.toLowerCase() === want)
-        || voices.find(v => v.lang?.toLowerCase().replace('_', '-') === want)
-        || voices.find(v => v.lang?.toLowerCase().startsWith(base))
-        || undefined;
-    };
-
-    let missing: string | undefined;
-    for (let i = 0; i < times; i++) {
-      for (const line of lines) {
-        const u = new SpeechSynthesisUtterance(line.text);
-        u.lang = line.lang;
-        const voice = pickVoice(line.lang);
-        if (voice) u.voice = voice;
-        else if (!missing && voices.length) missing = line.lang;
-        // Slower and slightly louder than conversational: this is being heard
-        // across a room with background noise.
-        u.rate = 0.9;
-        u.pitch = 1;
-        u.volume = 1;
-        synth.speak(u);
-      }
-    }
-    if (missing) {
-      // Spoken, but not in the language asked for. Saying so beats letting a
-      // shop believe their Urdu announcement is working when it is not.
-      return {
-        spoken: true,
-        reason: `Windows has no ${missing} voice installed, so that line was read by another voice.`,
-      };
-    }
-    return { spoken: true };
+    const r = await speakLines(lines, cfg.announceRepeat || 1, { hindiForUrdu: cfg.announceHindiForUrdu !== false });
+    const reason = r.skipped[0];
+    return r.spoken > 0 ? { spoken: true, reason, notes: r.notes } : { spoken: false, reason: reason || 'Speech failed.', notes: r.notes };
   } catch (e: any) {
     return { spoken: false, reason: e?.message || 'Speech failed.' };
   }
@@ -424,7 +416,7 @@ export function hasVoiceFor(lang: string): boolean {
 
 /** Stop anything currently being spoken. */
 export function cancelAnnouncements(): void {
-  try { window.speechSynthesis?.cancel(); } catch { /* nothing to cancel */ }
+  cancelSpeech();
 }
 
 

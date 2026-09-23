@@ -10,6 +10,7 @@
 // driving the kitchen TV is the machine that knows what that TV is.
 // ============================================================
 import { templateById, pickAutoTemplate, type DisplayTemplate } from './displayTemplates';
+import { speakLines, type SpeakResult } from './speech';
 
 export interface KitchenDisplayConfig {
   /** Which look the board wears. See src/lib/displayTemplates.ts. */
@@ -32,7 +33,29 @@ export interface KitchenDisplayConfig {
   showDeveloperCredit: boolean;
   /** Beep when a new ticket arrives. */
   sound: boolean;
+  /**
+   * Also SAY the new order number (after the beep). Off by default — a
+   * kitchen that has worked with the beep is not surprised by a voice.
+   */
+  announce: boolean;
+  /** Wording; `{n}` is the order number. */
+  announceTemplate: string;
+  announceLang: string;
+  /** Optional second line in another language (empty = none). */
+  announceTemplate2: string;
+  announceLang2: string;
+  /** Read Urdu with the Hindi voice when Windows has no Urdu voice. */
+  announceHindiForUrdu: boolean;
 }
+
+/** Ready-made kitchen wordings. `{n}` becomes the order number. */
+export const KITCHEN_ANNOUNCEMENTS: Array<{ id: string; label: string; lang: string; text: string }> = [
+  { id: 'en-new', label: 'English — new order', lang: 'en-GB', text: 'New order, number {n}.' },
+  { id: 'en-kitchen', label: 'English — kitchen, new order', lang: 'en-GB', text: 'Kitchen, new order number {n}.' },
+  { id: 'ur-new', label: 'اردو — نیا آرڈر', lang: 'ur-PK', text: 'نیا آرڈر نمبر {n}۔' },
+  { id: 'ur-kitchen', label: 'اردو — کچن، نیا آرڈر', lang: 'ur-PK', text: 'کچن، نیا آرڈر نمبر {n} آیا ہے۔' },
+  { id: 'hi-new', label: 'Hindi voice — new order', lang: 'hi-IN', text: 'नया ऑर्डर नंबर {n}।' },
+];
 
 export const DEFAULT_KITCHEN_DISPLAY: KitchenDisplayConfig = {
   // The dark board the kitchens have been reading for months. Changing what
@@ -42,6 +65,12 @@ export const DEFAULT_KITCHEN_DISPLAY: KitchenDisplayConfig = {
   columns: 0,
   showDeveloperCredit: true,
   sound: true,
+  announce: false,
+  announceTemplate: 'New order, number {n}.',
+  announceLang: 'en-GB',
+  announceTemplate2: '',
+  announceLang2: 'ur-PK',
+  announceHindiForUrdu: true,
 };
 
 const KEY = 'dtpos-kitchen-display-v1';
@@ -58,6 +87,12 @@ export function loadKitchenDisplay(): KitchenDisplayConfig {
       columns: Number.isFinite(cols) ? Math.max(0, Math.min(8, Math.round(cols))) : 0,
       showDeveloperCredit: p.showDeveloperCredit !== false,
       sound: p.sound !== false,
+      announce: p.announce === true,
+      announceTemplate: typeof p.announceTemplate === 'string' && p.announceTemplate.trim() ? p.announceTemplate : DEFAULT_KITCHEN_DISPLAY.announceTemplate,
+      announceLang: typeof p.announceLang === 'string' && p.announceLang.trim() ? p.announceLang : DEFAULT_KITCHEN_DISPLAY.announceLang,
+      announceTemplate2: typeof p.announceTemplate2 === 'string' ? p.announceTemplate2 : '',
+      announceLang2: typeof p.announceLang2 === 'string' && p.announceLang2.trim() ? p.announceLang2 : DEFAULT_KITCHEN_DISPLAY.announceLang2,
+      announceHindiForUrdu: p.announceHindiForUrdu !== false,
     };
   } catch {
     return { ...DEFAULT_KITCHEN_DISPLAY };
@@ -105,4 +140,19 @@ export function kitchenColumns(
   const per = density === 'compact' ? 250 : 320;
   const w = Number.isFinite(width) && width > 0 ? width : 1920;
   return Math.max(1, Math.min(8, Math.floor(w / per)));
+}
+
+/**
+ * Say a new kitchen order aloud. Best effort: it never throws and never holds
+ * up the board — a missing voice is reported in the result, nothing more.
+ */
+export function announceKitchenOrder(orderNumber: number | string, cfg: KitchenDisplayConfig): Promise<SpeakResult> {
+  const lines = [
+    { text: cfg.announceTemplate, lang: cfg.announceLang },
+    { text: cfg.announceTemplate2, lang: cfg.announceLang2 },
+  ]
+    .map(l => ({ text: String(l.text || '').replace(/\{n\}/g, String(orderNumber)).trim(), lang: l.lang || 'en-GB' }))
+    .filter(l => l.text);
+  if (!lines.length) return Promise.resolve({ spoken: 0, skipped: ['The announcement text is empty.'], notes: [] });
+  return speakLines(lines, 1, { hindiForUrdu: cfg.announceHindiForUrdu !== false });
 }

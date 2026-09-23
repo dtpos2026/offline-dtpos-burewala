@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { getOrders, getSettings, getKitchens, getMenuItems, onDataChange, setOrderKitchenStatus } from '@/lib/store';
 import { Order, RestaurantSettings, CartItem } from '@/lib/types';
+import { warmUpVoices } from '@/lib/speech';
 import { Maximize2, Volume2, VolumeX, AlertTriangle, Clock, ChefHat, Bell, Bike, CheckCircle2 } from 'lucide-react';
 import {
-  loadKitchenDisplay, resolveKitchenTemplate, kitchenColumns,
+  loadKitchenDisplay, resolveKitchenTemplate, kitchenColumns, announceKitchenOrder,
   type KitchenDisplayConfig,
 } from '@/lib/kitchenDisplay';
 import { templateVars, scaledFont, DEVELOPER_CREDIT } from '@/lib/displayTemplates';
@@ -80,6 +81,10 @@ export default function KdsTvPage() {
   const activeKitchen = useMemo(() => getKitchenFromUrl(), []);
   const [display, setDisplay] = useState<KitchenDisplayConfig>(() => loadKitchenDisplay());
   const [soundOn, setSoundOn] = useState(() => loadKitchenDisplay().sound);
+  // Read inside the refresh loop, which does not re-subscribe on every change.
+  const displayRef = useRef(display);
+  displayRef.current = display;
+  useEffect(() => { if (display.announce) warmUpVoices(); }, [display.announce]);
   const { w: vw, h: vh } = useViewport();
   const template = useMemo(
     () => resolveKitchenTemplate(display, vw, vh),
@@ -137,6 +142,14 @@ export default function KdsTvPage() {
             return m >= (getSettings().kitchenWarningMinutes || 10);
           });
           playBeep(urgent);
+          // Then the number, when the kitchen asked for a voice. After the
+          // beep, never instead of it; a missing voice is silent, not fatal.
+          const d = displayRef.current;
+          if (d.announce) {
+            window.setTimeout(() => {
+              for (const o of fresh) void announceKitchenOrder(o.orderNumber ?? '', d).catch(() => undefined);
+            }, 700);
+          }
         }
       }
       if (!first.current) {

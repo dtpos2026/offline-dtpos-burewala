@@ -14,12 +14,14 @@
 // gets that exact file on the screen; the width, height, fit and position
 // below are applied as CSS at display time, so sizing costs no quality.
 // ============================================================
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import VoiceStatusPanel from '@/components/VoiceStatusPanel';
+import { planSpeech, type VoiceInfo, type VoiceSupport } from '@/lib/speech';
 import {
   Monitor, Trash2, Volume2, Image as ImageIcon, Film, Palette, Columns, Settings2,
   Link as LinkIcon, Speaker,
@@ -33,8 +35,6 @@ import {
   mediaStyle,
   ANNOUNCEMENT_VOICES,
   voiceById,
-  hasVoiceFor,
-  installedVoiceLanguages,
   type CustomerDisplayConfig,
   type DisplayMedia,
   type MediaFit,
@@ -77,21 +77,16 @@ export default function CustomerDisplaySettingsCard() {
   const [showVideoUrl, setShowVideoUrl] = useState(false);
   const [outputs, setOutputs] = useState<AudioOutput[]>([]);
   const [output, setOutput] = useState(() => loadAnnounceOutput());
-  // Voices load asynchronously in Chromium, so "no Urdu voice" is only worth
-  // saying once the list has actually arrived.
-  const [voicesLoaded, setVoicesLoaded] = useState(() => installedVoiceLanguages().length > 0);
+  // What Windows can speak — filled by the voice status panel, used for the
+  // per-line hints ("read by the Hindi voice", "will be skipped").
+  const [voices, setVoices] = useState<VoiceInfo[] | null>(null);
+  const onSupport = useCallback((s: VoiceSupport) => setVoices(s.voices), []);
   const shopName = (() => { try { return getSettings().name; } catch { return undefined; } })();
 
   useEffect(() => { setSizeKb(displayConfigSizeKb(cfg)); }, [cfg]);
 
   useEffect(() => {
     void listAudioOutputs().then(setOutputs);
-    const onVoices = () => setVoicesLoaded(installedVoiceLanguages().length > 0);
-    onVoices();
-    try { window.speechSynthesis?.addEventListener?.('voiceschanged', onVoices); } catch { /* older engine */ }
-    return () => {
-      try { window.speechSynthesis?.removeEventListener?.('voiceschanged', onVoices); } catch { /* nothing to remove */ }
-    };
   }, []);
 
   const commit = (next: CustomerDisplayConfig) => {
@@ -189,11 +184,20 @@ export default function CustomerDisplaySettingsCard() {
 
   const remove = (id: string) => commit({ ...cfg, media: cfg.media.filter(m => m.id !== id) });
 
-  const testVoice = () => {
-    const r = announceOrder(101, cfg);
+  const testVoice = async () => {
+    const r = await announceOrder(101, cfg);
     if (!r.spoken) toast.error(r.reason || 'This device could not speak the announcement.');
-    else if (r.reason) toast.warning(r.reason);
-    else toast.success('Announcement played.');
+    else if (r.reason) toast.warning(`Played, but: ${r.reason}`);
+    else toast.success(r.notes?.find(n => n.startsWith('Urdu line')) || 'Announcement played.');
+  };
+
+  /** How one announcement line will be spoken on this computer. */
+  const lineHint = (text: string, lang: string) => {
+    if (!voices) return null;
+    const r = planSpeech(text.replace(/\{n\}/g, '101'), lang, voices, { hindiForUrdu: cfg.announceHindiForUrdu });
+    if (r.kind === 'skip') return <span className="text-destructive"> — {r.reason}</span>;
+    if (r.kind === 'hindi-for-urdu') return <span className="text-status-warning"> — no Urdu voice; read by the Hindi voice “{r.voice.name}”.</span>;
+    return <span> — voice: {r.voice.name}</span>;
   };
 
   const testChime = async () => {
@@ -388,12 +392,7 @@ export default function CustomerDisplaySettingsCard() {
               <p className="text-[11px] text-muted-foreground">
                 <code>{'{n}'}</code> becomes the order number. Language:{' '}
                 <b>{cfg.announceLang}</b>
-                {!hasVoiceFor(cfg.announceLang) && voicesLoaded && (
-                  <span className="text-status-warning">
-                    {' '}— Windows has no voice for this language installed, so it
-                    will be read by another voice.
-                  </span>
-                )}
+                {lineHint(cfg.announceTemplate, cfg.announceLang)}
               </p>
             </div>
 
@@ -428,11 +427,7 @@ export default function CustomerDisplaySettingsCard() {
                          onChange={e => patch({ announceTemplate2: e.target.value })} />
                   <p className="text-[11px] text-muted-foreground">
                     Spoken straight after the first. Language: <b>{cfg.announceLang2}</b>
-                    {!hasVoiceFor(cfg.announceLang2) && voicesLoaded && (
-                      <span className="text-status-warning">
-                        {' '}— no voice for it is installed in Windows.
-                      </span>
-                    )}
+                    {lineHint(cfg.announceTemplate2, cfg.announceLang2)}
                   </p>
                 </>
               ) : (
@@ -449,8 +444,14 @@ export default function CustomerDisplaySettingsCard() {
                        value={cfg.announceRepeat}
                        onChange={e => patch({ announceRepeat: Number(e.target.value) || 1 })} />
               </div>
-              <Button size="sm" variant="outline" onClick={testVoice}>Test the voice</Button>
+              <Button size="sm" variant="outline" onClick={() => void testVoice()}>Test the voice</Button>
             </div>
+
+            <VoiceStatusPanel
+              hindiForUrdu={cfg.announceHindiForUrdu}
+              onHindiForUrdu={v => patch({ announceHindiForUrdu: v })}
+              onSupport={onSupport}
+            />
 
             {/* ===== CHIME AND WHERE THE SOUND COMES OUT ===== */}
             <div className="rounded-md border p-2.5 space-y-2">

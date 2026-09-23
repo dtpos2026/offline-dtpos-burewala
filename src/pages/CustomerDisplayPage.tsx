@@ -45,6 +45,7 @@ import {
 } from '@/lib/customerDisplay';
 import { templateVars, scaledFont, fitNumberFont, DEVELOPER_CREDIT } from '@/lib/displayTemplates';
 import { playAnnounceChime } from '@/lib/announceAudio';
+import { warmUpVoices } from '@/lib/speech';
 import { Volume2, VolumeX, Maximize2, ChefHat, CheckCircle2, Megaphone } from 'lucide-react';
 
 /** Orders the kitchen is still working on. */
@@ -88,6 +89,7 @@ function useViewport() {
 
 export default function CustomerDisplayPage() {
   const [cfg, setCfg] = useState<CustomerDisplayConfig>(() => loadDisplayConfig());
+  useEffect(() => { if (cfg.announce) warmUpVoices(); }, [cfg.announce]);
   const [settings, setSettings] = useState<RestaurantSettings>(() => getSettings());
   const [orders, setOrders] = useState<Order[]>([]);
   const [, setTick] = useState(0);
@@ -169,7 +171,7 @@ export default function CustomerDisplayPage() {
     if (cfg.announce && !muted) {
       // The chime first, on whichever output the shop chose. It is what makes
       // the room look up; the words only reach someone already listening.
-      const speak = () => { for (const o of fresh) announceOrder(o.orderNumber ?? '', cfg); };
+      const speak = () => { for (const o of fresh) void announceOrder(o.orderNumber ?? '', cfg); };
       if (cfg.announceChime) {
         void playAnnounceChime().finally(() => window.setTimeout(speak, 420));
       } else {

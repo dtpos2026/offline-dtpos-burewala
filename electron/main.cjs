@@ -2214,6 +2214,9 @@ app.whenReady().then(() => {
 });
 app.on('before-quit', stopRawWorker);
 
+// Windows OneCore voices (Hindi and other language packs Chromium cannot list).
+require('./windowsSpeech.cjs').registerSpeechIpc(ipcMain, app);
+
 /** List of installed printer names (used to resolve/verify a target). */
 ipcMain.handle('print-raw', async (_event, options = {}) => {
   const started = Date.now();

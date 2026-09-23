@@ -61,12 +61,12 @@ describe('configuration', () => {
 });
 
 describe('announcements', () => {
-  it('says so when the device has no speech support', () => {
+  it('says so when the device has no speech support', async () => {
     // A shop that turned announcements on deserves to know they are silent.
     const original = (window as any).speechSynthesis;
     try {
       Object.defineProperty(window, 'speechSynthesis', { value: undefined, configurable: true });
-      const r = announceOrder(101, DEFAULT_DISPLAY);
+      const r = await announceOrder(101, DEFAULT_DISPLAY);
       expect(r.spoken).toBe(false);
       expect(r.reason).toBeTruthy();
     } finally {
@@ -74,32 +74,32 @@ describe('announcements', () => {
     }
   });
 
-  it('refuses to speak empty wording', () => {
+  it('refuses to speak empty wording', async () => {
     const speak = vi.fn();
     Object.defineProperty(window, 'speechSynthesis', {
       value: { speak, getVoices: () => [], cancel: () => {} }, configurable: true,
     });
-    const r = announceOrder(7, { announceTemplate: '   ', announceRepeat: 1 });
+    const r = await announceOrder(7, { announceTemplate: '   ', announceRepeat: 1 });
     expect(r.spoken).toBe(false);
     expect(speak).not.toHaveBeenCalled();
   });
 
-  it('repeats exactly as configured, and never more than five times', () => {
+  it('repeats exactly as configured, and never more than five times', async () => {
     const speak = vi.fn();
     Object.defineProperty(window, 'speechSynthesis', {
       value: { speak, getVoices: () => [{}], cancel: () => {} }, configurable: true,
     });
     (globalThis as any).SpeechSynthesisUtterance = function (t: string) { (this as any).text = t; } as any;
 
-    announceOrder(42, { announceTemplate: 'Order {n} ready', announceRepeat: 3 });
+    await announceOrder(42, { announceTemplate: 'Order {n} ready', announceRepeat: 3 });
     expect(speak).toHaveBeenCalledTimes(3);
 
     speak.mockClear();
-    announceOrder(42, { announceTemplate: 'Order {n} ready', announceRepeat: 99 });
+    await announceOrder(42, { announceTemplate: 'Order {n} ready', announceRepeat: 99 });
     expect(speak).toHaveBeenCalledTimes(5);
   });
 
-  it('puts the order number into the wording', () => {
+  it('puts the order number into the wording', async () => {
     const spoken: string[] = [];
     Object.defineProperty(window, 'speechSynthesis', {
       value: { speak: (u: any) => spoken.push(u.text), getVoices: () => [{}], cancel: () => {} },
@@ -107,7 +107,7 @@ describe('announcements', () => {
     });
     (globalThis as any).SpeechSynthesisUtterance = function (t: string) { (this as any).text = t; } as any;
 
-    announceOrder(105, { announceTemplate: 'Order number {n} is ready.', announceRepeat: 1 });
+    await announceOrder(105, { announceTemplate: 'Order number {n} is ready.', announceRepeat: 1 });
     expect(spoken[0]).toBe('Order number 105 is ready.');
   });
 });

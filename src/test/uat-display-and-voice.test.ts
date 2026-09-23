@@ -44,7 +44,7 @@ describe('announcements in Urdu as well as English', () => {
     }
   });
 
-  it('speaks a second language after the first when one is set', () => {
+  it('speaks a second language after the first when one is set', async () => {
     const spoken: Array<{ text: string; lang: string }> = [];
     (window as any).speechSynthesis = {
       getVoices: () => [{ lang: 'en-GB', name: 'UK' }, { lang: 'ur-PK', name: 'Urdu' }],
@@ -53,7 +53,7 @@ describe('announcements in Urdu as well as English', () => {
     };
     (window as any).SpeechSynthesisUtterance = function (this: any, text: string) { this.text = text; };
 
-    const res = announceOrder(105, {
+    const res = await announceOrder(105, {
       announceTemplate: 'Order {n} ready.',
       announceLang: 'en-GB',
       announceTemplate2: voiceById('ur-ready')!.text,
@@ -69,24 +69,43 @@ describe('announcements in Urdu as well as English', () => {
     expect(spoken[1].text).toContain('105');
   });
 
-  it('says so when Windows has no voice for the language asked for', () => {
-    // A shop must not be left believing their Urdu announcement is working.
+  it('never hands Urdu to an English voice — it says so and skips the line', async () => {
+    // A shop must not be left believing their Urdu announcement is working,
+    // and an English voice reading Nastaliq is noise, not an announcement.
+    const spoken: string[] = [];
     (window as any).speechSynthesis = {
       getVoices: () => [{ lang: 'en-GB', name: 'UK' }],
-      speak: () => {},
+      speak: (u: any) => spoken.push(u.text),
       cancel: () => {},
     };
     (window as any).SpeechSynthesisUtterance = function (this: any, text: string) { this.text = text; };
 
-    const res = announceOrder(7, {
+    const res = await announceOrder(7, {
       announceTemplate: voiceById('ur-ready')!.text,
       announceLang: 'ur-PK',
       announceRepeat: 1,
     });
-    expect(res.spoken).toBe(true);
-    expect(res.reason).toMatch(/ur-PK/);
+    expect(res.spoken).toBe(false);
+    expect(res.reason).toMatch(/No Urdu or Hindi voice/);
+    expect(spoken).toHaveLength(0);
     expect(hasVoiceFor('ur-PK')).toBe(false);
     expect(hasVoiceFor('en-GB')).toBe(true);
+  });
+
+  it('reads Urdu with the Hindi voice, in Hindi script, when Windows has no Urdu voice', async () => {
+    const spoken: Array<{ text: string; lang: string; voice?: string }> = [];
+    const voices = [{ lang: 'en-GB', name: 'UK' }, { lang: 'hi-IN', name: 'Microsoft Kalpana' }];
+    (window as any).speechSynthesis = {
+      getVoices: () => voices,
+      speak: (u: any) => spoken.push({ text: u.text, lang: u.lang, voice: u.voice?.name }),
+      cancel: () => {},
+    };
+    (window as any).SpeechSynthesisUtterance = function (this: any, text: string) { this.text = text; };
+
+    const res = await announceOrder(25, { announceTemplate: voiceById('ur-short')!.text, announceLang: 'ur-PK', announceRepeat: 1 });
+    expect(res.spoken).toBe(true);
+    expect(spoken).toEqual([{ text: 'ऑर्डर नंबर 25 तैयार है।', lang: 'hi-IN', voice: 'Microsoft Kalpana' }]);
+    expect(res.notes?.[0]).toMatch(/Hindi voice "Microsoft Kalpana"/);
   });
 
   it('round-trips both wordings through the saved settings', () => {
