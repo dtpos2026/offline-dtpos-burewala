@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { getCurrentScope, orderBelongsTo, listCashierUsers } from '@/lib/cashierScope';
 import DateTimeRangeFilter, { DateTimeRange } from '@/components/DateTimeRangeFilter';
 import { getCurrentBusinessDay } from '@/lib/businessDay';
+import { printThermalReport, reportMoney, reportTime, type ReportBlock } from '@/printing/thermalReport';
 
 export default function ReportsPage() {
   const [orders, setOrders] = useState(() => getOrders());
@@ -114,11 +115,6 @@ export default function ReportsPage() {
     toast.success('Bill deleted');
   };
 
-  const buildMarketingFooterHtml = () => {
-    if (!settings.marketingFooter?.trim()) return '';
-    return `<div style="margin-top:8px;padding-top:6px;border-top:1px dashed #000;text-align:center;font-size:10px;font-weight:700;white-space:pre-line;line-height:1.35">${settings.marketingFooter.replace(/\n/g, '<br/>')}</div>`;
-  };
-
   const printReport = () => {
     const w = window.open('', '_blank');
     if (!w) return;
@@ -137,44 +133,66 @@ export default function ReportsPage() {
     w.print();
   };
 
+  // 80mm POS Summary / Detailed — the shared thermal report layout, printed
+  // on the counter printer at its real content width (see thermalReport.ts).
   const printPosReport = async (includeOrders: boolean) => {
-    const paperWidth = settings.paperSize || '80mm';
-      const ordersBlock = includeOrders
-      ? paidOrders.map(o => `<div style="border-bottom:1px dotted #999;padding:4px 0;font-size:10px"><div style="display:flex;justify-content:space-between;font-weight:800"><span>#${o.orderNumber} ${o.orderType.toUpperCase()}</span><span>PKR ${o.grandTotal.toLocaleString()}</span></div><div>${o.customer?.name || 'Walk-in'}${o.customer?.phone ? ` • ${o.customer.phone}` : ''}</div><div>PAYMENT: ${(o.paymentMethod || 'cash').toUpperCase()}${o.paymentAccountName ? ` • ${o.paymentAccountName}` : (o.paymentMethod === 'cash' || !o.paymentMethod ? ' • Cash Drawer' : '')}</div><div>${new Date(o.createdAt).toLocaleString('en-PK')}</div></div>`).join('')
-      : '';
-    const content = `
-      <div style="font-family:'Lucida Console','Consolas','Courier New',monospace;color:#000;background:#fff;padding:${settings.receiptMarginTop ?? 0}mm ${settings.receiptMarginRight ?? 3}mm ${settings.receiptMarginBottom ?? 0}mm ${settings.receiptMarginLeft ?? 3}mm;box-sizing:border-box;">
-        ${settings.logo ? `<div style="text-align:center;margin-bottom:6px"><img src="${settings.logo}" style="max-height:${settings.logoHeight || 60}px;max-width:100%;object-fit:contain" /></div>` : ''}
-        <div style="text-align:center;margin-bottom:6px">
-          <div style="font-size:18px;font-weight:800">${settings.name || 'Sales Report'}</div>
-          <div style="font-size:11px">${settings.address || ''}</div>
-          <div style="font-size:11px">${settings.phone1 || ''}${settings.phone2 ? ` | ${settings.phone2}` : ''}</div>
-        </div>
-        <div style="text-align:center;border-top:2px solid #000;border-bottom:2px solid #000;padding:4px 0;margin-bottom:6px;font-size:14px;font-weight:800">SALES ${includeOrders ? 'REPORT (DETAILED)' : 'SUMMARY'}</div>
-        <div style="font-size:11px;display:flex;justify-content:space-between;margin-bottom:3px"><span>From:</span><span>${new Date(range.startMs).toLocaleString('en-PK')}</span></div>
-        <div style="font-size:11px;display:flex;justify-content:space-between;margin-bottom:6px"><span>To:</span><span>${new Date(range.endMs).toLocaleString('en-PK')}</span></div>
-        <div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:4px 0;margin-bottom:6px;font-size:11px">
-          <div style="display:flex;justify-content:space-between"><span>Paid Orders</span><span>${paidOrders.length}</span></div>
-          <div style="display:flex;justify-content:space-between"><span>Dining</span><span>PKR ${diningSales.toLocaleString()}</span></div>
-          <div style="display:flex;justify-content:space-between"><span>Takeaway</span><span>PKR ${takeawaySales.toLocaleString()}</span></div>
-          <div style="display:flex;justify-content:space-between"><span>Delivery</span><span>PKR ${deliverySales.toLocaleString()}</span></div>
-          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:800;border-top:2px solid #000;margin-top:4px;padding-top:4px"><span>Total Sales</span><span>PKR ${totalSales.toLocaleString()}</span></div>
-        </div>
-        ${ordersBlock}
-        ${buildMarketingFooterHtml()}
-      </div>`;
-
-    const w = window.open('', '_blank');
-    if (!w) return;
-
-    const scalePercent = Math.max(50, Math.min(200, settings.receiptScale || 100));
-    const scaleFactor = scalePercent / 100;
-    w.document.write(`<html><head><title>POS Sales Report</title><style>@page{size:${paperWidth} auto;margin:0}html,body{margin:0;padding:0;width:${paperWidth};background:#fff}body{font-family:Arial,sans-serif;font-weight:700;color:#000}.report-scale{width:${100 / scaleFactor}%;zoom:${scaleFactor};transform-origin:top left}</style></head><body><div class="report-scale">${content}</div></body></html>`);
-    w.document.close();
-
-    w.print();
+    const money = (n: number) => reportMoney(n);
+    const byPay = new Map<string, number>();
+    for (const o of paidOrders) {
+      const k = (o.paymentMethod || 'cash').toUpperCase();
+      byPay.set(k, (byPay.get(k) || 0) + (o.grandTotal || 0));
+    }
+    const count = (t: string) => paidOrders.filter(o => o.orderType === t).length;
+    const blocks: ReportBlock[] = [
+      { kind: 'section', title: 'Sales' },
+      { kind: 'table', head: ['Order type', 'Orders', 'Amount'], rows: [
+        ['Dine-In', String(count('dining')), money(diningSales)],
+        ['Takeaway', String(count('takeaway')), money(takeawaySales)],
+        ['Delivery', String(count('delivery')), money(deliverySales)],
+      ], foot: ['Total', String(paidOrders.length), money(diningSales + takeawaySales + deliverySales)] },
+      { kind: 'section', title: 'Payments' },
+      { kind: 'table', head: ['Method', 'Amount'], rows: [...byPay.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, money(v)]) },
+      { kind: 'total', label: 'TOTAL SALES', value: money(totalSales) },
+    ];
+    if (unpaidCount || voidOrders.length || cancelledOrders.length || compOrders.length) {
+      blocks.push({ kind: 'section', title: 'Other bills' });
+      blocks.push({ kind: 'table', head: ['Status', 'Bills', 'Amount'], rows: [
+        ['Unpaid (running)', String(unpaidCount), money(unpaidAmount)],
+        ['Void', String(voidOrders.length), money(voidAmount)],
+        ['Cancelled', String(cancelledOrders.length), money(cancelledAmount)],
+        ['Complimentary', String(compOrders.length), money(compAmount)],
+      ].filter(r => r[1] !== '0') });
+    }
+    if (includeOrders) {
+      blocks.push({ kind: 'section', title: `Paid orders (${paidOrders.length})` });
+      for (const o of paidOrders) {
+        const account = o.paymentAccountName || ((o.paymentMethod || 'cash') === 'cash' ? 'Cash drawer' : '');
+        blocks.push({
+          kind: 'entry',
+          title: `#${o.orderNumber} ${String(o.orderType || '').toUpperCase()}`,
+          value: money(o.grandTotal),
+          lines: [
+            `${o.customer?.name || 'Walk-in'}${o.customer?.phone ? ` · ${o.customer.phone}` : ''}`,
+            `Payment: ${(o.paymentMethod || 'cash').toUpperCase()}${account ? ` · ${account}` : ''}`,
+            reportTime(o.createdAt),
+          ],
+        });
+      }
+    }
+    const cashierName = cashierFilter === 'all' ? (scope.restrict ? scope.name : 'All cashiers') : (cashierUsers.find(c => c.id === cashierFilter)?.name || '');
+    const res = await printThermalReport({
+      title: includeOrders ? 'Sales Report (Detailed)' : 'Sales Summary',
+      meta: [
+        ['From', reportTime(range.startMs)],
+        ['To', reportTime(range.endMs)],
+        ...(allBranches.length ? [['Branch', branchFilter === 'all' ? 'All branches' : (currentBranchName || '')] as [string, string]] : []),
+        ['Cashier', cashierName],
+      ],
+      blocks,
+      footer: settings.marketingFooter,
+    });
+    if (!res.success) toast.error(`Report not printed: ${res.error || 'printer unavailable'}`);
   };
-
 
   return (
     <div className="p-4 lg:p-6 space-y-6">

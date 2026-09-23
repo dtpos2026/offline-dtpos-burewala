@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { drawPdfHeader, drawPdfFooter, getThemePrimaryRgb } from '@/lib/pdfBrand';
+import { printThermalReport, reportMoney, reportTime, type ReportBlock } from '@/printing/thermalReport';
 
 function fmt(n: number) { return 'Rs. ' + Math.round(n || 0).toLocaleString(); }
 
@@ -169,15 +170,15 @@ function buildAccountsPdf80mm() {
     doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(size);
     doc.text(t, W / 2, y, { align: 'center' }); y += size * 0.45 + 1;
   };
-  const line = (char = '-') => { doc.setFont('courier', 'normal'); doc.setFontSize(8); doc.text(char.repeat(42), W / 2, y, { align: 'center' }); y += 3; };
+  const line = (char = '-') => { doc.setFont('courier', 'normal'); doc.setFontSize(8); doc.text(char.repeat(36), W / 2, y, { align: 'center' }); y += 3; };
   const row = (l: string, r: string, bold = false) => {
     doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(8);
-    doc.text(l, 3, y); doc.text(r, W - 3, y, { align: 'right' }); y += 3.5;
+    doc.text(l, 6, y); doc.text(r, W - 6, y, { align: 'right' }); y += 3.5;
   };
   const wrap = (t: string, size = 7) => {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(size);
-    const lines = doc.splitTextToSize(t, W - 6);
-    lines.forEach((ln: string) => { doc.text(ln, 3, y); y += size * 0.42 + 0.5; });
+    const lines = doc.splitTextToSize(t, W - 12);
+    lines.forEach((ln: string) => { doc.text(ln, 6, y); y += size * 0.42 + 0.5; });
   };
 
   center(brand, 11, true);
@@ -223,8 +224,8 @@ function buildAccountsPdf80mm() {
     const ents = ledger.filter(l => l.partyId === p.id).sort((a, b) => a.date.localeCompare(b.date));
     const bal = (p.openingBalance || 0) + ents.reduce((s, e) => s + e.debit - e.credit, 0);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
-    doc.text(`${p.name} (${p.type})`, 3, y); y += 3.5;
-    if (p.phone) { doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.text(p.phone, 3, y); y += 3; }
+    doc.text(`${p.name} (${p.type})`, 6, y); y += 3.5;
+    if (p.phone) { doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.text(p.phone, 6, y); y += 3; }
     row('Opening', fmt(p.openingBalance));
     ents.forEach(e => {
       const txt = `${e.date} ${(e.description || '').slice(0, 18)}`;
@@ -241,6 +242,38 @@ function buildAccountsPdf80mm() {
   doc.save(`accounts-80mm-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
+/** The same accounts report, printed straight to the counter printer (80mm). */
+async function printAccounts80mm() {
+  const txns = getTransactions();
+  const orders = getOrders().filter(o => o.status === 'paid');
+  const parties = getParties();
+  const ledger = getLedger();
+  const m = (n: number) => reportMoney(n);
+  const incList = txns.filter(t => t.type === 'income');
+  const expList = txns.filter(t => t.type === 'expense');
+  const totalIncome = incList.reduce((a, t) => a + t.amount, 0) + orders.reduce((a, o) => a + o.grandTotal, 0);
+  const totalExpense = expList.reduce((a, t) => a + t.amount, 0);
+  const list = (rows: typeof txns) => rows.map(t => [`${t.date} ${t.categoryName}${t.description ? ` · ${t.description}` : ''}`, m(t.amount)]);
+  const blocks: ReportBlock[] = [
+    { kind: 'section', title: 'Summary' },
+    { kind: 'row', label: 'Total income (incl. sales)', value: m(totalIncome) },
+    { kind: 'row', label: 'Total expense', value: m(totalExpense) },
+    { kind: 'total', label: 'NET PROFIT', value: m(totalIncome - totalExpense) },
+    { kind: 'section', title: 'Income' },
+    { kind: 'table', head: ['Date / category', 'Amount'], rows: list(incList), foot: ['Total', m(incList.reduce((a, t) => a + t.amount, 0))] },
+    { kind: 'section', title: 'Expenses' },
+    { kind: 'table', head: ['Date / category', 'Amount'], rows: list(expList), foot: ['Total', m(totalExpense)] },
+    { kind: 'section', title: 'Party balances' },
+    { kind: 'table', head: ['Party', 'Balance'], rows: parties.map(p => {
+      const bal = (p.openingBalance || 0) + ledger.filter(l => l.partyId === p.id).reduce((a, e) => a + e.debit - e.credit, 0);
+      return [`${p.name} (${p.type})`, `${m(Math.abs(bal))} ${bal > 0 ? 'DR' : bal < 0 ? 'CR' : ''}`.trim()];
+    }) },
+  ];
+  const res = await printThermalReport({ title: 'Accounts Report', meta: [['Date', reportTime()]], blocks });
+  if (res.success) toast.success('Accounts report sent to the printer');
+  else toast.error(`Report not printed: ${res.error || 'printer unavailable'}`);
+}
+
 export default function AccountsPage() {
   const [tab, setTab] = useState('overview');
   return (
@@ -252,8 +285,11 @@ export default function AccountsPage() {
           <Button size="sm" variant="outline" onClick={() => { try { buildAccountsPdfA4(); toast.success('PDF report generated'); } catch (e: any) { toast.error(e?.message || 'PDF failed'); } }}>
             <FileDown className="h-4 w-4 mr-1" /> Full Report (A4)
           </Button>
-          <Button size="sm" variant="outline" onClick={() => { try { buildAccountsPdf80mm(); toast.success('80mm receipt generated'); } catch (e: any) { toast.error(e?.message || 'PDF failed'); } }}>
-            <Printer className="h-4 w-4 mr-1" /> POS 80mm Report
+          <Button size="sm" variant="outline" onClick={() => { try { buildAccountsPdf80mm(); toast.success('80mm PDF generated'); } catch (e: any) { toast.error(e?.message || 'PDF failed'); } }}>
+            <FileDown className="h-4 w-4 mr-1" /> 80mm PDF
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => void printAccounts80mm()}>
+            <Printer className="h-4 w-4 mr-1" /> Print 80mm
           </Button>
         </div>
       </div>

@@ -18,6 +18,8 @@ import { buildSampleOrder } from '@/lib/sampleOrder';
 import { buildWorkerDocument } from '@/printing/fastPrint';
 import { tokenSlipInnerHtml, TOKEN_TEMPLATES } from '@/lib/tokenSlip';
 import { resolvePrintGeometry } from '@/printing/printGeometry';
+import { thermalReportHtml, reportMoney, type ThermalReportDoc } from '@/printing/thermalReport';
+import { shiftReportDoc } from '@/components/ShiftReport';
 
 const order = buildSampleOrder();
 
@@ -61,11 +63,87 @@ const LAB_STUBS =
           })),
         ];
 
-interface Slip { id: string; label: string; kind: 'receipt' | 'token' }
+interface Slip { id: string; label: string; kind: 'receipt' | 'token' | 'report' }
+
+// ---- report slips: realistic numbers plus the worst cases a shop produces
+const rm = (n: number) => reportMoney(n, 'Rs');
+const LONG = 'Chicken Tikka Boneless Handi Special Family Size with Extra Cheese';
+const shiftData: any = {
+  settings: { ...settings, currencySymbol: 'Rs', countryTaxLabel: 'GST' },
+  range: { from: new Date('2026-09-23T09:00:00'), to: new Date('2026-09-23T23:45:00'), label: '14h 45m', staffName: 'Muhammad Abdullah Khan (Cashier)' },
+  summary: { productAmount: 1234567.5, discount: 12500, serviceCharge: 4500, temporaryCharge: 0, rounding: -0.5, subTotal: 1226567, refundAmount: 3200, actualSales: 1223367 },
+  tax: { taxable: 1100000, taxPct: 16, taxAmount: 176000 },
+  transactions: { checkedOut: 412, avgIncome: 2969.34, soldProducts: 1893, refunded: 2, refundedProducts: 5 },
+  drawer: { startingCash: 20000, orderIncome: 845210, payIn: 0, refund: 3200, payOut: 0, expectedCash: 865210, actualEndingCash: 865000 },
+  payments: [
+    { method: 'cash', amount: 845210, percent: 69.09 },
+    { method: 'jazzcash', amount: 210000, percent: 17.17 },
+    { method: 'bank transfer (meezan)', amount: 168157, percent: 13.74 },
+  ],
+  payTotal: 1223367,
+  types: [{ type: 'dining', orders: 201, amount: 700000 }, { type: 'takeaway', orders: 150, amount: 400000 }, { type: 'delivery', orders: 61, amount: 123367 }],
+  categories: [{ name: 'BBQ & Grill Specials (Charcoal)', qty: 512, amount: 612000 }, { name: 'Drinks', qty: 800, amount: 96000 }],
+  products: [{ name: LONG, qty: 48, amount: 1234560 }, { name: 'Plain Naan', qty: 900, amount: 45000 }],
+  totals: { catQty: 1312, catAmt: 708000 },
+};
+const REPORTS: Record<string, ThermalReportDoc> = {
+  'report-pos-summary': {
+    title: 'Sales Summary',
+    meta: [['From', '23 Sep 2026, 09:00'], ['To', '23 Sep 2026, 23:59'], ['Branch', 'Satellite Town Main Branch (Jhang)'], ['Cashier', 'All cashiers']],
+    blocks: [
+      { kind: 'section', title: 'Sales' },
+      { kind: 'table', head: ['Order type', 'Orders', 'Amount'], rows: [['Dine-In', '201', rm(700000)], ['Takeaway', '150', rm(400000)], ['Delivery', '61', rm(123367.5)]], foot: ['Total', '412', rm(1223367.5)] },
+      { kind: 'section', title: 'Payments' },
+      { kind: 'table', head: ['Method', 'Amount'], rows: [['CASH', rm(845210)], ['JAZZCASH', rm(210000)], ['BANK TRANSFER (MEEZAN BANK SATELLITE TOWN)', rm(168157.5)]] },
+      { kind: 'total', label: 'TOTAL SALES', value: rm(12233670.5) },
+      { kind: 'section', title: 'Other bills' },
+      { kind: 'table', head: ['Status', 'Bills', 'Amount'], rows: [['Unpaid (running)', '3', rm(4500)], ['Void', '1', rm(1200)]] },
+    ],
+    footer: 'Follow us on Facebook: /lotuscafe',
+  },
+  'report-pos-detailed': {
+    title: 'Sales Report (Detailed)',
+    meta: [['From', '23 Sep 2026, 09:00'], ['To', '23 Sep 2026, 23:59']],
+    blocks: [
+      { kind: 'total', label: 'TOTAL SALES', value: rm(5400) },
+      { kind: 'section', title: 'Paid orders (2)' },
+      { kind: 'entry', title: '#1107 DINING', value: rm(3200), lines: ['Walk-in', 'Payment: CASH · Cash drawer', '23 Sep 2026, 13:05'] },
+      { kind: 'entry', title: '#1108 DELIVERY', value: rm(2200), lines: ['Muhammad Abdullah Khan · 0300-7623533', 'Payment: BANK TRANSFER · Meezan Bank Satellite Town Branch Account', '23 Sep 2026, 13:40'] },
+    ],
+  },
+  'report-shift': shiftReportDoc(shiftData),
+  'report-grn': {
+    title: 'Goods Receiving Note',
+    meta: [['GRN No.', 'MFDE8K2A9X1'], ['Date', '23 Sep 2026, 10:15'], ['Supplier', 'Al-Madina Poultry & Meat Suppliers (Wholesale)']],
+    blocks: [
+      { kind: 'section', title: 'Item received' },
+      { kind: 'row', label: 'Item', value: 'Chicken Boneless Breast Fillet', bold: true },
+      { kind: 'row', label: 'Quantity', value: '25 kg' },
+      { kind: 'row', label: 'Rate', value: `${rm(1250)} / kg` },
+      { kind: 'row', label: 'Subtotal', value: rm(31250) },
+      { kind: 'row', label: 'Surcharge', value: rm(500) },
+      { kind: 'total', label: 'TOTAL', value: rm(31750) },
+      { kind: 'rule' },
+      { kind: 'row', label: 'Received by', value: 'Store Keeper' },
+      { kind: 'row', label: 'Signature', value: '________________' },
+    ],
+  },
+  'report-statement': {
+    title: 'Supplier Statement',
+    meta: [['Name', 'Al-Madina Poultry & Meat Suppliers'], ['Phone', '0300-1234567'], ['Address', 'Shop 12, Grain Market, Jhang Saddar']],
+    blocks: [
+      { kind: 'row', label: 'Opening balance', value: rm(0) },
+      { kind: 'section', title: 'Ledger (2)' },
+      { kind: 'table', head: ['Date / detail', 'Debit', 'Credit'], rows: [['01 Sep 26 Payment by cheque no. 00451278 (Meezan)', reportMoney(150000, ''), ''], ['05 Sep 26 Purchase', '', '1,234,567.50']], foot: ['Total', '150,000', '1,234,567.50'] },
+      { kind: 'total', label: 'BALANCE (WE OWE)', value: rm(1084567.5) },
+    ],
+  },
+};
 
 const SLIPS: Slip[] = [
   ...PREMIUM_TEMPLATES.map(t => ({ id: t.id, label: t.name, kind: 'receipt' as const })),
   ...TOKEN_TEMPLATES.map(t => ({ id: `token-${t.id}`, label: `Token · ${t.name}`, kind: 'token' as const })),
+  ...Object.keys(REPORTS).map(id => ({ id, label: `Report · ${REPORTS[id].title}`, kind: 'report' as const })),
 ];
 
 const geom = resolvePrintGeometry({ paper: '80mm', leftMm: MARGIN_LEFT, rightMm: MARGIN_RIGHT });
@@ -95,7 +173,9 @@ function Slips() {
             data-paper-size="80mm"
             style={{ width: `${geom.contentMm}mm`, background: '#fff', color: '#000' }}
           >
-            {slip.kind === 'receipt' ? (
+            {slip.kind === 'report' ? (
+              <div dangerouslySetInnerHTML={{ __html: thermalReportHtml(REPORTS[slip.id], settings) }} />
+            ) : slip.kind === 'receipt' ? (
               <PremiumReceipt
                 order={order}
                 settings={settings}

@@ -184,17 +184,32 @@ export class EscposDoc {
     return this;
   }
 
-  /** Left text + right text on one line. */
+  /**
+   * Left text + right text on one line.
+   *
+   * A label too long to sit beside the value wraps on word boundaries; the
+   * value stays on the LAST line, flush right. Nothing is cut off — a report
+   * that silently drops the end of a product name is not a report.
+   */
   lr(left: string, right: string, width = this.cols) {
     const l = asciify(left);
-    const r = asciify(right);
-    const space = Math.max(1, width - l.length - r.length);
-    if (l.length + r.length + 1 > width) {
-      // long name: wrap the left part, keep the amount on the last line
-      const head = l.slice(0, width - r.length - 1);
-      return this.line(head + ' '.repeat(Math.max(1, width - head.length - r.length)) + r);
+    const r = asciify(right).slice(0, width);
+    if (l.length + r.length + 1 <= width) return this.line(l + ' '.repeat(Math.max(1, width - l.length - r.length)) + r);
+    const lines: string[] = [];
+    let cur = '';
+    for (let w of l.split(/\s+/).filter(Boolean)) {
+      // A single word wider than the paper is split, never cut off.
+      while (w.length > width) { if (cur) { lines.push(cur); cur = ''; } lines.push(w.slice(0, width)); w = w.slice(width); }
+      if (!w) continue;
+      if (!cur) cur = w;
+      else if (cur.length + 1 + w.length <= width) cur += ' ' + w;
+      else { lines.push(cur); cur = w; }
     }
-    return this.line(l + ' '.repeat(space) + r);
+    // The value shares the last line when it fits there, else gets its own.
+    let last = cur;
+    if (last.length + 1 + r.length > width) { lines.push(last); last = ''; }
+    for (const ln of lines) this.line(ln);
+    return this.line(last + ' '.repeat(Math.max(1, width - last.length - r.length)) + r);
   }
 
   /**
@@ -308,7 +323,7 @@ export interface SlipGeometry {
   beep?: boolean;
 }
 
-function paperOf(settings: any, geom?: SlipGeometry): Paper {
+export function paperOf(settings: any, geom?: SlipGeometry): Paper {
   const p = geom?.paper ?? settings?.paperSize;
   return p === '58mm' || p === '110mm' ? p : '80mm';
 }
@@ -332,7 +347,7 @@ function mm(value: unknown): number | undefined {
  * turned every unconfigured slip into an explicit zero and printed the first
  * column on the head's very first dot, which is what shaved the left edge.
  */
-function docOptionsOf(settings: any, font?: 'A' | 'B', geom?: SlipGeometry): EscposDocOptions {
+export function docOptionsOf(settings: any, font?: 'A' | 'B', geom?: SlipGeometry): EscposDocOptions {
   return {
     leftMm: geom?.leftMm ?? mm(settings?.receiptMarginLeft),
     rightMm: geom?.rightMm ?? mm(settings?.receiptMarginRight),
@@ -349,7 +364,7 @@ function docOptionsOf(settings: any, font?: 'A' | 'B', geom?: SlipGeometry): Esc
  * never read. The beep goes BEFORE the cut so it sounds as the slip is
  * finished rather than after the paper has already been handed over.
  */
-function finishSlip(d: EscposDoc, geom?: SlipGeometry): void {
+export function finishSlip(d: EscposDoc, geom?: SlipGeometry): void {
   if (geom?.beep) d.beep();
   if (geom?.autoCut === false) { d.feed(3); return; }
   d.cut();

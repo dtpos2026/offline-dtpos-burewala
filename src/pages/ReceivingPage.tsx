@@ -12,6 +12,7 @@ import {
 } from '@/lib/store';
 import type { ReceivingEntry, InventoryItem, Party } from '@/lib/types';
 import { getBaseUnit, toBaseQty, PURCHASE_UNITS } from '@/lib/units';
+import { printThermalReport, reportMoney, reportTime, type ReportBlock } from '@/printing/thermalReport';
 
 type FormState = {
   supplierName: string;
@@ -121,33 +122,31 @@ export default function ReceivingPage() {
     toast.info('Entry deleted');
   };
 
-  const printSlip = (entry: ReceivingEntry) => {
-    const w = window.open('', '_blank', 'width=320,height=500');
-    if (!w) return;
-    w.document.write(`
-      <html><head><title>GRN Slip</title>
-      <style>body{font-family:monospace;font-size:12px;width:80mm;margin:0 auto;padding:10px;}
-      h2{text-align:center;margin:0 0 8px}hr{border:none;border-top:1px dashed #000}
-      .row{display:flex;justify-content:space-between;margin:2px 0}
-      .bold{font-weight:bold}</style></head><body>
-      <h2>GOODS RECEIVING NOTE</h2><hr/>
-      <div class="row"><span>Date:</span><span>${new Date(entry.date).toLocaleString('en-PK')}</span></div>
-      <div class="row"><span>Supplier:</span><span class="bold">${entry.supplierName}</span></div>
-      <hr/>
-      <div class="row"><span>Item:</span><span class="bold">${entry.itemName}</span></div>
-      <div class="row"><span>Qty:</span><span>${entry.quantity} ${entry.unit}</span></div>
-      ${entry.baseQty ? `<div class="row"><span>Stock added:</span><span>${entry.baseQty.toFixed(2)} ${entry.baseUnit || ''}</span></div>` : ''}
-      ${entry.rate ? `<div class="row"><span>Rate:</span><span>PKR ${entry.rate} / ${entry.unit}</span></div>` : ''}
-      ${entry.rate ? `<div class="row"><span>Subtotal:</span><span>PKR ${(entry.quantity * entry.rate).toLocaleString()}</span></div>` : ''}
-      ${entry.surcharge ? `<div class="row"><span>Surcharge:</span><span>PKR ${entry.surcharge.toLocaleString()}</span></div>` : ''}
-      ${(entry.rate || entry.surcharge) ? `<div class="row bold"><span>Total:</span><span>PKR ${((entry.quantity * entry.rate) + (entry.surcharge || 0)).toLocaleString()}</span></div>` : ''}
-      <hr/>
-      ${entry.receivedBy ? `<div class="row"><span>Received By:</span><span>${entry.receivedBy}</span></div>` : ''}
-      ${entry.notes ? `<div class="row"><span>Notes:</span><span>${entry.notes}</span></div>` : ''}
-      </body></html>
-    `);
-    w.document.close();
-    w.print();
+  // Supplier receiving slip on the counter printer — the shared 80mm report
+  // layout, so it fits the paper instead of being cut at the right edge.
+  const printSlip = async (entry: ReceivingEntry) => {
+    const subtotal = (entry.quantity || 0) * (entry.rate || 0);
+    const total = subtotal + (entry.surcharge || 0);
+    const blocks: ReportBlock[] = [
+      { kind: 'section', title: 'Item received' },
+      { kind: 'row', label: 'Item', value: entry.itemName, bold: true },
+      { kind: 'row', label: 'Quantity', value: `${entry.quantity} ${entry.unit}` },
+    ];
+    if (entry.baseQty) blocks.push({ kind: 'row', label: 'Stock added', value: `${entry.baseQty.toFixed(2)} ${entry.baseUnit || ''}`.trim() });
+    if (entry.rate) {
+      blocks.push({ kind: 'row', label: 'Rate', value: `${reportMoney(entry.rate)} / ${entry.unit}` });
+      blocks.push({ kind: 'row', label: 'Subtotal', value: reportMoney(subtotal) });
+    }
+    if (entry.surcharge) blocks.push({ kind: 'row', label: 'Surcharge', value: reportMoney(entry.surcharge) });
+    if (entry.rate || entry.surcharge) blocks.push({ kind: 'total', label: 'TOTAL', value: reportMoney(total) });
+    if (entry.notes) blocks.push({ kind: 'section', title: 'Notes' }, { kind: 'note', text: entry.notes });
+    blocks.push({ kind: 'rule' }, { kind: 'row', label: 'Received by', value: entry.receivedBy || '-' }, { kind: 'row', label: 'Signature', value: '________________' });
+    const res = await printThermalReport({
+      title: 'Goods Receiving Note',
+      meta: [['GRN No.', entry.id.toUpperCase()], ['Date', reportTime(entry.date)], ['Supplier', entry.supplierName || '-']],
+      blocks,
+    });
+    if (!res.success) toast.error(`GRN slip not printed: ${res.error || 'printer unavailable'}`);
   };
 
   return (
@@ -207,7 +206,7 @@ export default function ReceivingPage() {
                 <td className="px-3 py-2">{e.receivedBy || '—'}</td>
                 <td className="px-3 py-2">
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => printSlip(e)}><Printer className="h-3 w-3" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => void printSlip(e)}><Printer className="h-3 w-3" /></Button>
                     <Button variant="ghost" size="sm" onClick={() => deleteEntry(e.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
                   </div>
                 </td>

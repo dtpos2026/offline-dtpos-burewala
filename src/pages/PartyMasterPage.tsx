@@ -9,13 +9,14 @@ import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Search, Trash2, Pencil, Users2, BookOpen, Package } from 'lucide-react';
+import { Plus, Search, Trash2, Pencil, Users2, BookOpen, Package, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   getParties, saveParty, deleteParty,
   getLedger, getReceivingEntries, getTransactions, genId,
 } from '@/lib/store';
 import type { Party, LedgerType } from '@/lib/types';
+import { printThermalReport, reportMoney, reportTime, type ReportBlock } from '@/printing/thermalReport';
 
 type Filter = 'all' | LedgerType;
 
@@ -44,6 +45,37 @@ export default function PartyMasterPage() {
     const grnCount = receiving.filter(r => (r as any).partyId === p.id || r.supplierName?.trim().toLowerCase() === p.name.trim().toLowerCase()).length;
     const txnCount = txns.filter(t => t.partyId === p.id).length;
     return { balance: bal, ledgerCount: entries.length, grnCount, txnCount };
+  };
+
+  // 80mm statement for one party (supplier / customer / payee): opening
+  // balance, ledger lines, goods received, closing balance.
+  const printStatement = async (p: Party) => {
+    const entries = ledger.filter(l => l.partyId === p.id).sort((a, b) => a.date.localeCompare(b.date));
+    const grns = receiving
+      .filter(r => (r as any).partyId === p.id || r.supplierName?.trim().toLowerCase() === p.name.trim().toLowerCase())
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const s = summary(p);
+    const d = (iso: string) => { const t = new Date(iso); return Number.isFinite(t.getTime()) ? t.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : iso; };
+    const blocks: ReportBlock[] = [
+      { kind: 'row', label: 'Opening balance', value: reportMoney(p.openingBalance || 0) },
+      { kind: 'section', title: `Ledger (${entries.length})` },
+      { kind: 'table', head: ['Date / detail', 'Debit', 'Credit'], rows: entries.map(e => [
+        `${d(e.date)} ${e.description || ''}`.trim(), e.debit ? reportMoney(e.debit, '') : '', e.credit ? reportMoney(e.credit, '') : '',
+      ]), foot: ['Total', reportMoney(entries.reduce((a, e) => a + e.debit, 0), ''), reportMoney(entries.reduce((a, e) => a + e.credit, 0), '')] },
+    ];
+    if (grns.length) {
+      blocks.push({ kind: 'section', title: `Goods received (${grns.length})` });
+      blocks.push({ kind: 'table', head: ['Date / item', 'Qty', 'Amount'], rows: grns.map(g => [
+        `${d(g.date)} ${g.itemName}`, `${g.quantity} ${g.unit}`, reportMoney((g.quantity || 0) * (g.rate || 0) + (g.surcharge || 0), ''),
+      ]) });
+    }
+    blocks.push({ kind: 'total', label: s.balance > 0 ? 'BALANCE (THEY OWE)' : s.balance < 0 ? 'BALANCE (WE OWE)' : 'BALANCE', value: reportMoney(Math.abs(s.balance)) });
+    const res = await printThermalReport({
+      title: `${p.type === 'supplier' ? 'Supplier' : 'Party'} Statement`,
+      meta: [['Name', p.name], ['Phone', p.phone || ''], ['Address', p.address || ''], ['Date', reportTime()]],
+      blocks,
+    });
+    if (!res.success) toast.error(`Statement not printed: ${res.error || 'printer unavailable'}`);
   };
 
   const filtered = parties
@@ -170,6 +202,9 @@ export default function PartyMasterPage() {
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex gap-1 justify-end">
+                      <Button variant="ghost" size="sm" title="Print 80mm statement" onClick={() => void printStatement(p)}>
+                        <Printer className="h-3 w-3" />
+                      </Button>
                       <Button variant="ghost" size="sm" onClick={() => { setForm(p); setOpen(true); }}>
                         <Pencil className="h-3 w-3" />
                       </Button>

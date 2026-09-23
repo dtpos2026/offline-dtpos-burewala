@@ -15,6 +15,7 @@ import { loadPrinterSettings, resolvePrinterForRole } from '@/lib/printerSetting
 import { wantsRaw } from '@/printing/printMode';
 import { resolveSlipMargin } from '@/lib/slipMargins';
 import { getDeviceId } from '@/lib/tenant';
+import { reportMoney, reportTime, thermalReportHtml, type ReportBlock, type ThermalReportDoc } from '@/printing/thermalReport';
 
 export interface ShiftReportRange {
   from: Date;
@@ -115,90 +116,79 @@ export function buildShiftReportData(range: ShiftReportRange) {
 
 const TYPE_LABEL: Record<string, string> = { dining: 'Dine-In', takeaway: 'Takeaway', delivery: 'Delivery', foodpanda: 'Online / Drive' };
 
-/** Shift Report ka HTML (sample layout ke mutabiq) — thermal 80mm. */
-export function shiftReportHtml(d: ReturnType<typeof buildShiftReportData>): string {
+/**
+ * The shift report as a thermal report document — the same sections as the
+ * client's sample receipt, on the shared professional 80 mm layout (restaurant
+ * header, title band, wrapping rows, aligned tables, boxed total).
+ */
+export function shiftReportDoc(d: ReturnType<typeof buildShiftReportData>): ThermalReportDoc {
   const s: any = d.settings;
-  const sym = s.currencySymbol || 'Rs.';
-  const m = (n: number) => `${sym}${Number(n || 0).toFixed(2)}`;
-  const row = (label: string, value: string, bold = false) =>
-    `<div style="display:flex;justify-content:space-between;${bold ? 'font-weight:900;' : ''}"><span>${label}</span><span>${value}</span></div>`;
-  const head = (title: string) =>
-    `<div style="font-weight:900;font-size:14px;margin-top:8px;border-bottom:2px solid #000;padding-bottom:1px;color:#000">${title}</div>`;
-  const dash = `<div style="border-top:1px dashed #000;margin:5px 0"></div>`;
-  const col3 = (a: string, b: string, c: string, bold = false) =>
-    `<div style="display:flex;${bold ? 'font-weight:900;' : ''}"><span style="flex:1;overflow:hidden">${a}</span><span style="width:34px;text-align:right">${b}</span><span style="width:74px;text-align:right">${c}</span></div>`;
+  const sym = s.currencySymbol || 'Rs';
+  const m = (n: number) => reportMoney(n, sym);
+  const neg = (n: number) => (Number(n) ? `-${m(n)}` : m(0));
+  const taxLabel = s.countryTaxLabel || 'GST';
+  const pct = (n: number) => `${Number(n || 0).toFixed(1)}%`;
+  const blocks: ReportBlock[] = [
+    { kind: 'section', title: 'Summary' },
+    { kind: 'row', label: 'Product amount (excl. tax)', value: m(d.summary.productAmount) },
+    { kind: 'row', label: 'Discount', value: neg(d.summary.discount) },
+    { kind: 'row', label: 'Service charge', value: m(d.summary.serviceCharge) },
+    { kind: 'row', label: 'Temporary charge', value: m(d.summary.temporaryCharge) },
+    { kind: 'row', label: 'Rounding', value: m(d.summary.rounding) },
+    { kind: 'row', label: 'Sub-total', value: m(d.summary.subTotal) },
+    { kind: 'row', label: 'Refund amount (excl. tax)', value: neg(d.summary.refundAmount) },
+    { kind: 'total', label: 'Actual sales', value: m(d.summary.actualSales) },
 
-  return `
-  <div style="text-align:center;font-weight:900;font-size:17px">Shift Report</div>
-  <div style="text-align:center;font-size:11px">${s.restaurantName || ''}</div>
-  ${dash}
-  ${row('Staff', String(d.range.staffName || s.email || '-'))}
-  ${row('Start', d.range.from.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }))}
-  ${row('End', d.range.to.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }))}
-  ${row('Shift duration', d.range.label)}
-  ${dash}
+    { kind: 'section', title: 'Tax' },
+    { kind: 'row', label: `Taxable (${taxLabel})`, value: m(d.tax.taxable) },
+    { kind: 'row', label: `${taxLabel} (${d.tax.taxPct}%)`, value: m(d.tax.taxAmount) },
+    { kind: 'row', label: 'Actual tax', value: m(d.tax.taxAmount), bold: true },
 
-  ${head('Summary')}
-  ${row('Product amount(exc tax)', m(d.summary.productAmount))}
-  ${row('Discount', `-${m(d.summary.discount)}`)}
-  ${row('Service charge', m(d.summary.serviceCharge))}
-  ${row('Temporary Charge', m(d.summary.temporaryCharge))}
-  ${row('Rounding', m(d.summary.rounding))}
-  ${row('Sub-Total', m(d.summary.subTotal))}
-  ${row('Refund amount(exc tax)', `-${m(d.summary.refundAmount)}`)}
-  ${row('Actual sales', m(d.summary.actualSales), true)}
+    { kind: 'section', title: 'Transactions' },
+    { kind: 'row', label: 'Checked out', value: String(d.transactions.checkedOut) },
+    { kind: 'row', label: 'Average bill value', value: m(d.transactions.avgIncome) },
+    { kind: 'row', label: 'Sold products', value: String(d.transactions.soldProducts) },
+    { kind: 'row', label: 'Refunded', value: String(d.transactions.refunded) },
+    { kind: 'row', label: 'Refunded products', value: String(d.transactions.refundedProducts) },
 
-  ${head('Tax')}
-  ${row(`Taxable(${s.countryTaxLabel || 'GST'})`, m(d.tax.taxable))}
-  ${row(`${s.countryTaxLabel || 'GST'}(${d.tax.taxPct}%)`, m(d.tax.taxAmount))}
-  ${row('Actual tax', m(d.tax.taxAmount), true)}
+    { kind: 'section', title: 'Cash drawer' },
+    { kind: 'row', label: 'Starting cash', value: m(d.drawer.startingCash) },
+    { kind: 'row', label: 'Order income (cash)', value: m(d.drawer.orderIncome) },
+    { kind: 'row', label: 'Pay in', value: m(d.drawer.payIn) },
+    { kind: 'row', label: 'Refund', value: neg(d.drawer.refund) },
+    { kind: 'row', label: 'Pay out', value: m(d.drawer.payOut) },
+    { kind: 'row', label: 'Expected cash', value: m(d.drawer.expectedCash), bold: true },
+    { kind: 'row', label: 'Actual ending cash', value: m(d.drawer.actualEndingCash), bold: true },
 
-  ${head('Transactions')}
-  ${row('Checked out', String(d.transactions.checkedOut))}
-  ${row('Average income value', m(d.transactions.avgIncome))}
-  ${row('Sold products', String(d.transactions.soldProducts))}
-  ${row('Refunded', String(d.transactions.refunded))}
-  ${row('Refunded products', String(d.transactions.refundedProducts))}
+    { kind: 'section', title: 'Payment report' },
+    { kind: 'table', head: ['Method', 'Amount', '%'], rows: d.payments.map(p => [p.method.toUpperCase(), m(p.amount), pct(p.percent)]), foot: ['Total', m(d.payTotal), d.payTotal ? '100%' : ''] },
 
-  ${head('Cash drawer report')}
-  ${row('Starting cash', m(d.drawer.startingCash))}
-  ${row('Order income', m(d.drawer.orderIncome))}
-  ${row('Pay in', m(d.drawer.payIn))}
-  ${row('Refund', `-${m(d.drawer.refund)}`)}
-  ${row('Pay out', m(d.drawer.payOut))}
-  ${row('Expected cash', m(d.drawer.expectedCash), true)}
-  ${row('Actual ending cash', m(d.drawer.actualEndingCash), true)}
+    { kind: 'section', title: 'Order types' },
+    { kind: 'table', head: ['Type', 'Orders', 'Amount'], rows: d.types.map(t => [TYPE_LABEL[t.type] || t.type, String(t.orders), m(t.amount)]) },
 
-  ${head('Payment Report')}
-  ${col3('Method', 'Amount', 'Percent', true)}
-  <div style="border-top:1px dashed #000;margin:2px 0"></div>
-  ${d.payments.map(p => col3(p.method.toUpperCase(), '', `${m(p.amount)}  ${p.percent.toFixed(2)}%`)).join('')}
-  <div style="border-top:1px solid #000;margin:2px 0"></div>
-  ${row('Total', m(d.payTotal), true)}
+    { kind: 'section', title: 'Sold categories' },
+    { kind: 'table', head: ['Category', 'Qty', 'Amount'], rows: d.categories.map(c => [c.name, String(c.qty), m(c.amount)]), foot: ['Total', String(d.totals.catQty), m(d.totals.catAmt)] },
 
-  ${head('Order Types')}
-  ${d.types.map(t => row(TYPE_LABEL[t.type] || t.type, `${t.orders}  ${m(t.amount)}`)).join('') || '<div>-</div>'}
-
-  ${head('Sold categories')}
-  ${col3('Products', 'Qty', 'Amount', true)}
-  <div style="border-top:1px dashed #000;margin:2px 0"></div>
-  ${d.categories.map(c => col3(c.name, String(c.qty), m(c.amount))).join('') || '<div>-</div>'}
-  <div style="border-top:1px solid #000;margin:2px 0"></div>
-  ${col3('Total', String(d.totals.catQty), m(d.totals.catAmt), true)}
-
-  ${head('Sold products')}
-  ${col3('Products', 'Qty', 'Amount', true)}
-  <div style="border-top:1px dashed #000;margin:2px 0"></div>
-  ${d.products.map(p => col3(p.name, String(p.qty), m(p.amount))).join('') || '<div>-</div>'}
-  <div style="border-top:1px solid #000;margin:2px 0"></div>
-  ${col3('Total', String(d.totals.catQty), m(d.totals.catAmt), true)}
-
-  ${dash}
-  <div style="display:flex;justify-content:space-between;font-size:11px"><span>Print Time</span><span>${new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span></div>
-  `;
+    { kind: 'section', title: 'Sold products' },
+    { kind: 'table', head: ['Product', 'Qty', 'Amount'], rows: d.products.map(p => [p.name, String(p.qty), m(p.amount)]), foot: ['Total', String(d.totals.catQty), m(d.totals.catAmt)] },
+  ];
+  return {
+    title: 'Shift Report',
+    meta: [
+      ['Staff', String(d.range.staffName || s.email || '-')],
+      ['Start', reportTime(d.range.from)],
+      ['End', reportTime(d.range.to)],
+      ['Shift', d.range.label],
+    ],
+    blocks,
+  };
 }
 
-/** Print the shift report on the counter printer INSTANTLY (without the queue). */
+/** Shift report HTML — thermal 80 mm (also the on-screen preview). */
+export function shiftReportHtml(d: ReturnType<typeof buildShiftReportData>): string {
+  return thermalReportHtml(shiftReportDoc(d), d.settings);
+}
+
 export async function printShiftReport(range: ShiftReportRange): Promise<{ success: boolean; error?: string }> {
   const data = buildShiftReportData(range);
   const settings: any = data.settings;
@@ -265,9 +255,9 @@ export async function printShiftReport(range: ShiftReportRange): Promise<{ succe
   const inner = document.createElement('div');
   inner.className = 'print-receipt bg-white text-black';
   inner.setAttribute('data-paper-size', paperWidth);
-  // FIX (client: reports very faint): thermal print used to come out light —
-  // ab pura black + bold + darker rendering.
-  inner.style.cssText = `width:${paperWidth};font-family:Arial,Roboto,monospace;font-size:13px;font-weight:800;line-height:1.3;color:#000;background:#fff;-webkit-font-smoothing:none;text-rendering:geometricPrecision;`;
+  // Reports used to come out faint: the shared report stylesheet keeps the
+  // text solid black and bold (700, headings 900) with smoothing off.
+  inner.style.cssText = `width:${paperWidth};color:#000;background:#fff;`;
   inner.innerHTML = shiftReportHtml(data);
   portal.appendChild(inner);
   document.body.appendChild(portal);
