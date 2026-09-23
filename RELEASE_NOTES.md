@@ -1,5 +1,87 @@
 # DT POS Enterprise — Release Notes
 
+## v1.12.0 — Premium Phase 1: offline licence, device control, responsive POS, dining hold, day close, offline billing
+
+### Offline licence (the "asks for the key again without internet" bug)
+- **Root cause:** the hardware ID contained the MAC of the first network
+  adapter that was up. With Wi-Fi/Ethernet disconnected Windows drops that
+  adapter, the ID changed, the licence vault could not be opened and the POS
+  asked for the key again. It also created duplicate "ghost" devices online.
+- The identity is now bound to the Windows **MachineGuid** (network
+  independent), stored as `device-identity.json` with a machine binding, and
+  the vault key is derived from it — a vault copied to another PC still cannot
+  be opened. Existing installs are migrated once, keeping their device ID
+  (every MAC the PC owns is tried, including disconnected adapters).
+- Startup is local: vault → device check → open POS. The server is asked
+  afterwards in the background. The last server decision is stored inside
+  the encrypted vault, so a suspension holds offline and cannot be cleared by
+  editing browser storage.
+- Device limit: `licenseDevices/{key}` records which PCs hold a slot. Online
+  activation beyond the limit is refused with a clear message before anything
+  is saved; an offline activation is checked at the first sync. Licences
+  activated before v1.12 are registered without being locked out.
+- Clear messages: suspended, revoked, pending payment, removed, device limit.
+- A failed vault write is reported instead of showing "activated".
+
+### Super Admin — device control
+- Per-device Activate / Suspend / Revoke affect that PC only (they used to
+  suspend the whole licence). Licence-wide Active / Suspended / Revoked /
+  Pending payment is on the Clients tab and reaches the POS.
+- **Delete bug fixed:** re-activating kept the old activation date, so a
+  removed PC stayed blocked forever. Delete now frees the slot; entering the
+  key again registers the PC again. Other PCs are never affected.
+- Online / offline from the real heartbeat (online = reported in the last
+  12 minutes), "last seen", Active devices list, server decision vs what the
+  POS reports, removed-device records.
+- Live installations map: approximate positions are labelled as approximate;
+  PCs without a position are listed as "Location unavailable".
+- The heartbeat runs whenever the licensed POS is open.
+
+### Responsive POS
+- Panel widths and product columns are computed from the space the POS
+  actually has (`lib/posLayout.ts`) instead of window breakpoints. Side panels
+  shrink before a column is lost. Square screens put categories on top,
+  portrait puts the cart at the bottom, tiny windows use a pop-up cart,
+  touchscreens get larger targets. No CSS scaling.
+- The app menu collapses to icons on the POS screen when space is tight.
+- **Settings → Screen & Layout:** detected resolution, aspect ratio,
+  orientation, Windows scaling and touch; a preview drawn with the same
+  engine; per-screen choices saved on this computer. Everything starts on
+  Automatic.
+
+### Dining, retrieve, reprint
+- Bill statuses: UNPAID, HOLD — UNPAID (orange), PARTIALLY PAID, PAID,
+  CANCELLED. Hold stays an open bill (Retrieve, POS retrieve list, table plan).
+- Retrieve: Hold / Resume, and a "Paid today" view for View / Reprint.
+- **Print Receipt Automatically on Dining Payment** (Printer Center). OFF:
+  paying a dining bill saves it as PAID with no print and no print dialog.
+- Payment never depends on printing: the bill is saved first; the message
+  only says "sent to the printer" when a job was queued. Pay from the POS
+  retrieve list now opens the payment screen (it used to mark paid with no
+  method or amount).
+- Reprint prints the existing bill: no new sale, payment or ID.
+
+### Day Close
+- Its own screen (menu entry and the Settings tile): 1. Day Close and
+  2. Reset Sale side by side. Logic unchanged. The confirmation states how
+  many bills (and HOLD — UNPAID bills) will leave the live lists.
+- The drawer float is now saved; no false "cloud backup failed" on offline
+  installs.
+
+### Super Admin — Offline Billing / ERP
+- Customers and invoices, search, paid/unpaid, totals.
+- Branded A4 invoice and 80 mm receipt drawn at full resolution: Print, PNG,
+  JPG. Editable branding (name, contacts, logo, uploaded signature).
+- QR with a random verification reference; a public page shows the invoice,
+  restaurant, owner, masked licence and its status.
+
+### Action needed
+- **Publish `superadmin/firestore.rules`** in the Firebase console (new
+  `licenseDevices`, `offlineInvoices`, `offlineBilling`, `invoiceVerify`
+  collections; licence/device status can no longer be listed publicly).
+  Until published, the device-slot check is skipped (not blocking) and the
+  billing tab cannot save.
+
 ## v1.11.0 — The settings screen, split
 
 Nothing about Settings looks or behaves differently. This is the last item on
