@@ -25,6 +25,7 @@ import { pinsFrom } from './pins';
 import CloudGate from './CloudGate';
 import Support from './Support';
 import Devices from './Devices';
+import Billing from './Billing';
 import {
   watchAdmin, adminSignOut, watchClients, pushClient, removeClient,
   watchLicenseStatuses, setLicenseStatus, docIdFor, type StatusDoc, type LicenceAction,
@@ -34,7 +35,7 @@ import {
   card, input, label, primaryBtn, ghostBtn,
 } from './theme';
 
-type Tab = 'dashboard' | 'issue' | 'clients' | 'devices' | 'map' | 'support' | 'verify';
+type Tab = 'dashboard' | 'issue' | 'clients' | 'devices' | 'map' | 'billing' | 'support' | 'verify';
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '◈' },
@@ -42,6 +43,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'clients',   label: 'Clients', icon: '▦' },
   { id: 'devices',   label: 'Devices', icon: '🖥' },
   { id: 'map',       label: 'Device Map', icon: '◎' },
+  { id: 'billing',   label: 'Offline Billing', icon: '₨' },
   { id: 'support',   label: 'Support', icon: '✉' },
   { id: 'verify',    label: 'Verify Key', icon: '✓' },
 ];
@@ -152,6 +154,7 @@ export default function App() {
         {tab === 'clients'   && <Clients clients={clients} setClients={setClients} />}
         {tab === 'devices'   && <Devices />}
         {tab === 'map'       && <MapTab clients={clients} setClients={setClients} />}
+        {tab === 'billing'   && <Billing clients={clients} />}
         {tab === 'support'   && <Support clients={clients} />}
         {tab === 'verify'    && <VerifyKey clients={clients} />}
       </main>
