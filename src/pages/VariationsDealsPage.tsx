@@ -4,39 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2, Package, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Package, Search, FileSpreadsheet } from 'lucide-react';
+import DealImportDialog from '@/components/DealImportDialog';
 import { toast } from 'sonner';
 import {
-  getMenuItems, getCategories, saveCategory, saveMenuItem, deleteMenuItem,
+  getMenuItems, deleteMenuItem,
   getDeals, saveDeal, deleteDeal, genId, onDataChange,
 } from '@/lib/store';
-import { Category, MenuItem, Deal } from '@/lib/types';
-
-const DEALS_CATEGORY_ID = 'cat-deals';
-
-function ensureDealsCategory(): Category {
-  const cats = getCategories();
-  let cat = cats.find(c => c.id === DEALS_CATEGORY_ID) || cats.find(c => c.name.toLowerCase() === 'deals');
-  if (!cat) {
-    cat = { id: DEALS_CATEGORY_ID, name: 'Deals', icon: '🎁', sortOrder: cats.length };
-    saveCategory(cat);
-  }
-  return cat;
-}
-
-function syncDealToMenu(d: Deal) {
-  const cat = ensureDealsCategory();
-  const item: MenuItem = {
-    id: d.id, // same id as deal so we can find/remove easily
-    name: d.name,
-    categoryId: cat.id,
-    pricingType: 'fixed' as any,
-    price: d.price,
-    ratePerKg: 0,
-    isActive: d.isActive,
-  };
-  saveMenuItem(item);
-}
+import { MenuItem, Deal } from '@/lib/types';
+import { DEALS_CATEGORY_ID, syncDealToMenu } from '@/lib/deals';
 
 const blankDeal = (): Deal => ({ id: genId(), name: '', items: [], price: 0, isActive: true, createdAt: new Date().toISOString() });
 
@@ -49,6 +25,7 @@ export default function VariationsDealsPage() {
   const [editD, setEditD] = useState<Deal>(blankDeal());
   const [itemSearch, setItemSearch] = useState('');
   const [variantPickItem, setVariantPickItem] = useState<MenuItem | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
     const off = onDataChange((col) => {
@@ -137,8 +114,12 @@ export default function VariationsDealsPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2"><Package className="h-6 w-6 text-primary" /> Deals / Combos</h1>
           <p className="text-sm text-muted-foreground">Create combo deals — they will automatically be added to the Menu → <b>Deals</b> category and can be billed from POS.</p>
         </div>
-        <Button onClick={() => { setEditD(blankDeal()); setDOpen(true); }}><Plus className="h-4 w-4 mr-1" /> Add Deal</Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setImportOpen(true)}><FileSpreadsheet className="h-4 w-4 mr-1" /> Bulk Import Deals from Excel</Button>
+          <Button onClick={() => { setEditD(blankDeal()); setDOpen(true); }}><Plus className="h-4 w-4 mr-1" /> Add Deal</Button>
+        </div>
       </div>
+      {importOpen && <DealImportDialog onClose={() => setImportOpen(false)} onImported={() => setDeals(getDeals())} />}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {deals.length === 0 && (

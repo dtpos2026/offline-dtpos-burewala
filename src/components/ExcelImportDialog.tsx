@@ -5,7 +5,9 @@ import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { FileSpreadsheet, Upload } from 'lucide-react';
+import { Download, FileSpreadsheet, Upload } from 'lucide-react';
+import ExcelGuidePanel from '@/components/ExcelGuidePanel';
+import { MENU_CATEGORY_COLUMNS, MENU_EXAMPLE_ROWS, MENU_INVENTORY_COLUMNS, MENU_RULES, menuImportGuide } from '@/lib/excelGuides';
 import { genId } from '@/lib/store';
 import type { Category, MenuItem, InventoryItem } from '@/lib/types';
 import MenuImportPreview from './MenuImportPreview';
@@ -36,10 +38,14 @@ function num(v: any, d = 0): number {
   return Number.isFinite(n) ? n : d;
 }
 
-type SheetKind = 'categories' | 'items' | 'inventory' | 'unknown';
+type SheetKind = 'categories' | 'items' | 'inventory' | 'deals' | 'unknown';
 
 function classifySheet(name: string, headers: string[]): SheetKind {
   const n = norm(name);
+  // A deals sheet is not menu items. Imported here it used to become one
+  // junk menu item per deal row; deals have their own importer.
+  const hn = headers.map(norm);
+  if (/deal|combo/.test(n) || (hn.some(h => /^(deal|combo)(name)?$/.test(h)) && hn.some(h => h === 'itemname' || h === 'item'))) return 'deals';
   if (/categor/.test(n) && !/ingredient|inv/.test(n)) return 'categories';
   if (/ingredient|inventory|stock/.test(n)) return 'inventory';
   if (/item|menu|product/.test(n)) return 'items';
@@ -49,6 +55,20 @@ function classifySheet(name: string, headers: string[]): SheetKind {
   if (has('price') || has('rateperkg') || has('pricingtype')) return 'items';
   if (h.length <= 3 && has('name')) return 'categories';
   return 'unknown';
+}
+
+/** A starter workbook in exactly the format this importer reads. */
+function downloadMenuTemplate() {
+  try {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([MENU_CATEGORY_COLUMNS.map(c => c.header), ['Burgers', '🍔'], ['Pizza', '🍕'], ['Drinks', '🥤']]), 'Categories');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(MENU_EXAMPLE_ROWS), 'Menu Items');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([MENU_INVENTORY_COLUMNS.map(c => c.header), ['Mozzarella Cheese', 'CHS-01', 'Dairy', '1800', '', '10', 'kg', 'g', '2']]), 'Ingredients');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['DT POS — Menu import rules'], ...MENU_RULES.map(r => [r])]), 'Instructions');
+    XLSX.writeFile(wb, 'DT-POS-Menu-Import-Template.xlsx');
+  } catch (e: any) {
+    toast.error(`Could not create the template: ${e?.message || e}`);
+  }
 }
 
 export default function ExcelImportDialog({
@@ -87,6 +107,7 @@ export default function ExcelImportDialog({
 
       const menuItems: MenuItem[] = [];
       const inventory: InventoryItem[] = [];
+      const skippedDealSheets: string[] = [];
 
       for (const sheetName of wb.SheetNames) {
         const ws = wb.Sheets[sheetName];
@@ -94,6 +115,7 @@ export default function ExcelImportDialog({
         if (rows.length === 0) continue;
         const headers = Object.keys(rows[0]);
         const kind = classifySheet(sheetName, headers);
+        if (kind === 'deals') { skippedDealSheets.push(sheetName); continue; }
 
         if (kind === 'categories') {
           for (const r of rows) {
@@ -196,9 +218,12 @@ export default function ExcelImportDialog({
         }
       }
 
+      if (skippedDealSheets.length) {
+        toast.info(`Sheet ${skippedDealSheets.map(n => `"${n}"`).join(', ')} has deals — not imported as menu items. Import it from Deals / Combos → Bulk Import Deals from Excel.`, { duration: 8000 });
+      }
       const data = { categories: newCats, menuItems, inventory };
       if (newCats.length === 0 && menuItems.length === 0 && inventory.length === 0) {
-        toast.error('No valid data found in the file. Check headers: name, category, price/costPrice.');
+        toast.error(skippedDealSheets.length ? 'This file only contains deals. Use Deals / Combos → Bulk Import Deals from Excel.' : 'No valid data found in the file. Check headers: name, category, price/costPrice (see the format guide).');
         return;
       }
       setParsed(data);
@@ -265,6 +290,13 @@ export default function ExcelImportDialog({
             If there is no sheet name, it is auto-detected from the columns.
           </div>
         </label>
+
+        <div className="flex justify-end">
+          <Button type="button" size="sm" variant="outline" onClick={downloadMenuTemplate}>
+            <Download className="h-4 w-4 mr-1" /> Download menu template
+          </Button>
+        </div>
+        <ExcelGuidePanel title="Excel format guide — Menu" text={menuImportGuide()} />
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
