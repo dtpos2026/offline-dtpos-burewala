@@ -189,8 +189,34 @@ export async function autoDetectPrinters(): Promise<AutoDetectResult> {
       result.filledRoles.push(key);
     }
   }
-  if (Object.keys(patch).length) {
-    saveSettings({ ...settings, ...patch } as typeof settings);
+  // A shop-level name that only resolves by a tolerant match ("… (Copy 1)",
+  // different spacing or case) is re-pointed at the exact Windows name, the
+  // same as the Printer Center list above. Left as it was, every slip that
+  // used it depended on the fuzzy match — and the image route did not have
+  // one, which is what made shops re-detect their printer again and again.
+  const exactName = (name: string): string | null => {
+    const m = matchPrinter(name, list);
+    return m.printer && m.stage !== 'exact' && m.name && m.name !== name ? m.name : null;
+  };
+  for (const key of ['defaultPrinter', 'kotPrinter', 'tokenPrinter', 'backupPrinter'] as const) {
+    const current = String((patch as any)[key] ?? (settings as any)[key] ?? '').trim();
+    const to = current ? exactName(current) : null;
+    if (to) {
+      patch[key] = to;
+      result.relinked.push({ from: current, to, stage: 'shop setting' });
+    }
+  }
+  const stations = (settings as any).stationPrinters as Record<string, string> | undefined;
+  let stationPatch: Record<string, string> | null = null;
+  for (const [station, name] of Object.entries(stations || {})) {
+    const to = name ? exactName(String(name)) : null;
+    if (to) {
+      stationPatch = { ...(stationPatch || stations), [station]: to };
+      result.relinked.push({ from: String(name), to, stage: `station ${station}` });
+    }
+  }
+  if (Object.keys(patch).length || stationPatch) {
+    saveSettings({ ...settings, ...patch, ...(stationPatch ? { stationPrinters: stationPatch } : {}) } as typeof settings);
   }
 
   result.message = describe(result);

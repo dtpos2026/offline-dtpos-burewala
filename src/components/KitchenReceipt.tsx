@@ -210,6 +210,8 @@ export default function KitchenReceipt({ order: rawOrder, settings, showPrintBut
         contentWidthMm: hoistedKitchenCfg?.printWidthMm,
         // Driver mode keeps the hidden worker; only the raster is skipped.
         preferDriver: kotPrintMode === 'driver',
+        // The printer's "Bottom (mm)" = extra paper before the cut.
+        extraFeedMm: hoistedKitchenCfg?.bottomFeedMm,
       };
       const fast = await fastPrintHtml(fastArgs);
       if (fast.success) {

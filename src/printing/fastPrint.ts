@@ -79,6 +79,27 @@ export interface FastPrintArgs {
    * the fast path's responsiveness, instead of printing the whole POS window.
    */
   preferDriver?: boolean;
+  /**
+   * Paper fed past the last line before the cut on the Windows-driver path
+   * (mm). Default DRIVER_CUT_CLEARANCE_MM; raise it for a printer whose cutter
+   * sits unusually far from the head.
+   */
+  cutClearanceMm?: number;
+  /**
+   * Extra paper before the cut, from the printer's "Bottom (mm)" setting —
+   * for a cutter that sits unusually far from the head. Adds to the driver
+   * clearance and to the raster path's feed lines. Negative values ignored.
+   */
+  extraFeedMm?: number;
+}
+
+/** Default cutter clearance on the Windows-driver path — see buildDocument. */
+export const DRIVER_CUT_CLEARANCE_MM = 18;
+
+/** The printer's extra feed (mm), bounded; 0 when unset or negative. */
+function extraFeed(args: Pick<FastPrintArgs, 'extraFeedMm'>): number {
+  const n = Number(args.extraFeedMm);
+  return Number.isFinite(n) ? Math.max(0, Math.min(30, n)) : 0;
 }
 
 /**
@@ -213,7 +234,22 @@ function buildDocument(args: FastPrintArgs, mode: DocumentMode): string {
   const rule = mode === 'raster'
     ? '<div class="dt-measure" aria-hidden="true"></div>'
     : '';
-  return `${buildHead(args, mode)}<body class="thermal-printing${args.compact ? ' thermal-compact' : ''}"><div class="dt-fast-root receipt-print-portal" data-active-print="true">${rule}${body}</div></body></html>`;
+  // ===== CUTTER CLEARANCE (Windows-driver path only) =====
+  //
+  // The cutter sits 15–25 mm above the print head. A thermal driver trims the
+  // blank end of the page and cuts straight after the last line it printed,
+  // so the last 15–25 mm of the slip were still below the blade: the footer
+  // ("Printed …", "Powered by …") came out on top of the NEXT slip — the
+  // Lahore report. Blank space alone is trimmed away too, so the clearance
+  // ends in a single dot the driver has to print. The raster path feeds its
+  // own exact clearance before the cut and gets none of this.
+  const clearanceMm = Math.max(0, Math.min(40, Number(args.cutClearanceMm ?? DRIVER_CUT_CLEARANCE_MM) + extraFeed(args)));
+  // Nested one level: the direct children of .dt-fast-root are forced to
+  // height:auto (see the head), which would collapse a plain spacer.
+  const spacer = mode === 'html' && args.autoCut !== false && clearanceMm > 0
+    ? `<div class="dt-cut-clearance" aria-hidden="true"><div style="display:block;height:${clearanceMm}mm;"></div><div style="display:block;width:1px;height:1px;margin:0 auto;background:#000;"></div></div>`
+    : '';
+  return `${buildHead(args, mode)}<body class="thermal-printing${args.compact ? ' thermal-compact' : ''}"><div class="dt-fast-root receipt-print-portal" data-active-print="true">${rule}${body}${spacer}</div></body></html>`;
 }
 
 /**
@@ -286,15 +322,19 @@ export async function fastPrintHtml(args: FastPrintArgs): Promise<FastPrintResul
       darkness: quality.darkness,
       boldPrint: quality.bold,
       qualityScale: quality.scale,
+      // Standard / Bold / Extra bold — applied in the print window.
+      textWeight: quality.weight,
       // The raster stage inserts these as whole printer dots. The document
       // above was laid out at exactly layout.contentMm with no side padding,
       // so this is the ONE place the margins are applied on this path.
       marginLeftMm: layout.leftMm,
       marginRightMm: layout.rightMm,
       contentWidthMm: layout.contentMm,
-      // Safe distance between the final receipt line and the physical cutter.
-      // This does not alter/truncate the selected receipt template.
-      bottomFeedLines: 6,
+      // Safe distance between the final receipt line and the physical cutter:
+      // six default lines (about 25 mm at the usual 1/6" spacing), plus the
+      // printer's own extra feed in ~4 mm lines. It does not alter or
+      // truncate the selected receipt template.
+      bottomFeedLines: 6 + Math.ceil(extraFeed(args) / 4),
     };
     // 'Windows driver only' skips the raster stage but keeps the worker, so
     // the job never touches the POS window.

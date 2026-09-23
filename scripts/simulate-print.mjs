@@ -24,6 +24,12 @@ import path from 'node:path';
 
 const require_ = createRequire(import.meta.url);
 const { rasterGeometry, escposRasterBytes } = require_('../electron/escposRaster.cjs');
+const { STANDARD_WEIGHT_JS } = require_('../electron/textWeight.cjs');
+// SIM_PRESET mirrors Print Quality → Text weight: 'standard' (default in the
+// app), 'bold', or 'extra' (the old default: darkness 7 + one-dot smear).
+const PRESET = process.env.SIM_PRESET || 'bold';
+const PRESETS = { standard: { darkness: 6, bold: false }, bold: { darkness: 6, bold: false }, extra: { darkness: 7, bold: true } };
+const preset = PRESETS[PRESET] || PRESETS.bold;
 
 const OUT = process.env.SIM_OUT || path.resolve('.print-sim');
 const CHROME = process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
@@ -205,6 +211,7 @@ for (const slip of slips) {
   const doc = await browser.newPage({ viewport: { width: 600, height: 800 } });
   await doc.setContent(built.html, { waitUntil: 'networkidle' });
   await doc.evaluate(() => document.fonts && document.fonts.ready);
+  if (PRESET === 'standard') await doc.evaluate(STANDARD_WEIGHT_JS);
 
   const geom = rasterGeometry(built.paperLabel, built.marginLeftMm, built.marginRightMm);
 
@@ -246,6 +253,7 @@ for (const slip of slips) {
   });
   await hi.setContent(built.html, { waitUntil: 'networkidle' });
   await hi.evaluate(() => document.fonts && document.fonts.ready);
+  if (PRESET === 'standard') await hi.evaluate(STANDARD_WEIGHT_JS);
   const shot = await hi.screenshot({
     type: 'png',
     animations: 'disabled',
@@ -261,8 +269,8 @@ for (const slip of slips) {
   // than the caller uses is how a blank-paper bug slipped through: the
   // defaulting that broke was never exercised.
   const bytes = escposRasterBytes(nativeImageLike(supersampled), built.paperLabel, true, {
-    darkness: built.darkness,
-    bold: built.bold,
+    darkness: process.env.SIM_PRESET ? preset.darkness : built.darkness,
+    bold: process.env.SIM_PRESET ? preset.bold : built.bold,
     marginLeftMm: built.marginLeftMm,
     marginRightMm: built.marginRightMm,
     bottomFeedLines: undefined,

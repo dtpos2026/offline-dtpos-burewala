@@ -10,8 +10,8 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { toast } from 'sonner';
 import {
-  loadPrintQuality, savePrintQuality, resetPrintQuality,
-  type PrintQuality,
+  loadPrintQuality, savePrintQuality, resetPrintQuality, WEIGHT_LABELS,
+  type PrintQuality, type TextWeight,
 } from '@/lib/printQuality';
 
 export default function PrintQualityCard() {
@@ -33,16 +33,29 @@ export default function PrintQualityCard() {
   return (
     <Card className="p-4 space-y-4">
       <div className="space-y-1">
-        <h3 className="text-base font-semibold">Print Quality / Darkness</h3>
+        <h3 className="text-base font-semibold">Print Quality</h3>
         <p className="text-sm text-muted-foreground">
-          Is device par print kitni dark aur sharp nikle. Auto = recommended settings.
+          How heavy, dark and sharp slips print on this computer. Templates and layout are not changed.
         </p>
+      </div>
+
+      <div className="space-y-2" data-testid="text-weight">
+        <Label className="font-medium">Text weight</Label>
+        <div className="grid grid-cols-3 gap-2">
+          {(Object.keys(WEIGHT_LABELS) as TextWeight[]).map(w => (
+            <Button key={w} type="button" size="sm" variant={q.weight === w ? 'default' : 'outline'}
+                    onClick={() => { save({ ...q, weight: w }); toast.success(`Text weight: ${WEIGHT_LABELS[w].label}`); }}>
+              {WEIGHT_LABELS[w].label}{w === 'standard' ? ' ✓' : ''}
+            </Button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">{WEIGHT_LABELS[q.weight].hint}</p>
       </div>
 
       <div className="flex items-center justify-between rounded-md border p-3">
         <div>
           <Label className="font-medium">Manual adjust</Label>
-          <p className="text-xs text-muted-foreground">Off = Auto (dark + bold + high resolution)</p>
+          <p className="text-xs text-muted-foreground">Off = Auto: darkness and boldness follow the text weight above, at high resolution.</p>
         </div>
         <Switch
           checked={manual}
@@ -80,13 +93,13 @@ export default function PrintQualityCard() {
             onValueChange={([v]) => setQ({ ...q, scale: v })}
             onValueCommit={([v]) => save({ ...q, scale: v })}
           />
-          <p className="text-xs text-muted-foreground">2x recommended — sabse saaf chhota text.</p>
+          <p className="text-xs text-muted-foreground">2x recommended — the sharpest small text.</p>
         </div>
 
         <div className="flex items-center justify-between rounded-md border p-3">
           <div>
-            <Label className="font-medium">Bold print</Label>
-            <p className="text-xs text-muted-foreground">Patli font lines ko solid karta hai</p>
+            <Label className="font-medium">Thicken strokes</Label>
+            <p className="text-xs text-muted-foreground">Adds one dot to every stroke — only for a faint printer.</p>
           </div>
           <Switch checked={q.bold} onCheckedChange={(on) => save({ ...q, bold: on })} />
         </div>
@@ -95,9 +108,9 @@ export default function PrintQualityCard() {
       <div className="flex gap-2">
         <Button
           variant="outline"
-          onClick={() => { resetPrintQuality(); toast.success('Print quality reset to Auto'); }}
+          onClick={() => { resetPrintQuality(); toast.success('Print quality reset to Auto, Standard weight'); }}
         >
-          Reset to Auto
+          Reset to Auto (Standard)
         </Button>
       </div>
     </Card>

@@ -600,6 +600,16 @@ async function listSystemPrinters() {
   return [];
 }
 
+// The installed printer a RAW job should open, for a saved name — follows a
+// Windows rename ("… (Copy 1)") with the same matcher the text RAW route and
+// the driver route use. Cached, shared between slips printing together, and
+// never allowed to hold a slip: see printerResolve.cjs.
+const printerResolver = require('./printerResolve.cjs').createPrinterResolver({
+  list: () => listSystemPrinters(),
+  match: (name, printers) => matchPrinterName(name, printers),
+});
+const resolveRawPrinter = (requested, fresh = false) => printerResolver.resolve(requested, fresh);
+
 // ===== IPC HANDLERS =====
 
 // Get list of available printers
@@ -938,6 +948,7 @@ function loadPrintWorkerHtml(win, html) {
 // drive the exact same code offline (scripts/simulate-print.mjs). A copy
 // would drift, and a drifting simulation stops telling the truth.
 const { escposRasterBytes, rasterGeometry } = require('./escposRaster.cjs');
+const { applyTextWeight } = require('./textWeight.cjs');
 
 ipcMain.handle('print-html', async (_event, options = {}) => {
   const html = String(options.html || '');
@@ -980,6 +991,7 @@ ipcMain.handle('print-html', async (_event, options = {}) => {
         ]);
       }
     } catch {}
+    await applyTextWeight(win.webContents, options.textWeight);
     return await runPrintJob(win.webContents, options);
   } catch (e) {
     return { success: false, error: String(e && e.message ? e.message : e) };
@@ -997,6 +1009,8 @@ ipcMain.handle('print-html-escpos', async (_event, options = {}) => {
     return { success: false, error: 'empty document' };
   }
   if (process.platform !== 'win32') return { success: false, error: 'Windows only' };
+  // Resolve the printer while the slip renders (see printerResolve.cjs).
+  const target = resolveRawPrinter(options.printerName);
   return withPrintWorker(async () => {
   try {
     const win = getPrintWorker();
@@ -1008,6 +1022,9 @@ ipcMain.handle('print-html-escpos', async (_event, options = {}) => {
         new Promise(resolve => setTimeout(resolve, 1200)),
       ]);
     }
+    // The shop's text weight (Print Quality): Standard prints body text
+    // regular and keeps headings and totals bold. Before measuring.
+    await applyTextWeight(win.webContents, options.textWeight);
     // ===== SQUEEZED-SLIP FIX (narrow content, wide blank right band) =====
     // The WIDTH must be the slip's AUTHORED width, never scrollWidth.
     //
@@ -1147,8 +1164,24 @@ ipcMain.handle('print-html-escpos', async (_event, options = {}) => {
     }
 
     const copies = Math.max(1, Number(options.copies) || 1);
-    const result = await sendRawWithWarmWorker(String(options.printerName || '').trim(), bytes, copies);
-    return { ...result, durationMs: Date.now() - started, renderedHeightPx: baseHeight, bytes: bytes.length, bands: diag ? diag.bands : undefined };
+    let resolved = await target;
+    let result = await sendRawWithWarmWorker(resolved.name, bytes, copies);
+    // The printer may have been renamed since the list was read: read it
+    // again and retry once, before the renderer gives up on RAW.
+    if (!result.success && /OpenPrinter failed/i.test(String(result.error || ''))) {
+      const again = await resolveRawPrinter(options.printerName, true);
+      if (again.name && again.name !== resolved.name) {
+        resolved = again;
+        result = await sendRawWithWarmWorker(resolved.name, bytes, copies);
+      }
+    }
+    if (resolved.stage !== 'exact' && resolved.stage !== 'none') {
+      try {
+        appendLog('WARN', 'DT-Print printer name resolved',
+          `saved="${String(options.printerName || '').trim()}" printed-on="${resolved.name}" match=${resolved.stage} result=${result.success ? 'ok' : (result.error || 'fail')}`);
+      } catch {}
+    }
+    return { ...result, printerName: resolved.name, matchStage: resolved.stage, durationMs: Date.now() - started, renderedHeightPx: baseHeight, bytes: bytes.length, bands: diag ? diag.bands : undefined };
   } catch (e) {
     return { success: false, error: String((e && e.message) || e), durationMs: Date.now() - started };
   } finally {
@@ -2152,95 +2185,23 @@ function ensureRawScript() {
   return p;
 }
 
-// Keep one PowerShell/Winspool bridge alive for the full POS session. The old
-// implementation launched PowerShell and compiled the C# bridge for EVERY
-// receipt, which alone could cost 2–5 seconds. The warm worker compiles once at
-// startup; each later click only writes one JSON line and reaches Winspool.
-let rawWorker = null;
-let rawWorkerReady = null;
-let rawWorkerBuffer = '';
-let rawPending = null;
-
-function stopRawWorker() {
-  try { rawWorker?.kill(); } catch {}
-  rawWorker = null;
-  rawWorkerReady = null;
-  rawWorkerBuffer = '';
-  if (rawPending) {
-    rawPending.resolve({ success: false, error: 'Direct print worker stopped' });
-    rawPending = null;
-  }
-}
-
-function getRawWorker() {
-  if (process.platform !== 'win32') return Promise.reject(new Error('Windows only'));
-  if (rawWorker && rawWorkerReady) return rawWorkerReady;
-  const { spawn } = require('child_process');
-  const script = ensureRawScript();
-  rawWorker = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script], {
-    windowsHide: true,
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
-  rawWorkerReady = new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Direct print worker startup timed out')), 8000);
-    const onData = (chunk) => {
-      rawWorkerBuffer += String(chunk || '');
-      const lines = rawWorkerBuffer.split(/\r?\n/);
-      rawWorkerBuffer = lines.pop() || '';
-      for (const line of lines) {
-        if (line.trim() === 'READY') {
-          clearTimeout(timer);
-          resolve(rawWorker);
-          continue;
-        }
-        if (!rawPending) continue;
-        if (line.startsWith(`OK:${rawPending.id}`)) {
-          const pending = rawPending;
-          rawPending = null;
-          pending.resolve({ success: true });
-        } else if (line.startsWith(`ERR:${rawPending.id}:`)) {
-          const pending = rawPending;
-          rawPending = null;
-          pending.resolve({ success: false, error: line.slice(`ERR:${pending.id}:`.length) || 'raw print failed' });
-        }
-      }
-    };
-    rawWorker.stdout.on('data', onData);
-    rawWorker.once('error', (e) => { clearTimeout(timer); reject(e); stopRawWorker(); });
-    rawWorker.once('exit', () => { clearTimeout(timer); stopRawWorker(); });
-  });
-  return rawWorkerReady;
-}
-
-/** How long one RAW job may take before the printer is declared stalled. */
-const RAW_PRINT_TIMEOUT_MS = 5000;
-
-let rawPrintChain = Promise.resolve();
-function sendRawWithWarmWorker(printerName, buffer, copies) {
-  const task = () => getRawWorker().then(worker => new Promise((resolve) => {
-    const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
-    // A stalled printer must never hold the cashier. Five seconds is well
-    // past a healthy USB thermal job (which answers in well under one) and
-    // short enough that an unplugged printer surfaces an error while the POS
-    // stays responsive. The caller falls back to the driver path on timeout.
-    const timer = setTimeout(() => {
-      if (rawPending?.id === id) rawPending = null;
-      resolve({ success: false, error: 'Direct print timed out' });
-      stopRawWorker();
-    }, RAW_PRINT_TIMEOUT_MS);
-    rawPending = {
-      id,
-      resolve: (result) => { clearTimeout(timer); resolve(result); },
-    };
-    worker.stdin.write(JSON.stringify({ id, printerName, copies, data: buffer.toString('base64') }) + '\n');
-  }));
-  const run = rawPrintChain.then(task, task);
-  rawPrintChain = run.then(() => undefined, () => undefined);
-  return run;
-}
+// One warm PowerShell/Winspool bridge for the whole session — see
+// rawWorker.cjs (moved out so its failure handling is tested).
+const rawBridge = require('./rawWorker.cjs').createRawWorker({
+  spawn: (cmd, args, opts) => require('child_process').spawn(cmd, args, opts),
+  scriptPath: () => ensureRawScript(),
+  platform: process.platform,
+});
+const getRawWorker = () => rawBridge.get();
+const sendRawWithWarmWorker = (printerName, buffer, copies) => rawBridge.send(printerName, buffer, copies);
+const stopRawWorker = () => rawBridge.stop();
+app.on('before-quit', () => rawBridge.setQuitting(true));
 
 app.whenReady().then(() => {
   if (process.platform === 'win32') setTimeout(() => { getRawWorker().catch(() => {}); }, 300);
+  // The hidden print window too: created on the first slip, it made the
+  // first bill of the day the slowest one.
+  setTimeout(() => { try { getPrintWorker(); } catch { /* created on first print instead */ } }, 1500);
 });
 app.on('before-quit', stopRawWorker);
 

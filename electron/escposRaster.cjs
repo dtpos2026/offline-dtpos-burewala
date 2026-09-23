@@ -70,23 +70,32 @@ function packDots(pixels, width, height, geom, opts = {}) {
 
   const rowBytes = Math.ceil(paperDots / 8);
   const data = Buffer.alloc(rowBytes * height);
+  const inkAt = (x, y) => {
+    const i = (y * width + x) * 4;
+    const b = pixels[i] || 0;
+    const g = pixels[i + 1] || 0;
+    const r = pixels[i + 2] || 0;
+    const a = pixels[i + 3] ?? 255;
+    const alpha = a / 255;
+    const lum = ((0.299 * r + 0.587 * g + 0.114 * b) * alpha) + (255 * (1 - alpha));
+    return lum < cutoff;
+  };
   for (let y = 0; y < height; y++) {
     const rowOff = y * rowBytes;
     let prevInk = false;
+    let ink = width > 0 ? inkAt(0, y) : false;
     for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
-      const b = pixels[i] || 0;
-      const g = pixels[i + 1] || 0;
-      const r = pixels[i + 2] || 0;
-      const a = pixels[i + 3] ?? 255;
-      const alpha = a / 255;
-      const lum = ((0.299 * r + 0.587 * g + 0.114 * b) * alpha) + (255 * (1 - alpha));
-      const ink = lum < cutoff;
-      if (ink || (bold && prevInk)) {
+      const nextInk = x + 1 < width ? inkAt(x + 1, y) : false;
+      // Bold widens a stroke by the dot to its right — but never fills a
+      // one-dot white gap (ink on both sides). That gap is the white stroke
+      // of text reversed out of a black bar, or the hole in an "e"; filling
+      // it is what turned "Please visit again" bars solid black.
+      if (ink || (bold && prevInk && !nextInk)) {
         const px = x + leftDots;
         if (px < paperDots) data[rowOff + (px >> 3)] |= (0x80 >> (px & 7));
       }
       prevInk = ink;
+      ink = nextInk;
     }
   }
   return { rowBytes, height, data };
