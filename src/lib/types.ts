@@ -595,7 +595,9 @@ export interface RestaurantSettings {
     | 'premium-fine-dining' | 'premium-grid-invoice' | 'premium-hall-detail'
     | 'premium-quick-bill' | 'premium-two-column' | 'premium-retail'
     | 'premium-grouped' | 'premium-token-hero' | 'premium-boxed-ledger'
-    | 'premium-rounded-panel';
+    | 'premium-rounded-panel'
+    // Café designs: regular body type, "2 × Item" lines, pickup number.
+    | 'premium-cafe-classic' | 'premium-coffee-house' | 'premium-cafe-counter';
   // ===== Standard Receipt section toggles (default ON) =====
   receiptShowLogo?: boolean;
   receiptShowAddress?: boolean;

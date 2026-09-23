@@ -73,6 +73,9 @@ export default function ReceiptSettingsTab({ settings, setSettings, onSave, samp
                   { id: 'premium-token-hero', name: '🎫 Premium — Token Hero', desc: 'Very large token number under a decorated header, compact item list' },
                   { id: 'premium-boxed-ledger', name: '📒 Premium — Boxed Ledger', desc: 'Stacked framed meta panels, totals inside the item frame, amount in words' },
                   { id: 'premium-rounded-panel', name: '🫧 Premium — Rounded Panel', desc: 'Logo beside the shop block, soft-cornered item table and totals panel' },
+                  { id: 'premium-cafe-classic', name: '☕ Café — Classic', desc: 'Rounded pickup number with the customer name, "2 × Item" lines, light regular type' },
+                  { id: 'premium-coffee-house', name: '🫖 Café — Coffee House', desc: 'Warm serif guest check, framed header, soft totals panel and a QR for menu or feedback' },
+                  { id: 'premium-cafe-counter', name: '🥤 Café — Counter', desc: 'Very large pickup number to call out, paired details, "2 × Item" lines, large total' },
                 ] as const).map(d => (
                   <button
                     key={d.id}

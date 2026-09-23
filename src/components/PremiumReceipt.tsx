@@ -1,7 +1,7 @@
 // ============================================================
 // PREMIUM RECEIPT RENDERER
 //
-// One component draws all thirteen premium layouts. The template decides
+// One component draws every premium layout. The template decides
 // PRESENTATION (header shape, how the item table is ruled, how the totals
 // are framed); the live order and the shop's settings supply every word and
 // number on the paper. Nothing about a restaurant is baked into a template,
@@ -248,6 +248,13 @@ export default function PremiumReceipt({ order, settings, templateId, customizat
     }
   };
 
+  // The café pickup block prints the customer's name under the number the
+  // counter calls out; the meta block then leaves it out.
+  const pickup = L.hero === 'pickup' || L.hero === 'ticket';
+  const pickupName = pickup && c.showOrderNumber && order.orderNumber != null && c.showCustomer
+    ? String(order.customer?.name || '').trim()
+    : '';
+
   // ---- meta rows ---------------------------------------------------------
   // Every entry is read from the live order. A row with no value is dropped
   // rather than printed empty, so short orders do not waste paper.
@@ -261,7 +268,7 @@ export default function PremiumReceipt({ order, settings, templateId, customizat
   if (c.showTable && (order.tableName || order.tableLabel)) metaRows.push(['Table', String(order.tableName || order.tableLabel)]);
   if (c.showCashier && order.cashierName) metaRows.push(['Cashier', order.cashierName]);
   if (c.showCashier && order.waiterName) metaRows.push(['Waiter', order.waiterName]);
-  if (c.showCustomer && order.customer?.name) metaRows.push(['Customer', order.customer.name]);
+  if (c.showCustomer && order.customer?.name && !pickupName) metaRows.push(['Customer', order.customer.name]);
   if (c.showCustomer && order.customer?.phone) metaRows.push(['Phone', order.customer.phone]);
   if (c.showDelivery && order.orderType === 'delivery') {
     const addr = order.customer?.fullAddress || order.customer?.address;
@@ -330,6 +337,24 @@ export default function PremiumReceipt({ order, settings, templateId, customizat
   // ---- hero number -------------------------------------------------------
   const renderHero = () => {
     if (L.hero === 'none') return null;
+    if (pickup) {
+      if (!c.showOrderNumber || order.orderNumber == null) return null;
+      const ticket = L.hero === 'ticket';
+      return (
+        <div style={{
+          ...section, textAlign: 'center', padding: '3px 4px',
+          ...(ticket
+            ? { borderTop: '2px dashed #000', borderBottom: '2px dashed #000' }
+            : { border: '2px solid #000', borderRadius: radius }),
+        }}>
+          <div style={{ fontSize: `${base - 2}px`, fontWeight: 700, letterSpacing: 1 }}>ORDER NUMBER</div>
+          <div style={{ fontSize: `${base + (ticket ? 26 : 18)}px`, fontWeight: 900, lineHeight: 1.05 }}>{order.orderNumber}</div>
+          {pickupName && (
+            <div style={{ fontSize: `${base + 3}px`, fontWeight: 800, lineHeight: 1.2, wordBreak: 'break-word' }}>{pickupName}</div>
+          )}
+        </div>
+      );
+    }
     let label = '';
     let value = '';
     if (L.hero === 'token' || L.hero === 'order') {
@@ -437,8 +462,56 @@ export default function PremiumReceipt({ order, settings, templateId, customizat
     marginTop: `${c.sectionSpacing}px`,
   };
 
+  // Café lines: "2 × Cappuccino" with the amount at the right, then the
+  // unit price (only when more than one was ordered) and the note in smaller
+  // type underneath. Each item is ONE cell holding a flex line, so the
+  // amount sits on the item's first line (the print stylesheet centres
+  // table cells vertically) and the lines underneath get the full width.
+  const renderCafeItems = () => {
+    const items = order.items || [];
+    const showRate = columns.includes('rate');
+    const showSr = columns.includes('sr');
+    const sub: React.CSSProperties = { fontSize: `${base - 2}px`, fontWeight: 400 };
+    const head: React.CSSProperties = { ...bareCell, fontWeight: 900, borderBottom: '1px solid #000' };
+    return (
+      <table className="premium-items" style={tableStyle}>
+        <thead>
+          <tr>
+            <th style={{ ...head, textAlign: 'left' }}>Item</th>
+            <th className="premium-num" style={{ ...head, textAlign: 'right' }}>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, i) => {
+            const weighed = item.pricingType === 'weight' && !!item.weightGrams && item.weightGrams > 0;
+            const qty = weighed ? `${qtyLabel(item)} kg` : qtyLabel(item);
+            const each = showRate && !weighed && Number(item.quantity) > 1;
+            return (
+              <tr key={item.id || i} className="item-row">
+                <td colSpan={2} style={{ ...bareCell, textAlign: 'left' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontWeight: 800 }}>
+                    <span style={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
+                      {showSr ? `${i + 1}. ` : ''}{qty} × {item.name}
+                      {item.variantName ? <span style={{ fontWeight: 400 }}> ({item.variantName})</span> : null}
+                    </span>
+                    <span className="premium-num" style={{ textAlign: 'right' }}>
+                      {money(item.lineTotal ?? item.quantity * item.price, false)}
+                    </span>
+                  </div>
+                  {each && <div style={sub}>@ {money(item.price, false)} each</div>}
+                  {c.showItemNotes && item.note ? <div style={sub}>» {item.note}</div> : null}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  };
+
   const renderItems = () => {
     const items = order.items || [];
+    if (L.items === 'cafe') return renderCafeItems();
     if (L.items === 'grouped') {
       // Group by the item's own station/category label when the order
       // carries one; otherwise fall back to a single ungrouped run so the

@@ -1,7 +1,7 @@
 // ============================================================
 // PREMIUM TEMPLATE GALLERY
 //
-// Pick one of the thirteen premium layouts, see it filled in with the
+// Pick one of the premium layouts, see it filled in with the
 // shop's own latest order, adjust what it shows, and save. A saved template
 // prints exactly as previewed — the customization is stored, the CONTENT is
 // read fresh from each order at print time, so nothing has to be typed in
@@ -151,8 +151,9 @@ export default function PremiumTemplateGallery() {
           <LayoutTemplate className="h-5 w-5" /> Premium Receipt Templates
         </CardTitle>
         <CardDescription>
-          Thirteen professional 80mm layouts. Tap one to preview it with your own order data,
-          adjust what it shows, and save — your prices, items and totals fill in automatically.
+          {PREMIUM_TEMPLATES.length} professional 80mm layouts, including three café designs.
+          Tap one to preview it with your own order data, adjust what it shows, and save —
+          your prices, items and totals fill in automatically.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

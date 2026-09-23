@@ -1,11 +1,13 @@
 // ============================================================
 // PREMIUM RECEIPT TEMPLATES
 //
-// Thirteen professional 80mm layouts, each drawn from a real restaurant
-// receipt supplied as a reference. What is reused is layout only —
-// typographic hierarchy, column structure, how the totals block is framed,
+// Sixteen professional 80mm layouts. Thirteen are drawn from real
+// restaurant receipts supplied as references; what is reused is layout only
+// — typographic hierarchy, column structure, how the totals block is framed,
 // where the hero number sits. No shop name, logo, phone number, tax id or
 // any other identity from those receipts appears anywhere in this file.
+// The last three are café designs: lighter type, "2 × Item" lines and a
+// pickup number the counter can call out.
 //
 // A template is CONFIGURATION, never content
 // ------------------------------------------
@@ -33,7 +35,10 @@ export type PremiumTemplateId =
   | 'premium-grouped'
   | 'premium-token-hero'
   | 'premium-boxed-ledger'
-  | 'premium-rounded-panel';
+  | 'premium-rounded-panel'
+  | 'premium-cafe-classic'
+  | 'premium-coffee-house'
+  | 'premium-cafe-counter';
 
 /** Header shape. */
 export type HeaderStyle =
@@ -56,7 +61,8 @@ export type ItemStyle =
   | 'ruled'         // horizontal rules above/below the block only
   | 'dotted'        // dotted leader between rows
   | 'plain'         // no rules at all
-  | 'grouped';      // category sub-headings with indented items
+  | 'grouped'       // category sub-headings with indented items
+  | 'cafe';         // "2 × Item" and the amount; unit price and note underneath
 
 /** How the totals block is framed. */
 export type TotalsStyle =
@@ -72,8 +78,14 @@ export type GrandTotalStyle =
   | 'large'         // oversized type, no frame
   | 'plain';        // bold, same size
 
-/** One optional oversized number near the top of the slip. */
-export type HeroStyle = 'none' | 'token' | 'order' | 'table';
+/**
+ * One optional oversized number near the top of the slip. The café ones:
+ *   pickup — the order number the counter calls out, framed, with the
+ *            customer's name under it when the order has one
+ *   ticket — the same between dashed tear lines, with a larger number for
+ *            counters that call numbers across a busy room
+ */
+export type HeroStyle = 'none' | 'token' | 'order' | 'table' | 'pickup' | 'ticket';
 
 export interface PremiumLayout {
   header: HeaderStyle;
@@ -98,6 +110,12 @@ export interface PremiumLayout {
   fontSize: number;
   /** Soft corners on framed blocks. */
   rounded?: boolean;
+  /**
+   * Body weight this design starts with, before any customization. Omitted
+   * means bold, as before; the café designs start regular, which prints
+   * lighter and cleaner.
+   */
+  boldBody?: boolean;
   /** Columns shown in the item table, in order. */
   columns: ItemColumn[];
 }
@@ -112,7 +130,7 @@ export interface PremiumTemplate {
 }
 
 // ------------------------------------------------------------
-// The thirteen layouts
+// The layouts
 // ------------------------------------------------------------
 export const PREMIUM_TEMPLATES: PremiumTemplate[] = [
   {
@@ -256,6 +274,43 @@ export const PREMIUM_TEMPLATES: PremiumTemplate[] = [
       grandTotal: 'plain', hero: 'none', rounded: true,
       font: 'sans', fontSize: 13,
       columns: ['name', 'qty', 'rate', 'amount'],
+    },
+  },
+
+  // ---- Café designs ------------------------------------------------------
+  // For cafés and tea houses. Regular body type instead of bold, no solid
+  // black blocks, and item lines the way a café bill reads them.
+  {
+    id: 'premium-cafe-classic',
+    name: 'Café Classic',
+    hint: 'Café bill: a rounded pickup number with the customer\'s name, "2 × Item" lines with the price underneath, light rules.',
+    layout: {
+      header: 'centered', meta: 'split', items: 'cafe', totals: 'right',
+      grandTotal: 'box', hero: 'pickup', rounded: true, boldBody: false,
+      font: 'sans', fontSize: 13,
+      columns: ['qty', 'name', 'rate', 'amount'],
+    },
+  },
+  {
+    id: 'premium-coffee-house',
+    name: 'Coffee House',
+    hint: 'Warm serif guest check: framed header, "2 × Item" lines, a soft totals panel and a QR for your menu or feedback.',
+    layout: {
+      header: 'decorated', meta: 'split', items: 'cafe', totals: 'rounded',
+      grandTotal: 'large', hero: 'none', title: 'GUEST CHECK', qr: true, boldBody: false,
+      font: 'serif', fontSize: 14,
+      columns: ['qty', 'name', 'rate', 'amount'],
+    },
+  },
+  {
+    id: 'premium-cafe-counter',
+    name: 'Café Counter',
+    hint: 'Quick counter service: a ticket-style pickup number in very large type, paired details, "2 × Item" lines and a large total.',
+    layout: {
+      header: 'stacked', meta: 'two-column', items: 'cafe', totals: 'right',
+      grandTotal: 'large', hero: 'ticket', qr: true, boldBody: false,
+      font: 'sans', fontSize: 13,
+      columns: ['qty', 'name', 'rate', 'amount'],
     },
   },
 ];
@@ -449,9 +504,14 @@ function readStore(): CustomizationStore {
 export function loadCustomization(id: PremiumTemplateId): PremiumCustomization {
   const tpl = getPremiumTemplate(id);
   // A template's own typography is its starting point — that is what makes
-  // the thirteen designs distinct rather than one layout in thirteen shapes.
+  // the designs distinct rather than one layout in sixteen shapes.
   const base: PremiumCustomization = tpl
-    ? { ...DEFAULT_CUSTOMIZATION, fontFamily: tpl.layout.font, fontSize: tpl.layout.fontSize }
+    ? {
+        ...DEFAULT_CUSTOMIZATION,
+        fontFamily: tpl.layout.font,
+        fontSize: tpl.layout.fontSize,
+        boldBody: tpl.layout.boldBody ?? DEFAULT_CUSTOMIZATION.boldBody,
+      }
     : DEFAULT_CUSTOMIZATION;
   const saved = readStore()[id];
   return normalizeCustomization({ ...base, ...(saved || {}) });
