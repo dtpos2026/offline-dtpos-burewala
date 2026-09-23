@@ -8,7 +8,7 @@ import {
   Settings, UtensilsCrossed, Database, Users, ChefHat, Menu, X,
   ZoomIn, ZoomOut, Package, LogOut, Wallet, UserCog, MessageCircle, Megaphone,
   Smartphone, ChevronDown, BookOpen, Trash2, Contact, Building2, TrendingUp,
-  Percent, Layers, MapPin, Bell, Receipt, RotateCcw, Globe, Lock, Bike, Edit3, UserX, HandCoins, RefreshCw,
+  Percent, Layers, MapPin, Bell, Receipt, RotateCcw, Globe, Lock, Bike, Edit3, UserX, HandCoins, RefreshCw, Moon,
 } from 'lucide-react';
 import { getSettings, getUsers, getBranches, getCurrentBranchId, setCurrentBranchId, canSwitchBranch } from '@/lib/store';
 import { isPremiumThemeActive, PREMIUM_BRAND_NAME } from '@/lib/premiumTheme';
@@ -79,6 +79,7 @@ const ICON_BY_KEY: Record<string, any> = {
   menu: UtensilsCrossed, receiving: Package,
   recipes: BookOpen, wastage: Trash2,
   hr: UserCog, accounts: Wallet, parties: Users, 'daily-wages': HandCoins, settings: Settings,
+  'day-close': Moon,
   backup: Database, users: Users, devices: Smartphone, branches: Building2, version: RefreshCw,
   'branches-map': MapPin,
   'live-map': MapPin,

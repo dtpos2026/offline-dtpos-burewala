@@ -4,12 +4,8 @@ import PrinterSettingsTab from '@/components/settings/PrinterSettingsTab';
 import ScreenLayoutTab from '@/components/settings/ScreenLayoutTab';
 import KotSettingsTab from '@/components/settings/KotSettingsTab';
 import { useNavigate } from 'react-router-dom';
-import { printShiftReport } from '@/components/ShiftReport';
-import DayCloseModulesPanel from '@/components/DayCloseModulesPanel';
-import { getSettings, saveSettings, getTables, saveTable, deleteTable, getFloors, saveFloor, deleteFloor, getKitchens, saveKitchen, deleteKitchen, getWaiters, saveWaiter, deleteWaiter, getRiders, saveRider, deleteRider, genId, getOrders, deleteOrder, exportData, getCategories, getCurrentUser } from '@/lib/store';
+import { getSettings, saveSettings, getTables, saveTable, deleteTable, getFloors, saveFloor, deleteFloor, getKitchens, saveKitchen, deleteKitchen, getWaiters, saveWaiter, deleteWaiter, getRiders, saveRider, deleteRider, genId, getCategories, getCurrentUser } from '@/lib/store';
 import { RestaurantSettings, DiningTable, Floor, Kitchen, Waiter, Rider, ReceiptTextStyle } from '@/lib/types';
-import { getDayCloseConfig, saveDayCloseConfig, DayCloseConfig, getPendingDayCloseRequests, addPendingDayCloseRequest, clearPendingDayCloseRequests, PendingDayCloseRequest } from '@/lib/dayCloseConfig';
-import { userHasAccess } from '@/lib/permissions';
 import { Checkbox } from '@/components/ui/checkbox';
 
 
@@ -23,20 +19,17 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, AlertTriangle, Download, Printer, Palette, MapPin, Navigation, ShoppingBag, Globe2, Settings as SettingsIcon, MessageCircle } from 'lucide-react';
+import { Plus, Trash2, Download, Printer, Palette, MapPin, Navigation, ShoppingBag, Globe2, Settings as SettingsIcon, MessageCircle } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { PAKISTAN_AREAS } from '@/lib/pakistan-areas';
 import { toast } from 'sonner';
 import { askText } from '@/lib/askText';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { isElectron, getPrinters, getAutoStart, setAutoStart } from '@/lib/electron';
 import { Slider } from '@/components/ui/slider';
 import { themes, getActiveTheme, setActiveTheme, ThemeId } from '@/lib/themes';
 import { isPremiumPolishOn, setPremiumPolish } from '@/lib/premiumPolish';
 import { getWhatsAppTemplates } from '@/lib/whatsapp';
 import { getTenantId, getTenantName } from '@/lib/tenant';
-import { archiveOrders } from '@/lib/orderArchive';
-import { saveBackupToCloud, logDayCloseEvent } from '@/lib/dayCloseBackup';
 import { isCloudConfigured } from '@/lib/offlineNoCloud';
 import { COUNTRIES, findCountry } from '@/lib/countries';
 
@@ -146,8 +139,6 @@ export default function SettingsPage() {
   // Quick-discount draft text (comma typing ke liye — parse blur pe hota hai)
   const [discountPctDraft, setDiscountPctDraft] = useState<string>('');
   const [discountAmtDraft, setDiscountAmtDraft] = useState<string>('');
-  const [dcFrom, setDcFrom] = useState('');
-  const [dcTo, setDcTo] = useState('');
   const [payQuickDraft, setPayQuickDraft] = useState<string>('');
   const [quickCashDraft, setQuickCashDraft] = useState<string>('');
   const discountDraftInit = useRef(false);
@@ -167,15 +158,10 @@ export default function SettingsPage() {
 
   const [waiters, setWaiters] = useState(() => getWaiters());
   const [riders, setRiders] = useState(() => getRiders());
-  const [showDayClose, setShowDayClose] = useState(false);
   const [printers, setPrinters] = useState<{ name: string; isDefault?: boolean }[]>([]);
   const [currentTheme, setCurrentTheme] = useState<ThemeId>(getActiveTheme());
   const [premiumPolish, setPremiumPolishState] = useState<boolean>(() => isPremiumPolishOn());
-  const [dayCloseCfg, setDayCloseCfg] = useState<DayCloseConfig>(() => getDayCloseConfig());
-  const [pendingRequests, setPendingRequests] = useState<PendingDayCloseRequest[]>(() => getPendingDayCloseRequests());
   const currentUser = getCurrentUser();
-  const isAdmin = currentUser?.role === 'admin';
-  const canDayClose = isAdmin || userHasAccess(currentUser, 'day-close');
   const [testPrintKind, setTestPrintKind] = useState<null | 'kot' | 'receipt'>(null);
   useEffect(() => {
     if (testPrintKind !== 'receipt') return;
@@ -293,124 +279,6 @@ export default function SettingsPage() {
     setRiders(getRiders().slice());
   };
 
-  const handleDayClose = async () => {
-    if (!isAdmin) {
-      toast.error('Only Admin can finalize Day Close');
-      return;
-    }
-    const cfg = dayCloseCfg;
-    const closeId = `dc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const dateStr = new Date().toISOString().slice(0, 10);
-    let backupBytes = 0;
-    let cloudOk = false;
-
-    // 1. Backup snapshot — local download (admin safety) + cloud copy (survives device loss)
-    if (cfg.autoBackup) {
-      const backupJson = exportData();
-      backupBytes = new TextEncoder().encode(backupJson).length;
-
-      // Local download
-      const blob = new Blob([backupJson], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `day-close-backup-${dateStr}-${closeId.slice(-6)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-
-      // Cloud backup (best-effort, non-blocking failure)
-      try {
-        cloudOk = await saveBackupToCloud(backupJson, `${dateStr}__${closeId.slice(-6)}`);
-      } catch { cloudOk = false; }
-    }
-
-    // 2. Always archive the full snapshot so admin can view weekly/monthly history.
-    const orders = getOrders();
-    archiveOrders(orders);
-
-    // 3. Conditionally delete by status group, per admin's checkboxes.
-    let cPaid = 0, cRun = 0, cVoid = 0, cCredit = 0;
-    orders.forEach(o => {
-      const s = o.status;
-      const isPaid = s === 'paid';
-      const isRunHold = s === 'running' || s === 'hold';
-      const isVoidComp = s === 'void' || s === 'complimentary' || s === 'cancelled';
-      const isCredit = s === 'credit_pending' || s === 'credit_received';
-      if (
-        (isPaid && cfg.clearPaidOrders) ||
-        (isRunHold && cfg.clearRunningHoldBills) ||
-        (isVoidComp && cfg.clearVoidComp) ||
-        (isCredit && cfg.clearCreditOrders)
-      ) {
-        if (isPaid) cPaid++;
-        else if (isRunHold) cRun++;
-        else if (isVoidComp) cVoid++;
-        else if (isCredit) cCredit++;
-        deleteOrder(o.id);
-      }
-    });
-
-    // 4. Reset tables (optional)
-    if (cfg.resetTables) {
-      const allTables = getTables();
-      allTables.forEach(t => {
-        if (t.status !== 'free') saveTable({ ...t, status: 'free', currentOrderId: undefined });
-      });
-    }
-
-    // 5. Reset daily order counter (optional)
-    if (cfg.resetOrderNumber) {
-      try {
-        Object.keys(localStorage).forEach(k => {
-          if (k.startsWith('dt-pos-order-number') || k.includes('order-counter')) localStorage.removeItem(k);
-        });
-      } catch {}
-    }
-
-    // 6. Audit log to cloud — who closed, what cleared, backup status.
-    try {
-      await logDayCloseEvent({
-        id: closeId,
-        closedAt: new Date().toISOString(),
-        closedByUid: currentUser?.id || 'unknown',
-        closedByName: currentUser?.name || 'Unknown',
-        orderCount: orders.length,
-        cleared: { paid: cPaid, runningHold: cRun, voidComp: cVoid, credit: cCredit },
-        config: { ...cfg } as any,
-        backupBytes,
-      });
-    } catch {}
-
-    // 7. Clear pending cashier requests — admin has now actioned them.
-    clearPendingDayCloseRequests();
-    setPendingRequests([]);
-
-    setTables(getTables());
-    setShowDayClose(false);
-    const cloudMsg = cfg.autoBackup ? (cloudOk ? ' · Cloud backup saved ☁️' : ' · Cloud backup FAILED (local OK)') : '';
-    toast.success(`Day closed. ${cPaid + cRun + cVoid + cCredit} orders cleared.${cloudMsg}`);
-  };
-
-
-  const handleRequestDayClose = () => {
-    if (!currentUser) { toast.error('Login required'); return; }
-    addPendingDayCloseRequest({ by: currentUser.id, byName: currentUser.name });
-    setPendingRequests(getPendingDayCloseRequests());
-    toast.success('Day Close request bhej diya — Admin confirm karega');
-  };
-
-  const handleSaveDayCloseConfig = () => {
-    saveDayCloseConfig(dayCloseCfg);
-    toast.success('Day Close settings saved');
-  };
-
-  const handleDismissRequest = (id: string) => {
-    const remaining = getPendingDayCloseRequests().filter(r => r.id !== id);
-    clearPendingDayCloseRequests();
-    remaining.forEach(r => addPendingDayCloseRequest({ by: r.by, byName: r.byName, note: r.note, at: r.at }));
-    setPendingRequests(getPendingDayCloseRequests());
-  };
-
   return (
     <div className="p-4 lg:p-6 max-w-6xl pos-settings-pro">
       <div className="flex items-center gap-3 mb-4">
@@ -461,7 +329,7 @@ export default function SettingsPage() {
             { title: 'Advanced', emoji: '🧩', items: [
               { v: 'branches', label: 'Branches', emoji: '🏢', desc: 'Multi-branch setup' },
               { v: 'devices',  label: 'Devices',  emoji: '📱', desc: 'Approved devices' },
-              { v: 'dayclose', label: 'Day Close', emoji: '🔚', desc: 'End-of-day reset' },
+              { v: 'dayclose', label: 'Day Close', emoji: '🔚', desc: 'Opens the Day Close screen' },
             ]},
           ];
           // OFFLINE BUILD: drop internet/cloud tabs. Keep WhatsApp+Cities+ServiceAreas+Display by
@@ -480,7 +348,22 @@ export default function SettingsPage() {
                     <div className="flex-1 h-px bg-gradient-to-r from-primary/30 to-transparent" />
                   </div>
                   <TabsList className="!h-auto !p-0 !bg-transparent grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 w-full">
-                    {g.items.map(it => (
+                    {g.items.map(it => (it.v === 'dayclose' ? (
+                      // Day Close opens its own screen instead of a tab here.
+                      <button
+                        key={it.v}
+                        type="button"
+                        title={it.desc}
+                        onClick={() => navigate('/day-close')}
+                        className="group !h-auto !w-full !p-3 flex flex-col items-start gap-1 rounded-2xl border-2 border-primary/25 !bg-card/70 backdrop-blur-sm text-left transition-all hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-8px_hsl(var(--primary)/0.45)] data-[state=active]:!bg-gradient-to-br data-[state=active]:from-primary data-[state=active]:to-accent data-[state=active]:!text-primary-foreground data-[state=active]:border-primary data-[state=active]:shadow-lg"
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <span className="text-2xl leading-none">{it.emoji}</span>
+                          <span className="text-sm font-extrabold leading-tight truncate">{it.label}</span>
+                        </div>
+                        <span className="text-[11px] font-medium leading-snug opacity-70 group-data-[state=active]:opacity-90 line-clamp-2">{it.desc}</span>
+                      </button>
+                    ) : (
                       <TabsTrigger
                         key={it.v}
                         value={it.v}
@@ -493,7 +376,7 @@ export default function SettingsPage() {
                         </div>
                         <span className="text-[11px] font-medium leading-snug opacity-70 group-data-[state=active]:opacity-90 line-clamp-2">{it.desc}</span>
                       </TabsTrigger>
-                    ))}
+                    )))}
                   </TabsList>
                 </div>
               ))}
@@ -2068,192 +1951,17 @@ export default function SettingsPage() {
           <Button onClick={handleSaveSettings} className="w-full">Save Display Settings</Button>
         </TabsContent>
 
-        {/* Day Close Tab */}
+        {/* Day Close has its own focused screen (/day-close) since v1.12. */}
         <TabsContent value="dayclose" className="space-y-4">
-          {/* Client #2: Day Close report — today/yesterday/week/month/year + custom, print */}
-          <div className="bg-card border rounded-xl p-4 space-y-3">
-            <div>
-              <h3 className="text-sm font-bold">🧾 Day Close / Shift Report</h3>
-              <p className="text-xs text-muted-foreground">Sales summary — category-wise, product-wise, payment-wise. Thermal print ya poori report.</p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {([['today','Today'],['yesterday','Yesterday'],['week','Week'],['month','Month'],['year','Year']] as [string,string][]).map(([k,lbl]) => (
-                <Button key={k} size="sm" variant="outline" onClick={async () => {
-                  const now = new Date();
-                  const sod = (d: Date) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
-                  const eod = (d: Date) => { const x = new Date(d); x.setHours(23,59,59,999); return x; };
-                  let from = sod(now), to = eod(now), label = 'Today';
-                  if (k === 'yesterday') { const y = new Date(now); y.setDate(y.getDate()-1); from = sod(y); to = eod(y); label = 'Yesterday'; }
-                  if (k === 'week') { const f = new Date(now); f.setDate(f.getDate()-6); from = sod(f); label = 'Last 7 Days'; }
-                  if (k === 'month') { from = sod(new Date(now.getFullYear(), now.getMonth(), 1)); label = 'This Month'; }
-                  if (k === 'year') { from = sod(new Date(now.getFullYear(), 0, 1)); label = 'This Year'; }
-                  toast.info(`Printing ${label} Shift Report…`);
-                  const r = await printShiftReport({ from, to, label, startingCash: Number((settings as any).startingCash || 0) });
-                  r.success ? toast.success('Report sent to the printer.') : toast.error('Print fail: ' + (r.error || 'unknown'));
-                }}>{lbl}</Button>
-              ))}
-              <Button size="sm" onClick={() => navigate('/sales-report')}>📊 Full Sales Report</Button>
-            </div>
-            {/* Client requirement: dates select kar ke report print */}
-            <div className="flex items-center gap-2 flex-wrap border-t pt-2">
-              <span className="text-xs font-medium text-muted-foreground">Custom dates:</span>
-              <Input type="date" className="h-8 w-40" value={dcFrom} onChange={e => setDcFrom(e.target.value)} />
-              <span className="text-xs text-muted-foreground">se</span>
-              <Input type="date" className="h-8 w-40" value={dcTo} onChange={e => setDcTo(e.target.value)} />
-              <Button size="sm" variant="outline" disabled={!dcFrom} onClick={async () => {
-                const sod = (d: Date) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
-                const eod = (d: Date) => { const x = new Date(d); x.setHours(23,59,59,999); return x; };
-                const from = sod(new Date(dcFrom));
-                const to = eod(new Date(dcTo || dcFrom));
-                toast.info('Report print ho rahi…');
-                const r = await printShiftReport({ from, to, label: `${dcFrom} → ${dcTo || dcFrom}`, startingCash: Number((settings as any).startingCash || 0) });
-                r.success ? toast.success('Report sent to the printer.') : toast.error('Print fail: ' + (r.error || 'unknown'));
-              }}>🖨️ Print selected dates</Button>
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              💡 Even after Day Close, you can still get reports for past dates — orders go into permanent archive.
-            </p>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground">Starting cash (drawer float)</span>
-              <Input type="number" className="h-8 w-32" value={(settings as any).startingCash ?? 0}
-                onChange={e => setSettings({ ...settings, startingCash: Number(e.target.value) } as any)} />
-            </div>
-          </div>
-
-          <DayCloseModulesPanel />
-
-          {/* Header */}
-          <div className="bg-card border rounded-xl p-6 space-y-3">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-6 w-6 text-status-warning shrink-0 mt-0.5" />
-              <div>
-                <h3 className="text-base font-bold">Day Closing / Reset Sales</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Cashier can only send a <b>Request</b>. Actual deletion only happens when <b>Admin</b> confirms — so the admin can manage weekly / monthly reports.
-                </p>
-              </div>
-            </div>
-            <div className="text-[11px] text-muted-foreground bg-accent rounded p-2">
-              Logged in as: <b>{currentUser?.name || '—'}</b> ({currentUser?.role || 'guest'}) — {isAdmin ? 'Full control' : (canDayClose ? 'Can request only' : 'No Day Close access')}
-            </div>
-          </div>
-
-          {/* Admin-only: configure what gets deleted */}
-          {isAdmin && (
-            <div className="bg-card border rounded-xl p-6 space-y-3">
-              <div>
-                <h3 className="text-sm font-bold">✅ Day Close pe kya delete ho?</h3>
-                <p className="text-[11px] text-muted-foreground">Check — only this data will be cleared. The Archive (admin history) is always preserved.</p>
-              </div>
-              {/* Client request: select ALL with one click — so no module is left out */}
-              <div className="flex gap-2 pb-1">
-                <Button size="sm" variant="outline" onClick={() => {
-                  const all: any = { ...dayCloseCfg };
-                  (['clearPaidOrders','clearRunningHoldBills','clearVoidComp','clearCreditOrders','resetTables','resetOrderNumber','autoBackup'] as const)
-                    .forEach(k => { all[k] = true; });
-                  setDayCloseCfg(all); saveDayCloseConfig(all);
-                  toast.success('All modules selected — everything will be zeroed on Day Close');
-                }}>✅ Select All</Button>
-                <Button size="sm" variant="outline" onClick={() => {
-                  const none: any = { ...dayCloseCfg };
-                  (['clearPaidOrders','clearRunningHoldBills','clearVoidComp','clearCreditOrders','resetTables','resetOrderNumber'] as const)
-                    .forEach(k => { none[k] = false; });
-                  setDayCloseCfg(none); saveDayCloseConfig(none);
-                  toast.success('All unchecked — nothing will be deleted');
-                }}>Sab Uncheck</Button>
-              </div>
-              {([
-                { k: 'clearPaidOrders',       label: 'Paid / Closed bills (aaj ki sales)' },
-                { k: 'clearRunningHoldBills', label: 'Running + Hold bills (unpaid)' },
-                { k: 'clearVoidComp',         label: 'Void / Complimentary / Cancelled bills' },
-                { k: 'clearCreditOrders',     label: 'Credit orders' },
-                { k: 'resetTables',           label: 'Reset tables to Free' },
-                { k: 'resetOrderNumber',      label: 'Reset Daily Order # (start from 0 / 1)' },
-                { k: 'autoBackup',            label: 'Auto JSON backup download (safety)' },
-              ] as { k: keyof DayCloseConfig; label: string }[]).map(row => (
-                <label key={row.k} className="flex items-center gap-2 text-xs cursor-pointer">
-                  <Checkbox
-                    checked={dayCloseCfg[row.k]}
-                    onCheckedChange={(v) => setDayCloseCfg(c => ({ ...c, [row.k]: !!v }))}
-                  />
-                  <span>{row.label}</span>
-                </label>
-              ))}
-              <Button size="sm" variant="outline" onClick={handleSaveDayCloseConfig}>💾 Save Day Close Config</Button>
-              <div className="text-[10px] text-muted-foreground bg-status-success/10 rounded p-2">
-                💡 User access (which cashier gets the Day Close request option) — check the <b>"Day Close"</b> permission from the Users &amp; Roles page.
-              </div>
-            </div>
-          )}
-
-          {/* Pending requests panel (visible to admin) */}
-          {isAdmin && pendingRequests.length > 0 && (
-            <div className="bg-status-warning/10 border border-status-warning/40 rounded-xl p-4 space-y-2">
-              <h3 className="text-sm font-bold">⏳ Cashier Day Close Requests ({pendingRequests.length})</h3>
-              <div className="space-y-1">
-                {pendingRequests.map(r => (
-                  <div key={r.id} className="flex items-center justify-between text-xs bg-background rounded p-2">
-                    <span><b>{r.byName}</b> — {new Date(r.at).toLocaleString()}</span>
-                    <Button variant="ghost" size="sm" onClick={() => handleDismissRequest(r.id)}>Dismiss</Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Action buttons */}
-          <div className="bg-card border rounded-xl p-6 space-y-3">
-            {canDayClose ? (
-              isAdmin ? (
-                <Button
-                  size="lg"
-                  className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 text-sm font-bold"
-                  onClick={() => setShowDayClose(true)}
-                >
-                  🌙 Confirm &amp; Run Day Close (Admin)
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    size="lg"
-                    className="w-full text-sm font-bold"
-                    onClick={handleRequestDayClose}
-                  >
-                    📨 Request Day Close (Admin will confirm)
-                  </Button>
-                  <p className="text-[11px] text-muted-foreground text-center">
-                    Data has not been deleted yet. Admin will confirm from their panel, then it will be cleared.
-                  </p>
-                </>
-              )
-            ) : (
-              <p className="text-xs text-center text-muted-foreground">No Day Close access. Ask Admin for permission.</p>
-            )}
+          <div className="bg-card border rounded-xl p-6 space-y-3 text-center">
+            <h3 className="text-base font-bold">Day Close and Reset Sale have their own screen</h3>
+            <p className="text-xs text-muted-foreground">The shift report, Day Close and Reset Sale open together on one focused screen.</p>
+            <Button onClick={() => navigate('/day-close')}>Open Day Close</Button>
           </div>
         </TabsContent>
       </Tabs>
 
 
-
-      {/* Day Close Confirmation */}
-      <Dialog open={showDayClose} onOpenChange={setShowDayClose}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-destructive" /> Confirm Day Close
-          </DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              کیا آپ واقعی دن بند کرنا چاہتے ہیں؟ تمام آرڈرز ڈیلیٹ ہو جائیں گے اور بیک اپ آٹو ڈاؤنلوڈ ہوگا۔
-            </p>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setShowDayClose(false)}>Cancel</Button>
-              <Button className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDayClose}>
-                Confirm Day Close
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Hidden Test Print render — KitchenReceipt / ReceiptPreview with autoPrint */}
       {testPrintKind && (() => {

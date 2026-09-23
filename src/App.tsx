@@ -38,6 +38,7 @@ const DevicesPage = lazy(() => import("@/pages/DevicesPage"));
 const MarketingPage = lazy(() => import("@/pages/MarketingPage"));
 const RecipesPage = lazy(() => import("@/pages/RecipesPage"));
 const RetrayPage = lazy(() => import("@/pages/RetrayPage"));
+const DayClosePage = lazy(() => import("@/pages/DayClosePage"));
 const PendingPaymentsPage = lazy(() => import("@/pages/PendingPaymentsPage"));
 const CustomerMapPage = lazy(() => import("@/pages/CustomerMapPage"));
 const WastagePage = lazy(() => import("@/pages/WastagePage"));
@@ -584,6 +585,7 @@ const App = () => {
                 <Route path="/promo-codes" element={<AdminOnly><PromoCodesPage /></AdminOnly>} />
                 <Route path="/void-bills" element={<AdminOnly><VoidBillsPage /></AdminOnly>} />
                 <Route path="/retray" element={<RetrayPage />} />
+                <Route path="/day-close" element={<DayClosePage />} />
                 <Route path="/pending-payments" element={<PendingPaymentsPage />} />
                 <Route path="/bill-reprint" element={<BillReprintPage />} />
                 <Route path="/foodpanda-orders" element={<FoodpandaOrdersPage />} />

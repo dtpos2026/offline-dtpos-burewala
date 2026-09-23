@@ -68,3 +68,53 @@ export function addPendingDayCloseRequest(req: Omit<PendingDayCloseRequest, 'id'
 export function clearPendingDayCloseRequests() {
   try { localStorage.removeItem(reqKey()); } catch {}
 }
+
+// ---------- which bills a Day Close clears ----------
+// The grouping the Day Close handler has always used, in one place so the
+// confirmation can say exactly what will happen before anything is cleared.
+// Every bill is archived first; "cleared" means removed from the live lists.
+// Bills in no group (partially paid, awaiting approval, rejected) are never
+// cleared by a Day Close.
+export type DayCloseGroup = 'paid' | 'runningHold' | 'voidComp' | 'credit' | 'kept';
+
+export function dayCloseGroup(status: string): DayCloseGroup {
+  if (status === 'paid') return 'paid';
+  if (status === 'running' || status === 'hold') return 'runningHold';
+  if (status === 'void' || status === 'complimentary' || status === 'cancelled') return 'voidComp';
+  if (status === 'credit_pending' || status === 'credit_received') return 'credit';
+  return 'kept';
+}
+
+export function clearedByDayClose(status: string, cfg: DayCloseConfig): boolean {
+  switch (dayCloseGroup(status)) {
+    case 'paid': return cfg.clearPaidOrders;
+    case 'runningHold': return cfg.clearRunningHoldBills;
+    case 'voidComp': return cfg.clearVoidComp;
+    case 'credit': return cfg.clearCreditOrders;
+    default: return false;
+  }
+}
+
+export interface DayClosePreview {
+  paid: number; runningHold: number; voidComp: number; credit: number;
+  /** Cleared bills that were still unpaid (running or HOLD — UNPAID). */
+  unpaidCleared: number;
+  heldCleared: number;
+  /** Bills that stay in the live lists. */
+  kept: number;
+  total: number;
+}
+
+export function previewDayClose(orders: { status: string }[], cfg: DayCloseConfig): DayClosePreview {
+  const p: DayClosePreview = { paid: 0, runningHold: 0, voidComp: 0, credit: 0, unpaidCleared: 0, heldCleared: 0, kept: 0, total: orders.length };
+  for (const o of orders) {
+    if (!clearedByDayClose(o.status, cfg)) { p.kept++; continue; }
+    const g = dayCloseGroup(o.status) as Exclude<DayCloseGroup, 'kept'>;
+    p[g]++;
+    if (g === 'runningHold') {
+      p.unpaidCleared++;
+      if (o.status === 'hold') p.heldCleared++;
+    }
+  }
+  return p;
+}

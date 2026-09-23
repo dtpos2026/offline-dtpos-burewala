@@ -1,11 +1,11 @@
 // ============================================================
-// DAY CLOSE — MODULE SELECTION
-// Client requirement: "on close there should be an option to finish all the
-// data that exists, so selecting it zeroes everything out, while some modules stay as they are."
+// RESET SALE — module selection (shown on the Day Close screen).
+// Client requirement: an option to zero the data of selected modules while
+// the others stay as they are.
 //
-// Har module ka apna checkbox. Sirf select kiye hue modules zero
-// are affected — the rest remain untouched. Orders are archived
-// BEFORE being wiped (reports remain intact).
+// Every module has its own checkbox. Only the selected modules are zeroed;
+// the rest are untouched. Orders are archived BEFORE they are wiped, so
+// reports for past dates remain intact.
 // ============================================================
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
@@ -25,24 +25,24 @@ interface ModuleDef {
 
 const MODULES: ModuleDef[] = [
   { key: 'orders', label: 'Orders / Sales', desc: 'All bills — moved to archive (reports stay safe)', daily: true },
-  { key: 'tables', label: 'Tables status', desc: 'Sab tables free ho jayengi', daily: true },
-  { key: 'stockLogs', label: 'Stock Logs', desc: 'Stock in/out ki history', daily: true },
-  { key: 'wastages', label: 'Wastage entries', desc: 'Zaya hone ka record', daily: true },
-  { key: 'dailyCashCloses', label: 'Cash Close records', desc: 'Rozana cash closing entries' },
+  { key: 'tables', label: 'Table status', desc: 'Every table becomes Free', daily: true },
+  { key: 'stockLogs', label: 'Stock logs', desc: 'Stock in/out history', daily: true },
+  { key: 'wastages', label: 'Wastage entries', desc: 'Recorded wastage', daily: true },
+  { key: 'dailyCashCloses', label: 'Cash close records', desc: 'Daily cash closing entries' },
   { key: 'transactions', label: 'Transactions (Accounts)', desc: 'Income/expense entries', danger: true },
-  { key: 'ledger', label: 'Ledger', desc: 'Party khata entries', danger: true },
+  { key: 'ledger', label: 'Ledger', desc: 'Party ledger entries', danger: true },
   { key: 'parties', label: 'Parties (Suppliers/Customers)', desc: 'Supplier and customer ledgers', danger: true },
   { key: 'customers', label: 'Customers', desc: 'Customer database', danger: true },
-  { key: 'receivingEntries', label: 'Receiving / Purchases', desc: 'Kharidari entries', danger: true },
-  { key: 'inventory', label: 'Inventory items', desc: 'Poora stock master — DHYAN SE', danger: true },
-  { key: 'attendance', label: 'Attendance', desc: 'Staff hazri record' },
-  { key: 'advances', label: 'Advances', desc: 'Staff advance record' },
+  { key: 'receivingEntries', label: 'Receiving / purchases', desc: 'Purchase entries', danger: true },
+  { key: 'inventory', label: 'Inventory items', desc: 'The whole stock master — use with care', danger: true },
+  { key: 'attendance', label: 'Attendance', desc: 'Staff attendance records' },
+  { key: 'advances', label: 'Advances', desc: 'Staff advance records' },
   { key: 'marketingContacts', label: 'Marketing contacts', desc: 'Campaign contacts' },
 ];
 
 const EXTRAS = [
-  { key: '__printQueue', label: 'Print Queue', desc: 'Pending/failed print jobs saaf' },
-  { key: '__tokenLedger', label: 'Token Register', desc: 'Tandoor token ki ginti zero' },
+  { key: '__printQueue', label: 'Print queue', desc: 'Clear pending and failed print jobs' },
+  { key: '__tokenLedger', label: 'Token register', desc: 'Reset the tandoor token count' },
 ];
 
 export default function DayCloseModulesPanel() {
@@ -61,10 +61,10 @@ export default function DayCloseModulesPanel() {
 
   const run = async () => {
     if (selectedKeys.length === 0) { toast.error('No module selected'); return; }
-    if (!isAdmin) { toast.error('Only Admin can perform a day close'); return; }
+    if (!isAdmin) { toast.error('Only Admin can reset sales data'); return; }
     const names = MODULES.filter(m => sel[m.key]).map(m => m.label).concat(EXTRAS.filter(e => sel[e.key]).map(e => e.label));
     const ordersCount = sel['orders'] ? getOrders().length : 0;
-    const msg = `DAY CLOSE — these modules will be reset to ZERO:\n\n• ${names.join('\n• ')}\n\n` +
+    const msg = `RESET SALE — these modules will be reset to ZERO:\n\n• ${names.join('\n• ')}\n\n` +
       (sel['orders'] ? `${ordersCount} orders will be moved to the archive (they remain visible in reports).\n\n` : '') +
       `This cannot be undone. Continue?`;
     if (!window.confirm(msg)) return;
@@ -79,10 +79,10 @@ export default function DayCloseModulesPanel() {
       if (sel['__tokenLedger']) {
         try { localStorage.removeItem('dtpos-token-ledger-v1'); } catch {}
       }
-      toast.success(`Day Close mukammal — ${names.length} module zero ho gaye`);
+      toast.success(`Reset complete — ${names.length} module${names.length === 1 ? '' : 's'} set to zero`);
       setTimeout(() => window.location.reload(), 1200);
     } catch (e: any) {
-      toast.error('Day Close fail: ' + (e?.message || String(e)));
+      toast.error('Reset failed: ' + (e?.message || String(e)));
     } finally {
       setBusy(false);
     }
@@ -103,7 +103,7 @@ export default function DayCloseModulesPanel() {
       <div className="flex items-start gap-2">
         <AlertTriangle className="h-5 w-5 text-status-warning shrink-0 mt-0.5" />
         <div>
-          <h3 className="text-sm font-bold">Day Close — Module Selection</h3>
+          <h3 className="text-sm font-bold">Reset Sale — choose what to reset</h3>
           <p className="text-xs text-muted-foreground">
             Only the selected modules will be zeroed out; the rest will remain as they are.
             Orders are archived first — reports for past dates remain intact.
@@ -127,9 +127,9 @@ export default function DayCloseModulesPanel() {
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t pt-3">
-        <span className="text-xs font-bold">{selectedKeys.length} module select</span>
+        <span className="text-xs font-bold">{selectedKeys.length} selected</span>
         <Button variant="destructive" disabled={busy || selectedKeys.length === 0} onClick={run}>
-          <Trash2 className="h-4 w-4 mr-1" /> {busy ? 'Processing…' : 'Day Close — Zero Selected'}
+          <Trash2 className="h-4 w-4 mr-1" /> {busy ? 'Processing…' : 'Reset selected to zero'}
         </Button>
       </div>
       {!isAdmin && <p className="text-[11px] text-destructive font-semibold">Only Admin can perform this action.</p>}
