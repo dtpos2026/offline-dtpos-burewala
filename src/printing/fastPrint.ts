@@ -234,7 +234,15 @@ function layoutFor(args: FastPrintArgs): ReceiptLayout {
   });
 }
 
-export interface FastPrintResult { success: boolean; error?: string; warning?: string }
+export interface FastPrintResult {
+  success: boolean;
+  error?: string;
+  warning?: string;
+  /** Which route printed: the rendered image as RAW, or the Windows driver. */
+  route?: 'raster' | 'driver';
+  /** Why the image route was not used (e.g. a blank capture), when it was not. */
+  rasterError?: string;
+}
 
 /**
  * Print a slip through the hidden print window. Resolves as soon as the
@@ -294,7 +302,7 @@ export async function fastPrintHtml(args: FastPrintArgs): Promise<FastPrintResul
       ? await bridge.printHtmlEscpos(payload)
       : { success: false, error: args.preferDriver ? 'driver mode requested' : 'rendered ESC/POS unavailable' };
     if (raster?.success) {
-      return { success: true, warning: raster.warning };
+      return { success: true, warning: raster.warning, route: 'raster' };
     }
 
     // Compatibility fallback for a Windows driver which does not accept RAW
@@ -305,7 +313,7 @@ export async function fastPrintHtml(args: FastPrintArgs): Promise<FastPrintResul
       ...payload,
       html: buildDocument(args, 'html'),
     });
-    return { success: !!res?.success, error: res?.error, warning: res?.warning };
+    return { success: !!res?.success, error: res?.error, warning: res?.warning, route: 'driver', rasterError: raster?.error };
   } catch (e: any) {
     return { success: false, error: e?.message || String(e) };
   }

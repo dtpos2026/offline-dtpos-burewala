@@ -96,21 +96,41 @@ function nativeImageLike(rgba) {
  * here, not a curiosity.
  */
 function decodeEscposRaster(bytes) {
+  // The slip arrives as consecutive GS v 0 bands (escposRaster.cjs,
+  // RASTER_BAND_ROWS). Each band is read the way the firmware reads it, and
+  // the next band must start exactly where this one's data ends — a stray
+  // byte between bands would print as a character or shift every later row.
   const marker = Buffer.from([0x1d, 0x76, 0x30, 0x00]);
-  const at = bytes.indexOf(marker);
+  let at = bytes.indexOf(marker);
   if (at < 0) throw new Error('no GS v 0 raster command in the output');
-  const rowBytes = bytes[at + 4] | (bytes[at + 5] << 8);
-  const height = bytes[at + 6] | (bytes[at + 7] << 8);
-  if (!rowBytes || !height) {
-    throw new Error(`raster header claims ${rowBytes} row-bytes x ${height} rows — the printer would feed blank paper`);
+  const parts = [];
+  let rowBytes = 0;
+  let height = 0;
+  let bands = 0;
+  let maxBandRows = 0;
+  while (at >= 0) {
+    const rb = bytes[at + 4] | (bytes[at + 5] << 8);
+    const rows = bytes[at + 6] | (bytes[at + 7] << 8);
+    if (!rb || !rows) {
+      throw new Error(`raster header claims ${rb} row-bytes x ${rows} rows — the printer would feed blank paper`);
+    }
+    if (rowBytes && rb !== rowBytes) throw new Error(`band ${bands + 1} is ${rb} bytes wide, band 1 was ${rowBytes}`);
+    rowBytes = rb;
+    const start = at + 8;
+    const expected = rb * rows;
+    const data = bytes.subarray(start, start + expected);
+    if (data.length < expected) {
+      throw new Error(`raster data truncated: band ${bands + 1} wants ${expected} bytes, stream has ${data.length}`);
+    }
+    parts.push(data);
+    height += rows;
+    bands++;
+    maxBandRows = Math.max(maxBandRows, rows);
+    const next = start + expected;
+    at = bytes.indexOf(marker, next);
+    if (at !== -1 && at !== next) throw new Error(`unexpected ${at - next} byte(s) between raster bands ${bands} and ${bands + 1}`);
   }
-  const start = at + 8;
-  const expected = rowBytes * height;
-  const data = bytes.subarray(start, start + expected);
-  if (data.length < expected) {
-    throw new Error(`raster data truncated: header wants ${expected} bytes, stream has ${data.length}`);
-  }
-  return { rowBytes, height, data };
+  return { rowBytes, height, data: Buffer.concat(parts), bands, maxBandRows };
 }
 
 /** Render the packed dot rows back out as a viewable PNG of the paper. */
@@ -264,6 +284,8 @@ for (const slip of slips) {
     contentDots: geom.contentDots,
     escposBytes: bytes.length,
     rasterRows: packed.height,
+    rasterBands: packed.bands,
+    maxBandRows: packed.maxBandRows,
     expectedLeftMm: built.marginLeftMm,
     expectedRightMm: built.marginRightMm,
     ...ink,

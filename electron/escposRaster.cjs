@@ -160,6 +160,32 @@ function inkCoverage(packed, contentDots) {
   return (last - first + 1) / Math.max(1, contentDots);
 }
 
+/**
+ * Rows per GS v 0 command.
+ *
+ * The slip used to go out as ONE raster command covering its whole height —
+ * a long bill is 1,500–3,000 dot rows, 100–200 KB in a single image. Many
+ * printers cannot take that: Epson's own spec caps a GS v 0 image at 2,303
+ * rows on several models, and budget ESC/POS printers (Black Copper and
+ * similar) have small image buffers. A printer that cannot take the block
+ * silently discards the image and then obeys the feed and cut that follow —
+ * a clean BLANK slip, reported as printed.
+ *
+ * Sent in bands, each band is an ordinary small raster image and the printer
+ * prints them back to back with no gap — the same way Windows thermal
+ * drivers send graphics. 128 rows is 16 mm and about 9 KB per band; the
+ * extra header bytes are negligible and printing speed does not change.
+ */
+const RASTER_BAND_ROWS = 128;
+
+/** True when at least one dot of the packed slip carries ink. */
+function hasInk(packed) {
+  const { data } = packed || {};
+  if (!data) return false;
+  for (let i = 0; i < data.length; i++) if (data[i] !== 0) return true;
+  return false;
+}
+
 /** Wrap packed dot rows in the ESC/POS commands that print and cut them. */
 function wrapRasterCommands(packed, autoCut = true, opts = {}) {
   const { rowBytes, height, data } = packed;
@@ -188,11 +214,18 @@ function wrapRasterCommands(packed, autoCut = true, opts = {}) {
     0x1d, 0x57, paperDots & 0xff, (paperDots >> 8) & 0xff,  // GS W   full print area
     0x1b, 0x61, 0x00,                                       // ESC a  left align
   ]);
-  const raster = Buffer.from([
-    0x1d, 0x76, 0x30, 0x00,
-    rowBytes & 0xff, (rowBytes >> 8) & 0xff,
-    height & 0xff, (height >> 8) & 0xff,
-  ]);
+  // The dot rows, as consecutive GS v 0 bands (see RASTER_BAND_ROWS).
+  const bandRows = Math.max(1, Math.round(finite(opts.bandRows, RASTER_BAND_ROWS)));
+  const bands = [];
+  for (let y = 0; y < height; y += bandRows) {
+    const rows = Math.min(bandRows, height - y);
+    bands.push(Buffer.from([
+      0x1d, 0x76, 0x30, 0x00,
+      rowBytes & 0xff, (rowBytes >> 8) & 0xff,
+      rows & 0xff, (rows >> 8) & 0xff,
+    ]));
+    bands.push(data.subarray(y * rowBytes, (y + rows) * rowBytes));
+  }
   // Keep the cutter safely below the final printed row. Some thermal cutters
   // sit 12–25 mm after the print head; three LF bytes were not enough on those
   // models and the last line looked prematurely cut. ESC d feeds exact blank
@@ -201,7 +234,7 @@ function wrapRasterCommands(packed, autoCut = true, opts = {}) {
   const tail = autoCut
     ? Buffer.from([0x1b, 0x64, bottomFeedLines, 0x1d, 0x56, 0x00])
     : Buffer.from([0x1b, 0x64, 1]);
-  return Buffer.concat([init, raster, data, tail]);
+  return Buffer.concat([init, ...bands, tail]);
 }
 
 /**
@@ -452,11 +485,22 @@ function escposRasterBytes(image, paperLabel, autoCut = true, opts = {}) {
   const keepBottom = Math.max(0, Math.round(finite(opts.bottomMarginDots, 8)));
   packed = trimBlankRows(packed, keepTop, keepBottom);
 
+  // ===== BLANK-CAPTURE GUARD =====
+  // A capture taken before the hidden print window has painted is pure white.
+  // Sent on, it is a full-length raster of nothing: the printer feeds and
+  // cuts blank paper and the job still reports success, so nothing falls
+  // back. Refuse it — the handler re-captures, and if the page is still
+  // blank the renderer prints through the Windows driver instead.
+  if (!hasInk(packed)) {
+    throw new Error('Rendered receipt is blank — refusing to print blank paper');
+  }
+
   if (typeof opts.onDiagnostics === 'function') {
     try {
       opts.onDiagnostics({
         coverage: inkCoverage(packed, geom.contentDots),
         heightRows: packed.height,
+        bands: Math.ceil(packed.height / Math.max(1, Math.round(finite(opts.bandRows, RASTER_BAND_ROWS)))),
         contentDots: geom.contentDots,
         trimmedLeft: trimmed.trimmedLeft,
         trimmedRight: trimmed.trimmedRight,
@@ -467,6 +511,8 @@ function escposRasterBytes(image, paperLabel, autoCut = true, opts = {}) {
 }
 
 module.exports = {
+  RASTER_BAND_ROWS,
+  hasInk,
   inkColumns,
   findMeasureRule,
   cropToMeasureRule,

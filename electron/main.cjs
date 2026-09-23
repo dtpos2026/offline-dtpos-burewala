@@ -1091,18 +1091,48 @@ ipcMain.handle('print-html-escpos', async (_event, options = {}) => {
     const capH = Math.ceil(baseHeight * zoom);
     win.setContentSize(Math.min(4000, capW), Math.min(30000, capH));
     await new Promise(resolve => setImmediate(resolve));
-    const image = await win.webContents.capturePage({ x: 0, y: 0, width: Math.min(4000, capW), height: Math.min(30000, capH) });
-    try { win.webContents.setZoomFactor(1); } catch {}
-    if (image.isEmpty()) throw new Error('Rendered receipt capture is empty');
+
+    // ===== BLANK-CAPTURE RETRY =====
+    // The worker window is hidden. On a slower PC it may not have painted the
+    // zoomed, resized slip yet when the capture is taken, and the capture
+    // comes back empty or pure white — which used to go to the printer as a
+    // blank slip. The raster stage now refuses a slip with no ink; here the
+    // page is asked to repaint and captured again. Only a blank capture pays
+    // for the retry; a normal slip goes straight through as before. If it is
+    // still blank after the retries, the error makes the renderer print this
+    // slip through the Windows driver instead.
+    const rect = { x: 0, y: 0, width: Math.min(4000, capW), height: Math.min(30000, capH) };
+    const RETRY_WAIT_MS = [0, 120, 350];
+    let bytes = null;
     let diag = null;
-    const bytes = escposRasterBytes(image, paperLabel, options.autoCut !== false, {
-      onDiagnostics: d => { diag = d; },
-      darkness: options.darkness,
-      bold: options.boldPrint === true,
-      marginLeftMm,
-      marginRightMm,
-      bottomFeedLines: options.bottomFeedLines,
-    });
+    let lastErr = null;
+    for (let attempt = 0; attempt < RETRY_WAIT_MS.length && !bytes; attempt++) {
+      if (attempt > 0) {
+        try { win.webContents.invalidate(); } catch { /* older Electron */ }
+        await new Promise(resolve => setTimeout(resolve, RETRY_WAIT_MS[attempt]));
+      }
+      const image = await win.webContents.capturePage(rect);
+      if (image.isEmpty()) { lastErr = new Error('Rendered receipt capture is empty'); continue; }
+      try {
+        bytes = escposRasterBytes(image, paperLabel, options.autoCut !== false, {
+          onDiagnostics: d => { diag = d; },
+          darkness: options.darkness,
+          bold: options.boldPrint === true,
+          marginLeftMm,
+          marginRightMm,
+          bottomFeedLines: options.bottomFeedLines,
+        });
+      } catch (e) {
+        lastErr = e;
+        // Only a blank capture is worth capturing again.
+        if (!/blank/i.test(String(e && e.message))) break;
+      }
+    }
+    try { win.webContents.setZoomFactor(1); } catch {}
+    if (!bytes) {
+      try { appendLog('WARN', 'DT-Print blank capture', `${String((lastErr && lastErr.message) || lastErr)} — the slip goes to the Windows driver instead`); } catch {}
+      throw lastErr || new Error('Rendered receipt capture is empty');
+    }
     // A healthy slip fills nearly the whole printable width. Anything much
     // narrower means the capture was wider than the slip and the downscale
     // squeezed it into part of the roll — the narrow-receipt-with-a-wide-
@@ -1118,7 +1148,7 @@ ipcMain.handle('print-html-escpos', async (_event, options = {}) => {
 
     const copies = Math.max(1, Number(options.copies) || 1);
     const result = await sendRawWithWarmWorker(String(options.printerName || '').trim(), bytes, copies);
-    return { ...result, durationMs: Date.now() - started, renderedHeightPx: baseHeight, bytes: bytes.length };
+    return { ...result, durationMs: Date.now() - started, renderedHeightPx: baseHeight, bytes: bytes.length, bands: diag ? diag.bands : undefined };
   } catch (e) {
     return { success: false, error: String((e && e.message) || e), durationMs: Date.now() - started };
   } finally {

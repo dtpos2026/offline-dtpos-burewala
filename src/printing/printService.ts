@@ -147,7 +147,12 @@ export async function printNode(portalEl: HTMLElement, opts: PrintNodeOpts = {})
       preferDriver: opts.printMode === 'driver',
     });
     if (fast.success) {
-      return { success: true, transport: 'electron-silent', message: 'Printed.', copies: opts.copies || 1, durationMs: 0, attempts: ['fast-window:ok'], usedDialog: false, printerName: opts.printerName };
+      // The attempt names the route that printed, so a test print (and the
+      // log) can tell "image sent as RAW" from "fell back to the driver".
+      const route = fast.route === 'driver'
+        ? `fast-window:driver${fast.rasterError ? ` (image route: ${fast.rasterError})` : ''}`
+        : 'fast-window:raster';
+      return { success: true, transport: 'electron-silent', message: 'Printed.', copies: opts.copies || 1, durationMs: 0, attempts: [route], usedDialog: false, printerName: opts.printerName };
     }
     console.warn('[DT-Print] fast window path unavailable, using window print:', fast.error);
   }

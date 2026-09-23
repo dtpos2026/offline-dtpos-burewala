@@ -1,5 +1,36 @@
 # DT POS Enterprise — Release Notes
 
+## v1.13.2 — Blank slips on Black Copper (and similar printers)
+
+- **Symptom:** on a Black Copper printer the bill/KOT came out as blank paper
+  (fed and cut, nothing printed), while DT POS reported "printed".
+- **Causes found in the image route** (the default "Automatic" mode renders
+  the slip and sends it as a picture in one RAW job):
+  1. The whole slip was sent as **one** raster image command — a long bill
+     is 1,500–3,000 dot rows (100–200 KB). Printers with a small image
+     buffer, or the 2,303-row limit some models enforce, drop the image
+     silently and still feed and cut: a clean blank slip.
+  2. A capture taken before the hidden print window had painted is pure
+     white. It was sent anyway, reported as printed, and nothing fell back.
+  3. Printer Center's **Test Print** used the Windows driver, while bills
+     use the image route — so the test could pass on a printer that printed
+     every bill blank.
+- **Fixes:**
+  - The image now goes out in bands of 128 rows (16 mm), printed back to
+    back — the way Windows thermal drivers send graphics. Same dots, same
+    speed (verified dot-for-dot on all 25 slip templates in the simulator).
+  - A capture with no ink is refused: the page is repainted and captured
+    again, and if it is still blank the slip prints through the Windows
+    driver instead. Blank paper is never sent.
+  - Test Print now uses the same route as the bills on that printer. After a
+    test, answer **"Yes, it printed"** or **"Came out blank"** — blank moves
+    that printer to the next mode (Automatic → Windows driver → Raw text),
+    saves it and prints the test again. Blank in every mode points to the
+    paper (thermal side facing the head) or the printer, and says so.
+- **On site:** Settings → Printers → Test Print on the Black Copper. If the
+  test comes out blank, press "Came out blank" until it prints; bills then
+  use that mode.
+
 ## v1.13.1 — Super Admin: registering a device failed with "Unsupported field value: undefined"
 
 - **Symptom:** after a POS showed "Activation complete — Send this code once

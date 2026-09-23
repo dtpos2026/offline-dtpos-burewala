@@ -29,7 +29,9 @@ import {
   type PrinterConfig,
   type PrinterSettingsDoc,
 } from '@/lib/printerSettings';
-import { getPrinters, isElectron, printReceiptNative, type SystemPrinterInfo } from '@/lib/electron';
+import { getPrinters, isElectron, type SystemPrinterInfo } from '@/lib/electron';
+import { getSettings } from '@/lib/store';
+import { printTestSlip, testModeFor, nextModeAfterBlank, TEST_MODE_LABEL, type TestMode } from '@/printing/testSlip';
 import { matchPrinter } from '@/printing/printerMatch';
 import { detectPrinterBrand, applyPreset } from '@/lib/printerPresets';
 import { autoDetectPrinters } from '@/printing/printerAutoDetect';
@@ -42,7 +44,6 @@ import PrintModeBadge from './PrintModeBadge';
 import PrintSpeedTestPanel from './PrintSpeedTestPanel';
 import LocalPrintFailedPanel from './LocalPrintFailedPanel';
 import DemoHealthCheckCard from './DemoHealthCheckCard';
-import { beginThermalPrintDomSession, waitForThermalPrintLayout } from '@/lib/thermal-print';
 
 const ROLE_OPTIONS: { value: PrinterConfig['role']; label: string }[] = [
   { value: 'counter', label: 'Counter Receipt Printer' },
@@ -62,6 +63,8 @@ export default function PrinterSettingsPanel() {
   const [scanFound, setScanFound] = useState<Array<{ host: string; port: number }>>([]);
   const [pending, setPending] = useState<CloudPrintJob[]>([]);
   const [detecting, setDetecting] = useState(false);
+  /** The last test print, so the shop can say whether it came out blank. */
+  const [lastTest, setLastTest] = useState<{ id: string; mode: TestMode; route: string; success: boolean; error?: string; confirmed?: boolean; exhausted?: boolean } | null>(null);
 
   useEffect(() => {
     loadPrinterSettings().then(setSettings);
@@ -280,8 +283,13 @@ export default function PrinterSettingsPanel() {
     else toast.error('Print fail: ' + res.error);
   }
 
-  /** Test print for USB/Windows printer — opens a tiny receipt via Electron silent print. */
-  async function testSystem(p: PrinterConfig) {
+  /**
+   * Test print for a USB/Windows printer — through the SAME route a bill takes
+   * on this printer (its Print Mode, and the shop's Fast Billing switch).
+   * It used to print through the Windows driver only, so a printer could pass
+   * the test while every bill came out blank on the image route.
+   */
+  async function testSystem(p: PrinterConfig, modeOverride?: TestMode) {
     if (!isElectron()) {
       toast.error('Test print is only available in the Electron app (not in browser)');
       return;
@@ -290,64 +298,38 @@ export default function PrinterSettingsPanel() {
       toast.error('Please select a Windows printer name first');
       return;
     }
-    // Build a real receipt-print portal so the exact same thermal CSS/margins
-    // are used as production receipts. This avoids 1-inch/blank test slips.
-    const portal = document.createElement('div');
-    portal.className = 'receipt-print-portal';
-    portal.setAttribute('data-active-print', 'true');
-    // Off-screen, not parked over the POS. At left:0;top:0;z-index:99999
-    // this slip sat as a white rectangle in the corner of the screen for the
-    // whole job — the same symptom reported during KOT printing.
-    portal.setAttribute('aria-hidden', 'true');
-    portal.style.cssText = 'position:fixed;left:-10000px;top:0;width:' + p.paperSize + ';background:#fff;visibility:hidden;';
-    portal.innerHTML = `
-      <div class="print-receipt receipt-root" data-paper-size="${p.paperSize}" style="font-family:'Courier New',monospace;font-size:13px;font-weight:700;color:#000;background:#fff;">
-        <div style="text-align:center;font-weight:900;font-size:14px;">*** DT POS TEST ***</div>
-        <div style="text-align:center;">${p.name}</div>
-        <div style="text-align:center;">${p.printerName}</div>
-        <div style="text-align:center;">${new Date().toLocaleString()}</div>
-        <div style="border-top:1px dashed #000;margin:4px 0;"></div>
-        <div>1 x Test Item</div>
-        <div>1 x Sample Product</div>
-        <div style="border-top:1px dashed #000;margin:4px 0;"></div>
-        <div style="text-align:center;">Printer setup OK ✓</div>
-      </div>`;
-    document.body.appendChild(portal);
-    const root = portal.querySelector('.print-receipt') as HTMLElement | null;
-    if (root) {
-      root.style.setProperty('--dt-print-padding-top', `${Math.max(0, p.topFeedMm || 0)}mm`);
-      root.style.setProperty('--dt-print-padding-right', `${Math.max(0, p.rightMarginMm || 0)}mm`);
-      root.style.setProperty('--dt-print-padding-bottom', `${Math.max(0, p.bottomFeedMm || 0)}mm`);
-      root.style.setProperty('--dt-print-padding-left', `${Math.max(0, p.leftMarginMm || 0)}mm`);
-      root.style.setProperty('--dt-print-offset-top', `${Math.min(0, p.topFeedMm || 0)}mm`);
-      root.style.setProperty('--dt-print-offset-left', `${Math.min(0, p.leftMarginMm || 0)}mm`);
-      root.style.setProperty('--dt-print-offset-right', `${Math.min(0, p.rightMarginMm || 0)}mm`);
-      root.style.setProperty('--dt-print-offset-bottom', `${Math.min(0, p.bottomFeedMm || 0)}mm`);
-      if (p.printWidthMm) root.style.setProperty('--dt-print-content-width', `${p.printWidthMm}mm`);
-    }
-    const cleanup = beginThermalPrintDomSession(root, p.paperSize, undefined, undefined as any);
-    await waitForThermalPrintLayout();
-    await new Promise((r) => setTimeout(r, 300)); // render settle (blank-print fix)
-    try {
-      const res = await printReceiptNative({
-        printerName: p.printerName,
-        silent: true,
-        usePrinterDefaultPageSize: true,
-        autoCut: p.autoCut,
-        paperLabel: p.paperSize,
-        topFeedMm: p.topFeedMm,
-        bottomFeedMm: p.bottomFeedMm,
-        leftMarginMm: p.leftMarginMm,
-        rightMarginMm: p.rightMarginMm,
-      });
-      if (res.success) toast.success('Test print sent ✓');
-      else toast.error('Print fail: ' + (res.error || 'unknown'));
-    } finally {
-      cleanup();
-      setTimeout(() => portal.remove(), 800);
-    }
+    const mode = modeOverride || testModeFor(p, getSettings());
+    const res = await printTestSlip(p, mode);
+    setLastTest({ id: p.id, mode, route: res.route, success: res.success, error: res.error });
+    if (res.success) toast.success(`Test sent (${res.route}). Check the paper and answer below.`);
+    else toast.error('Print fail: ' + (res.error || 'unknown'));
   }
 
+  /**
+   * The test slip came out blank: move this printer to the next print mode,
+   * save it, and print the test again — so the working mode is found on the
+   * real printer, not guessed.
+   */
+  async function onTestBlank(idx: number) {
+    const p = settings.printers[idx];
+    if (!p || !lastTest || lastTest.id !== p.id) return;
+    const next = nextModeAfterBlank(lastTest.mode);
+    if (!next) {
+      setLastTest({ ...lastTest, exhausted: true });
+      return;
+    }
+    const updated = { ...p, printMode: next } as PrinterConfig;
+    const nextSettings = { ...settings, printers: settings.printers.map((q, i) => (i === idx ? updated : q)) };
+    setSettings(nextSettings);
+    try {
+      await savePrinterSettings(nextSettings);
+      toast.info(`${p.name || p.printerName}: switched to ${TEST_MODE_LABEL[next]} — printing the test again.`);
+    } catch (e: any) {
+      toast.error('Could not save the new print mode: ' + (e?.message || e));
+      return;
+    }
+    await testSystem(updated, next);
+  }
 
   // Role-mapping summary (per role -> assigned enabled printer)
   const roleMap = ROLE_OPTIONS.map(r => ({
@@ -568,6 +550,30 @@ export default function PrinterSettingsPanel() {
                         <TestTube className="h-3.5 w-3.5 mr-1" /> Test Print
                       </Button>
                     </div>
+                    {lastTest && lastTest.id === p.id && lastTest.success && (
+                      <div className="mt-2 rounded-md border p-2 text-xs space-y-1.5" data-testid="test-feedback">
+                        <div>
+                          Test sent via <b>{lastTest.route}</b> (Print Mode: {TEST_MODE_LABEL[lastTest.mode]}).
+                          {!lastTest.confirmed && !lastTest.exhausted && ' Did the paper show the test text?'}
+                        </div>
+                        {lastTest.confirmed ? (
+                          <div className="text-status-success font-semibold">✓ This mode works on this printer — bills will print the same way.</div>
+                        ) : lastTest.exhausted ? (
+                          <div className="text-destructive space-y-1">
+                            <div className="font-semibold">Blank in every mode — this points to the paper or the printer, not DT POS:</div>
+                            <div>• Thermal paper loaded the wrong way round prints nothing. Scratch the paper with a fingernail: the side that turns grey must face the print head.</div>
+                            <div>• Press <b>Windows Driver Test</b> below. If the Windows test page is blank too, it is the paper, the head or the driver.</div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" className="h-7" onClick={() => setLastTest({ ...lastTest, confirmed: true })}>Yes, it printed</Button>
+                            <Button size="sm" variant="outline" className="h-7 text-destructive" onClick={() => void onTestBlank(idx)}>
+                              Came out blank{nextModeAfterBlank(lastTest.mode) ? ` — try ${TEST_MODE_LABEL[nextModeAfterBlank(lastTest.mode)!]}` : ''}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {p.printerName && (
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                         <span className="px-2 py-1 rounded bg-muted font-mono">
