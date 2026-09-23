@@ -6,6 +6,7 @@
 // ============================================================
 import { collection, deleteDoc, doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db, auth } from './firebase';
+import { firestoreSafe } from './firestoreSafe';
 import { docIdFor } from './cloud';
 import { verifyLicenseKey, PLAN_LABEL } from '@pos/licensing/licenseKey';
 import {
@@ -40,7 +41,7 @@ export function watchProfile(cb: (p: BillingProfile) => void, onErr?: (e: Error)
 }
 
 export async function saveProfile(p: BillingProfile) {
-  await setDoc(doc(db, 'offlineBilling', 'profile'), { ...p, updatedAt: Date.now(), by: auth.currentUser?.email || 'admin' });
+  await setDoc(doc(db, 'offlineBilling', 'profile'), firestoreSafe({ ...p, updatedAt: Date.now(), by: auth.currentUser?.email || 'admin' }));
 }
 
 /** What the licence looks like right now, for the verification record. */
@@ -65,9 +66,9 @@ async function licenceInfo(key: string): Promise<{ status: string; plan: string;
 /** Save the invoice, then (re)publish the public verification record for its QR. */
 export async function saveInvoice(inv: OfflineInvoice, profile: BillingProfile): Promise<void> {
   const stamped = { ...inv, updatedAt: Date.now(), by: auth.currentUser?.email || 'admin' };
-  await setDoc(doc(db, 'offlineInvoices', inv.id), stamped);
+  await setDoc(doc(db, 'offlineInvoices', inv.id), firestoreSafe(stamped));
   const record = verifyRecordFor(stamped, profile, await licenceInfo(inv.customer.licenseKey));
-  await setDoc(doc(db, 'invoiceVerify', inv.verifyCode), record);
+  await setDoc(doc(db, 'invoiceVerify', inv.verifyCode), firestoreSafe(record));
 }
 
 export async function deleteInvoice(inv: OfflineInvoice): Promise<void> {

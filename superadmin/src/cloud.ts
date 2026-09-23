@@ -16,6 +16,7 @@ import {
 } from 'firebase/auth';
 import { db, auth } from './firebase';
 import type { Client } from './registry';
+import { firestoreSafe } from './firestoreSafe';
 
 export const docIdFor = (key: string) => key.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 200);
 
@@ -40,7 +41,10 @@ export function watchClients(cb: (list: Client[]) => void, onErr?: (e: Error) =>
 }
 
 export async function pushClient(c: Client) {
-  await setDoc(doc(db, 'clients', docIdFor(c.key)), { ...c, updatedAt: Date.now() }, { merge: true });
+  // Optional fields (a device's lat/lng/appVersion when the shop declined
+  // location or used an older POS) must be left out, not sent as undefined —
+  // Firestore rejects the whole write otherwise.
+  await setDoc(doc(db, 'clients', docIdFor(c.key)), firestoreSafe({ ...c, updatedAt: Date.now() }), { merge: true });
 }
 
 export async function removeClient(key: string) {
@@ -161,13 +165,14 @@ export function watchMessages(cb: (list: SupportMessage[]) => void, onErr?: (e: 
 }
 
 export async function sendMessage(m: Omit<SupportMessage, 'id' | 'createdAt' | 'from'> & { from?: 'admin' | 'shop' }) {
-  await addDoc(collection(db, 'supportMessages'), {
+  // A general note has no shop (clientKey/business/phone undefined).
+  await addDoc(collection(db, 'supportMessages'), firestoreSafe({
     ...m,
     from: m.from || 'admin',
     read: false,
     createdAt: Date.now(),
     serverAt: serverTimestamp(),
-  });
+  }));
 }
 
 export async function markMessageRead(id: string) {

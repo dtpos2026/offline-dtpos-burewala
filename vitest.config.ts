@@ -11,6 +11,8 @@ export default defineConfig({
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
   },
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
+    // "@pos" is the Super Admin's alias for the POS sources (superadmin/vite.config.ts),
+    // so Super Admin screens can be tested here too.
+    alias: { "@": path.resolve(__dirname, "./src"), "@pos": path.resolve(__dirname, "./src") },
   },
 });

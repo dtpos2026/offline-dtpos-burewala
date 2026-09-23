@@ -77,6 +77,24 @@ export function upsertClient(list: Client[], client: Client): Client[] {
   return next;
 }
 
+/**
+ * The device record for a pasted activation code. Optional details are
+ * included only when the code has them: a shop that declined location has no
+ * lat/lng, an older POS sends no version. (Written as `undefined` they made
+ * the cloud reject the whole client record.)
+ */
+export function deviceFromReceipt(
+  rec: { device: string; at: number; lat?: number; lng?: number; ver?: string },
+  approved = false,
+): DeviceRecord {
+  const d: DeviceRecord = { id: String(rec.device), activatedAt: Number(rec.at) || Date.now() };
+  if (typeof rec.lat === 'number' && Number.isFinite(rec.lat)) d.lat = rec.lat;
+  if (typeof rec.lng === 'number' && Number.isFinite(rec.lng)) d.lng = rec.lng;
+  if (rec.ver) d.appVersion = String(rec.ver);
+  if (approved) d.approved = true;
+  return d;
+}
+
 /** A device seen for the first time is added; a returning one is refreshed. */
 export function mergeDevice(client: Client, device: DeviceRecord): Client {
   const devices = [...client.devices];

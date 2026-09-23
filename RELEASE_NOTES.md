@@ -1,5 +1,31 @@
 # DT POS Enterprise — Release Notes
 
+## v1.13.1 — Super Admin: registering a device failed with "Unsupported field value: undefined"
+
+- **Symptom:** after a POS showed "Activation complete — Send this code once
+  to register your shop for support", pasting that code in Super Admin →
+  Device Map → Register device showed "Cloud: Function setDoc() called with
+  invalid data. Unsupported field value: undefined (found in document
+  clients/DTPOS-…)". The device looked registered but was never saved to the
+  cloud, and could disappear at the next cloud refresh.
+- **Root cause:** the device record was built with `lat`, `lng` and
+  `appVersion` taken straight from the code. A shop that declines location
+  (or a PC without location) sends no coordinates, an older POS sends no
+  version, so those fields were `undefined` — and Firestore rejects the whole
+  write when any field is `undefined`.
+- **Fix:** the device record now includes optional details only when the
+  code has them; every Super Admin cloud write (clients, support messages,
+  billing profile, invoices, invoice verification) removes empty optional
+  fields first; the panel's Firestore also ignores undefined fields as a
+  safety net. A general support note (no shop selected) had the same fault
+  and is fixed too.
+- A failed cloud save is no longer treated as saved: the next change retries
+  it, and the error names the shop.
+- **After updating:** open Super Admin once — records still in this
+  browser's local copy are sent again. A device that is missing from Clients
+  → Devices, re-register it by pasting its activation code again (the same
+  PC is recognised, it does not use another slot).
+
 ## v1.13.0 — Report printing, Hold printing, Urdu/Hindi voices, bulk deal import
 
 ### 80 mm reports — nothing cut off any more

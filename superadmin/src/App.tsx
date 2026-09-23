@@ -16,7 +16,7 @@ import {
 } from '@pos/licensing/licenseKey';
 import { decodeReceipt } from '@pos/licensing/activationReceipt';
 import {
-  loadClients, saveClients, upsertClient, mergeDevice, statusOf, daysLeft,
+  loadClients, saveClients, upsertClient, mergeDevice, statusOf, daysLeft, deviceFromReceipt,
   exportBackup, exportCsv, importBackup, hasDevice, slotUsage, removeDevice, type Client,
 } from './registry';
 import DeviceMap from './DeviceMap';
@@ -79,7 +79,12 @@ export default function App() {
       const json = JSON.stringify(c);
       if (synced.current.get(c.key) !== json) {
         synced.current.set(c.key, json);
-        pushClient(c).catch(e => setCloudErr(e?.message || 'Cloud write failed'));
+        pushClient(c).catch(e => {
+          // Not saved: stop treating it as synced, so the next change retries
+          // it instead of the record being dropped silently.
+          if (synced.current.get(c.key) === json) synced.current.delete(c.key);
+          setCloudErr(`Could not save ${c.business || c.key} — ${e?.message || 'cloud write failed'}`);
+        });
       }
     }
     for (const key of Array.from(synced.current.keys())) {
@@ -773,15 +778,12 @@ function MapTab({ clients, setClients }: { clients: Client[]; setClients: (f: (p
     setClients(prev => {
       let c: Client = {
         ...base,
-        business: rec.business || base.business,
-        owner: rec.owner || base.owner,
-        phone: rec.phone || base.phone,
+        business: rec.business || base.business || '',
+        owner: rec.owner || base.owner || '',
+        phone: rec.phone || base.phone || '',
       };
       if (drop) c = removeDevice(c, drop);
-      return upsertClient(prev, mergeDevice(c, {
-        id: rec.device, activatedAt: rec.at, lat: rec.lat, lng: rec.lng, appVersion: rec.ver,
-        ...(approved ? { approved: true } : {}),
-      }));
+      return upsertClient(prev, mergeDevice(c, deviceFromReceipt(rec, approved)));
     });
     setCode('');
     setConflict(null);
@@ -808,9 +810,9 @@ function MapTab({ clients, setClients }: { clients: Client[]; setClients: (f: (p
     const existing = clients.find(c => c.key === rec.key);
     const base: Client = existing ?? {
       key: rec.key,
-      business: rec.business, owner: rec.owner, phone: rec.phone,
+      business: rec.business || '', owner: rec.owner || '', phone: rec.phone || '',
       plan: check.payload.plan, maxDevices: check.payload.maxDevices,
-      expiryDate: check.payload.expiryDate, issuedAt: rec.at, devices: [],
+      expiryDate: check.payload.expiryDate ?? null, issuedAt: rec.at || Date.now(), devices: [],
     };
 
     // Same machine coming back (re-install, new code) — never a conflict.
