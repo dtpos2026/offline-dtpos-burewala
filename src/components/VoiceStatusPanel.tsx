@@ -6,7 +6,7 @@
 // it (read Urdu with the Hindi voice, or skip it). Nothing here claims a voice
 // that Windows did not report.
 // ============================================================
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -25,14 +25,19 @@ export default function VoiceStatusPanel({ hindiForUrdu, onHindiForUrdu, onSuppo
   const [busy, setBusy] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
+  // Held in a ref: a parent passing a new function each render must not
+  // restart the voice check (that would loop).
+  const onSupportRef = useRef(onSupport);
+  onSupportRef.current = onSupport;
+
   const check = useCallback(async (refresh = false) => {
     setBusy(true);
     try {
       const r = await voiceSupport({ hindiForUrdu, refresh });
       setS(r);
-      onSupport?.(r);
+      onSupportRef.current?.(r);
     } finally { setBusy(false); }
-  }, [hindiForUrdu, onSupport]);
+  }, [hindiForUrdu]);
 
   useEffect(() => {
     void check();

@@ -1,5 +1,73 @@
 # DT POS Enterprise — Release Notes
 
+## v1.13.0 — Report printing, Hold printing, Urdu/Hindi voices, bulk deal import
+
+### 80 mm reports — nothing cut off any more
+- **Root cause:** POS Summary, POS Detailed and the GRN (supplier receiving)
+  slip were printed from a plain browser window laid out at the full paper
+  width (80 mm). An 80 mm printer only prints about 72 mm, so right-aligned
+  values (PKR amounts, times) fell off the edge. The Shift report looked
+  right because it already went through the POS print path.
+- All reports now use one professional layout (restaurant logo, name,
+  address and phones; title band; label/value rows that wrap instead of
+  clipping; aligned tables; boxed bold totals; print time; small "Powered by
+  Digital Target") and print on the counter printer through the same route
+  as bills and the Shift report: same printer, report margins from Printer
+  Settings, printable width, and ESC/POS text when Fast Billing is on.
+  Printing speed is unchanged. Fonts are not shrunk to fit; the layout wraps.
+- POS Summary gains Payments and Other bills (unpaid/void/cancelled/
+  complimentary); POS Detailed lists each paid order.
+- Shift report: every section kept, the restaurant header now shows (it read
+  a settings key that does not exist), amount and % are separate columns.
+- New: supplier/party **statement** (Party Master → printer icon) and
+  Accounts **Print 80mm**. The Accounts 80 mm PDF now keeps 6 mm margins.
+- ESC/POS text rows wrap long names instead of cutting them.
+- Checked with the print simulator (real raster code): all 25 slip templates,
+  including the 5 reports, have 0 px overflow and ink exactly at the margins.
+
+### Hold (dry section) prints
+- **Root cause:** a bill put on HOLD only changed colour/status; the print
+  trigger ran for running/paid bills only.
+- Putting a bill on HOLD (POS, Retrieve/Retray, Running Bills) now prints the
+  bill marked HOLD — UNPAID, and the kitchen ticket if it has not gone yet.
+  Re-holding a held bill does not print again; the print queue still blocks
+  duplicates. Setting: Token/Receipt settings → "Print Bill on Hold".
+
+### Voices — Urdu, Hindi, English
+- Windows has **no Urdu text-to-speech voice**. DT POS does not pretend it
+  does. When a Hindi voice is installed (Kalpana / Hemant / Swara), Urdu
+  announcements are rewritten in Hindi script and read by it — the spoken
+  words are the same; built-in wordings are spelled exactly. Without a Hindi
+  or Urdu voice, the Urdu line is skipped with a clear reason and English
+  still plays. An Urdu sentence is never handed to an English voice.
+- The desktop app can also use voices added in Windows Settings → Speech
+  (these are invisible to Chromium) through a small Windows helper.
+- Customer Display: Hindi wordings, per-line "which voice will read this",
+  a voice status panel and "Read Urdu with the Hindi voice".
+- Kitchen Display: optional spoken new-order number after the beep (off by
+  default), English/Urdu/Hindi wordings, same status panel.
+- A missing or failing voice never stops orders or the displays.
+
+### Deals & Combos — bulk import from Excel
+- Deals / Combos → **Bulk Import Deals from Excel**: Upload → Validate →
+  Preview → Confirm → Import → Result ("Successful: N Deals, Failed: N,
+  Warnings: N", row-level reasons, CSV report). Manual creation unchanged.
+- Checks: missing deal name, invalid/missing/conflicting price, missing item,
+  item not on the menu (with a suggestion), same name in two categories,
+  invalid quantity, invalid or missing size/inch variant, duplicate deals
+  (skipped unless "Update existing deals" is chosen), empty rows, wrong file
+  structure. A deal with any error is not imported (no half deals).
+- Template download includes your own menu (exact names, categories, sizes).
+- Menu import: a Deals sheet is no longer turned into menu items; the dialog
+  gains a format guide and a template.
+- Exact Excel guides for Menu and Deals in the app ("Copy for ChatGPT") and
+  in docs/EXCEL_IMPORT_GUIDE.md.
+
+### Needs checking on site
+- Physical 80 mm printing of the new reports (verified by simulation only).
+- The Windows voice helper and real Hindi/Urdu voices (verified with
+  simulated voice lists only; this build environment has no Windows).
+
 ## v1.12.0 — Premium Phase 1: offline licence, device control, responsive POS, dining hold, day close, offline billing
 
 ### Offline licence (the "asks for the key again without internet" bug)
