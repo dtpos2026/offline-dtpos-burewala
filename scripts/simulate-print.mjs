@@ -25,11 +25,133 @@ import path from 'node:path';
 const require_ = createRequire(import.meta.url);
 const { rasterGeometry, escposRasterBytes } = require_('../electron/escposRaster.cjs');
 const { STANDARD_WEIGHT_JS } = require_('../electron/textWeight.cjs');
+const { reversedTextJs, cutoffFor } = require_('../electron/reversedText.cjs');
+// The print window keeps white text white on dark fills; SIM_NO_REVERSE=1
+// shows what the slips printed before that step existed.
+const REVERSE = process.env.SIM_NO_REVERSE !== '1';
 // SIM_PRESET mirrors Print Quality → Text weight: 'standard' (default in the
 // app), 'bold', or 'extra' (the old default: darkness 7 + one-dot smear).
 const PRESET = process.env.SIM_PRESET || 'bold';
 const PRESETS = { standard: { darkness: 6, bold: false }, bold: { darkness: 6, bold: false }, extra: { darkness: 7, bold: true } };
 const preset = PRESETS[PRESET] || PRESETS.bold;
+
+// Darkness the raster stage uses for this run (see packDots' cut-off).
+const DARKNESS = process.env.SIM_PRESET ? preset.darkness : 6;
+const CUTOFF = 108 + Math.max(1, Math.min(10, DARKNESS)) * 13;
+
+/**
+ * Text the thermal head cannot show.
+ *
+ * The head marks a dot wherever the pixel is darker than the cut-off. Text is
+ * readable only when it and the paint behind it fall on opposite sides of
+ * that line: black on paper, or paper-white on a solid black fill. Both on
+ * the same side — black text on a black bar — is a line that prints as a
+ * solid block or not at all. Independent of how the app decides colours, so
+ * it checks the fix instead of repeating it.
+ */
+const VISIBILITY_FN = (cutoff) => {
+  const root = document.querySelector('.dt-fast-root') || document.body;
+  const origin = root.getBoundingClientRect();
+  const parse = (v) => {
+    const m = /rgba?\(([^)]*)\)/.exec(v || '');
+    if (!m) return null;
+    const p = m[1].split(/[\s,\/]+/).filter(Boolean).map(Number);
+    return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+  };
+  const over = (c, base) => ({ r: c.r * c.a + base.r * (1 - c.a), g: c.g * c.a + base.g * (1 - c.a), b: c.b * c.a + base.b * (1 - c.a), a: 1 });
+  const lum = (c) => 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
+  const paint = (el) => {
+    const chain = [];
+    for (let e = el; e && e !== document.documentElement; e = e.parentElement) chain.push(e);
+    let c = { r: 255, g: 255, b: 255, a: 1 };
+    for (let i = chain.length - 1; i >= 0; i--) {
+      const b = parse(getComputedStyle(chain[i]).backgroundColor);
+      if (b && b.a > 0) c = over(b, c);
+    }
+    return c;
+  };
+  const invisible = [];
+  const reversed = [];
+  const seen = new Set();
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const text = (n.textContent || '').replace(/\s+/g, ' ').trim();
+    const el = n.parentElement;
+    if (!text || !el || seen.has(el)) continue;
+    seen.add(el);
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) continue;
+    const bg = paint(el);
+    const fg = over(parse(cs.color) || { r: 0, g: 0, b: 0, a: 1 }, bg);
+    // Measure over the text itself, not its (often full-width) box: a short
+    // word in a wide bar is mostly bar.
+    const range = document.createRange();
+    range.selectNodeContents(n);
+    const t = range.getBoundingClientRect();
+    const box = t.width > 0 && t.height > 0 ? t : r;
+    const item = {
+      text: text.slice(0, 48),
+      color: cs.color,
+      background: `rgb(${Math.round(bg.r)}, ${Math.round(bg.g)}, ${Math.round(bg.b)})`,
+      x: box.left - origin.left, y: box.top - origin.top, w: box.width, h: box.height,
+    };
+    const fgInk = lum(fg) < cutoff;
+    const bgInk = lum(bg) < cutoff;
+    if (fgInk === bgInk) invisible.push(item);
+    else if (bgInk) reversed.push(item);
+  }
+  return { invisible, reversed };
+};
+
+/** Elements that stick out past the slip's right edge (what overflowPx measures). */
+const OVERFLOW_FN = () => {
+  const root = document.querySelector('.dt-fast-root') || document.body;
+  const edge = root.getBoundingClientRect().right + 0.5;
+  const out = [];
+  for (const el of root.querySelectorAll('*')) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.right > edge) {
+      out.push({ tag: el.tagName.toLowerCase(), over: Math.round(r.right - edge + 0.5), width: Math.round(r.width), text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40), style: (el.getAttribute('style') || '').slice(0, 90) });
+    }
+  }
+  // Text that runs past its own box (nowrap, pre, letter-spacing) sticks out
+  // without any element doing so.
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const range = document.createRange();
+    range.selectNodeContents(n);
+    for (const r of range.getClientRects()) {
+      if (r.width > 0 && r.right > edge) {
+        const el = n.parentElement;
+        out.push({ tag: '#text in ' + (el ? el.tagName.toLowerCase() : '?'), over: Math.round(r.right - edge + 0.5), width: Math.round(r.width), text: (n.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40), style: el ? (el.getAttribute('style') || '').slice(0, 90) : '' });
+        break;
+      }
+    }
+  }
+  // Deepest culprits first: a parent sticks out only because a child does.
+  return out.filter(o => !out.some(p => p !== o && p.text.includes(o.text) && p.width < o.width)).slice(-6);
+};
+
+/** Share of paper-white dots the raster stage leaves inside a box. */
+function paperShare(resized, cssToDots, box, cutoff) {
+  const x0 = Math.max(0, Math.floor(box.x * cssToDots));
+  const y0 = Math.max(0, Math.floor(box.y * cssToDots));
+  const x1 = Math.min(resized.width, Math.ceil((box.x + box.w) * cssToDots));
+  const y1 = Math.min(resized.height, Math.ceil((box.y + box.h) * cssToDots));
+  let paper = 0, total = 0;
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const i = (y * resized.width + x) * 4;
+      // BGRA, as packDots reads it
+      const l = 0.299 * resized.data[i + 2] + 0.587 * resized.data[i + 1] + 0.114 * resized.data[i];
+      if (l >= cutoff) paper++;
+      total++;
+    }
+  }
+  return total ? paper / total : 0;
+}
 
 const OUT = process.env.SIM_OUT || path.resolve('.print-sim');
 const CHROME = process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
@@ -212,6 +334,7 @@ for (const slip of slips) {
   await doc.setContent(built.html, { waitUntil: 'networkidle' });
   await doc.evaluate(() => document.fonts && document.fonts.ready);
   if (PRESET === 'standard') await doc.evaluate(STANDARD_WEIGHT_JS);
+  if (REVERSE) await doc.evaluate(reversedTextJs(cutoffFor(DARKNESS)));
 
   const geom = rasterGeometry(built.paperLabel, built.marginLeftMm, built.marginRightMm);
 
@@ -231,6 +354,8 @@ for (const slip of slips) {
     };
   })()`;
   const metrics = await doc.evaluate(measureJs);
+  const visibility = await doc.evaluate(VISIBILITY_FN, CUTOFF);
+  const overflowBy = metrics.scrollWidth > metrics.rectWidth ? await doc.evaluate(OVERFLOW_FN) : [];
 
   // Supersample the way capturePage does — through the device scale factor,
   // NOT CSS zoom. CSS zoom rescales getBoundingClientRect(), browser zoom
@@ -254,6 +379,7 @@ for (const slip of slips) {
   await hi.setContent(built.html, { waitUntil: 'networkidle' });
   await hi.evaluate(() => document.fonts && document.fonts.ready);
   if (PRESET === 'standard') await hi.evaluate(STANDARD_WEIGHT_JS);
+  if (REVERSE) await hi.evaluate(reversedTextJs(cutoffFor(DARKNESS)));
   const shot = await hi.screenshot({
     type: 'png',
     animations: 'disabled',
@@ -263,6 +389,12 @@ for (const slip of slips) {
   void capW; void capH;
 
   const supersampled = decodePng(shot);
+  // White text on a black fill must survive the threshold: measure the paper
+  // dots left inside each reversed line, on the same downscale the raster
+  // stage makes.
+  const resized = resizeRgba(supersampled, geom.contentDots);
+  const cssToDots = geom.contentDots / metrics.width;
+  const reversed = visibility.reversed.map(b => ({ text: b.text, paperPct: Math.round(paperShare(resized, cssToDots, b, CUTOFF) * 1000) / 10 }));
 
   // Drive the REAL raster entry point with EXACTLY the options
   // electron/main.cjs passes it — no more, no less. Passing tidier arguments
@@ -289,6 +421,7 @@ for (const slip of slips) {
     measuredRectPx: metrics.rectWidth,
     measuredScrollPx: metrics.scrollWidth,
     overflowPx: Math.max(0, metrics.scrollWidth - metrics.rectWidth),
+    overflowBy,
     contentDots: geom.contentDots,
     escposBytes: bytes.length,
     rasterRows: packed.height,
@@ -297,6 +430,13 @@ for (const slip of slips) {
     expectedLeftMm: built.marginLeftMm,
     expectedRightMm: built.marginRightMm,
     ...ink,
+    // Text that cannot print (same side of the ink threshold as its paint).
+    invisibleText: visibility.invisible.length,
+    invisibleSamples: visibility.invisible.slice(0, 6).map(v => `${v.text} [${v.color} on ${v.background}]`),
+    // White-on-black lines, and the share of white dots left in each.
+    reversedLines: reversed.length,
+    reversedFaint: reversed.filter(r => r.paperPct < 8),
+    reversedAll: reversed,
     file,
   });
   await doc.close();

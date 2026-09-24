@@ -12,7 +12,12 @@
 import { createRoot } from 'react-dom/client';
 import { createPortal } from 'react-dom';
 import { useEffect, useRef } from 'react';
+// The app's stylesheet: the print worker copies it into every slip document
+// (collectAppCss), so utility classes in the templates must resolve here too.
+import '@/index.css';
 import PremiumReceipt from '@/components/PremiumReceipt';
+import ReceiptPreview from '@/components/ReceiptPreview';
+import KitchenReceipt from '@/components/KitchenReceipt';
 import { PREMIUM_TEMPLATES, loadCustomization } from '@/lib/premiumReceiptTemplates';
 import { buildSampleOrder } from '@/lib/sampleOrder';
 import { buildWorkerDocument } from '@/printing/fastPrint';
@@ -22,6 +27,10 @@ import { thermalReportHtml, reportMoney, type ThermalReportDoc } from '@/printin
 import { shiftReportDoc } from '@/components/ShiftReport';
 
 const order = buildSampleOrder();
+// ?unpaid=1 — a running bill: status boxes print their UNPAID (reversed) form.
+if (new URLSearchParams(location.search).get('unpaid') === '1') {
+  Object.assign(order, { status: 'running', paidAt: undefined, amountPaid: 0, cashReceived: 0, changeReturned: 0 });
+}
 
 // A realistic shop, matching the scale of names/addresses a real bill carries.
 const settings: any = {
@@ -34,6 +43,30 @@ const settings: any = {
   thankYouText: 'Thank You!',
   receiptFooter: '',
 };
+
+// The classic designs and KOTs read more of the shop's settings; these are
+// the values a new shop starts with, plus a footer so every block renders.
+const legacySettings: any = {
+  ...settings,
+  visitAgainText: 'Please Visit Again',
+  receiptFooter: 'Goods once sold will not be taken back.',
+  marketingFooter: 'DIGITAL TARGET SOFTWARE SOLUTIONS\nDeveloped By: Taimoor Younas\n0345-1873354',
+  qrMode: 'auto',
+  customQrImage: '',
+  bankName: '',
+  receiptStyles: {},
+  silentPrint: false,
+};
+
+/** Every receipt design the POS offers besides the premium ones. */
+const LEGACY_DESIGNS = [
+  'standard', 'compact-thermal', 'classic', 'modern', 'compact', 'luxury', 'executive', 'royal',
+  'bistro', 'heritage', 'metro', 'shahenshah', 'taste-bistro', 'food-palace', 'spice-house',
+  'taimoor', 'design1-table', 'design2-box', 'design3-modern', 'design4-compact',
+  'design5-delivery', 'sero', 'bero', 'kot-style', 'kot-classic',
+];
+/** Every kitchen ticket design. */
+const KOT_DESIGNS = ['classic', 'bold', 'minimal', 'elegant', 'vip-chef', 'station', 'taimoor1', 'taimoor2'];
 
 const MARGIN_LEFT = Number(new URLSearchParams(location.search).get('left') ?? 2);
 const MARGIN_RIGHT = Number(new URLSearchParams(location.search).get('right') ?? 2);
@@ -63,7 +96,7 @@ const LAB_STUBS =
           })),
         ];
 
-interface Slip { id: string; label: string; kind: 'receipt' | 'token' | 'report' }
+interface Slip { id: string; label: string; kind: 'receipt' | 'token' | 'report' | 'design' | 'kot' }
 
 // ---- report slips: realistic numbers plus the worst cases a shop produces
 const rm = (n: number) => reportMoney(n, 'Rs');
@@ -142,6 +175,8 @@ const REPORTS: Record<string, ThermalReportDoc> = {
 
 const SLIPS: Slip[] = [
   ...PREMIUM_TEMPLATES.map(t => ({ id: t.id, label: t.name, kind: 'receipt' as const })),
+  ...LEGACY_DESIGNS.map(d => ({ id: `design-${d}`, label: `Receipt · ${d}`, kind: 'design' as const })),
+  ...KOT_DESIGNS.map(d => ({ id: `kot-${d}`, label: `KOT · ${d}`, kind: 'kot' as const })),
   ...TOKEN_TEMPLATES.map(t => ({ id: `token-${t.id}`, label: `Token · ${t.name}`, kind: 'token' as const })),
   ...Object.keys(REPORTS).map(id => ({ id, label: `Report · ${REPORTS[id].title}`, kind: 'report' as const })),
 ];
@@ -161,7 +196,17 @@ function Slips() {
 
   return (
     <>
-      {SLIPS.map(slip => createPortal(
+      {/* The classic designs and KOTs print from the portal their own
+          component creates — exactly the node the POS hands to fastPrint. */}
+      <div style={{ display: 'none' }}>
+        {LEGACY_DESIGNS.map(d => (
+          <ReceiptPreview key={`r-${d}`} order={order} settings={{ ...legacySettings, receiptDesign: d }} showPrintButton={false} />
+        ))}
+        {KOT_DESIGNS.map(d => (
+          <KitchenReceipt key={`k-${d}`} order={order} settings={{ ...legacySettings, kotDesign: d }} showPrintButton={false} />
+        ))}
+      </div>
+      {SLIPS.filter(slip => slip.kind !== 'design' && slip.kind !== 'kot').map(slip => createPortal(
         <div
           className="receipt-print-portal"
           data-slip={slip.id}
@@ -215,11 +260,21 @@ function Slips() {
 // ---- simulator API -----------------------------------------------------
 (window as any).__printLabSlips = () => SLIPS.map(s => ({ id: s.id, label: s.label }));
 
+/** The HTML the POS would hand to fastPrint for this slip. */
+function slipHtml(id: string): string {
+  const selector = id.startsWith('design-')
+    ? `.receipt-print-portal .print-receipt[data-design="${id.slice('design-'.length)}"]`
+    : id.startsWith('kot-')
+      ? `.receipt-print-portal .print-receipt[data-kot-design="${id.slice('kot-'.length)}"]`
+      : `[data-slip="${id}"]`;
+  const node = document.querySelector(selector) as HTMLElement | null;
+  if (!node) throw new Error(`no slip ${id}`);
+  return node.outerHTML;
+}
+
 (window as any).__printLabBuild = (id: string) => {
-  const portal = document.querySelector(`[data-slip="${id}"]`) as HTMLElement | null;
-  if (!portal) throw new Error(`no slip ${id}`);
   const { html, geometry } = buildWorkerDocument({
-    html: portal.outerHTML,
+    html: slipHtml(id),
     paperWidth: '80mm',
     compact: COMPACT,
     marginLeftMm: MARGIN_LEFT,
@@ -240,10 +295,8 @@ function Slips() {
 // Mode-aware build — lets the simulator exercise the driver/HTML fallback
 // path as well as the raster path. Both must satisfy the equal-margin rule.
 (window as any).__printLabBuildMode = (id: string, mode: 'raster' | 'html') => {
-  const portal = document.querySelector(`[data-slip="${id}"]`) as HTMLElement | null;
-  if (!portal) throw new Error(`no slip ${id}`);
   const { html, geometry } = buildWorkerDocument({
-    html: portal.outerHTML,
+    html: slipHtml(id),
     paperWidth: '80mm',
     compact: COMPACT,
     marginLeftMm: MARGIN_LEFT,

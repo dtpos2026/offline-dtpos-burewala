@@ -73,20 +73,25 @@ export function StandardInfoGrid({
   columns?: 1 | 2;
 }) {
   const fields = getStandardOrderFields(order, opts);
+  // Two fields share a line only when both fit. A grid of two equal columns
+  // cannot shrink below its content, so a phone number or a long name pushed
+  // the whole grid past the paper edge and the printer clipped it. A
+  // wrapping row gives a field that is too wide for half the slip a line of
+  // its own — on 80mm and 58mm alike, without guessing character counts.
   return (
     <div style={{
-      display: 'grid',
-      gridTemplateColumns: columns === 2 ? '1fr 1fr' : '1fr',
+      display: 'flex',
+      flexWrap: 'wrap',
       columnGap: '8px',
       rowGap: '1px',
       fontSize: `${fontSize}px`,
       color: '#000',
     }}>
       {fields.map((f) => (
-        <div key={f.label} style={{ display: 'flex', padding: '1px 0' }}>
-          <span style={{ width: `${labelWidth}px`, fontWeight: 600 }}>{f.label}</span>
-          <span style={{ width: '6px' }}>:</span>
-          <span style={{ flex: 1, fontWeight: 700 }}>{f.value}</span>
+        <div key={f.label} style={{ display: 'flex', padding: '1px 0', flex: columns === 2 ? '1 1 calc(50% - 4px)' : '1 1 100%', maxWidth: '100%' }}>
+          <span style={{ width: `${labelWidth}px`, flexShrink: 0, fontWeight: 600 }}>{f.label}</span>
+          <span style={{ width: '6px', flexShrink: 0 }}>:</span>
+          <span style={{ flex: 1, minWidth: 0, fontWeight: 700, overflowWrap: 'break-word' }}>{f.value}</span>
         </div>
       ))}
     </div>

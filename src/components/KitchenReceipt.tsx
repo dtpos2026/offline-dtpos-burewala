@@ -1008,7 +1008,7 @@ export default function KitchenReceipt({ order: rawOrder, settings, showPrintBut
       {/* Print portal */}
       {!noPrintPortal && typeof document !== 'undefined' && createPortal(
         <div className="receipt-print-portal" aria-hidden="true">
-          <div ref={printRef} className="receipt-paper print-receipt bg-white text-black" data-paper-size={paperWidth} style={wrapperStyle}>
+          <div ref={printRef} className="receipt-paper print-receipt bg-white text-black" data-paper-size={paperWidth} data-kot-design={design} style={wrapperStyle}>
             <div style={contentStyle}>{receiptBody}</div>
           </div>
         </div>,

@@ -949,6 +949,7 @@ function loadPrintWorkerHtml(win, html) {
 // would drift, and a drifting simulation stops telling the truth.
 const { escposRasterBytes, rasterGeometry } = require('./escposRaster.cjs');
 const { applyTextWeight } = require('./textWeight.cjs');
+const { applyReversedText } = require('./reversedText.cjs');
 
 ipcMain.handle('print-html', async (_event, options = {}) => {
   const html = String(options.html || '');
@@ -992,6 +993,8 @@ ipcMain.handle('print-html', async (_event, options = {}) => {
       }
     } catch {}
     await applyTextWeight(win.webContents, options.textWeight);
+    // White text on a black fill stays white (see reversedText.cjs).
+    await applyReversedText(win.webContents, options.darkness);
     return await runPrintJob(win.webContents, options);
   } catch (e) {
     return { success: false, error: String(e && e.message ? e.message : e) };
@@ -1025,6 +1028,8 @@ ipcMain.handle('print-html-escpos', async (_event, options = {}) => {
     // The shop's text weight (Print Quality): Standard prints body text
     // regular and keeps headings and totals bold. Before measuring.
     await applyTextWeight(win.webContents, options.textWeight);
+    // White text on a black fill stays white (see reversedText.cjs).
+    await applyReversedText(win.webContents, options.darkness);
     // ===== SQUEEZED-SLIP FIX (narrow content, wide blank right band) =====
     // The WIDTH must be the slip's AUTHORED width, never scrollWidth.
     //

@@ -519,6 +519,7 @@ export default function ReceiptPreview({ order, settings, showPrintButton = true
         }}
       className={printOnly ? 'receipt-paper print-receipt bg-white text-black' : 'receipt-paper bg-white text-black'}
       data-paper-size={paperWidth}
+      data-design={design}
       style={wrapperStyle}
       data-scale={scalePercent}
     >
@@ -596,7 +597,9 @@ function PaymentStatusBlock({ order }: { order: Order }) {
     return String(order.status || 'UNPAID').toUpperCase();
   })();
   return (
-    <div style={{
+    // Unpaid bills print it reversed: without .dt-reverse the print
+    // stylesheet repaints the white text black on the black fill.
+    <div className={paid ? undefined : 'dt-reverse'} style={{
       textAlign: 'center',
       padding: '6px 4px',
       margin: '4px 0',
@@ -720,10 +723,10 @@ function ModernReceipt({ order, settings }: { order: Order; settings: Restaurant
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700, color: '#000', padding: '3px 0' }}>
         <span>{dateStr} {timeStr}</span>
-        <span style={{ textTransform: 'uppercase', background: '#000', color: '#fff', padding: '1px 6px', fontSize: '10px' }}>{order.orderType}</span>
+        <span className="dt-reverse" style={{ textTransform: 'uppercase', background: '#000', color: '#fff', padding: '1px 6px', fontSize: '10px' }}>{order.orderType}</span>
       </div>
       <OrderTypeHeader order={order} dateStr={dateStr} timeStr={timeStr} />
-      <div style={{ background: '#000', color: '#fff', textAlign: 'center', padding: '4px', fontSize: '14px', fontWeight: 800, letterSpacing: '2px', margin: '4px 0' }}>ORDER #{order.orderNumber}</div>
+      <div className="dt-reverse" style={{ background: '#000', color: '#fff', textAlign: 'center', padding: '4px', fontSize: '14px', fontWeight: 800, letterSpacing: '2px', margin: '4px 0' }}>ORDER #{order.orderNumber}</div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
         <thead><tr style={{ borderBottom: '2px solid #000' }}>
           <th style={{ textAlign: 'left', padding: '3px 2px', fontWeight: 800 }}>ITEM</th>
@@ -748,7 +751,7 @@ function ModernReceipt({ order, settings }: { order: Order; settings: Restaurant
         {!!(order as any).deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600 }}><span>Delivery</span><span>{(order as any).deliveryChargeAmount.toFixed(2)}</span></div>}
         {!!(order as any).roundingAdjust && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600 }}><span>Rounding</span><span>{(order as any).roundingAdjust.toFixed(2)}</span></div>}
       </div>
-      <div style={{ background: '#000', color: '#fff', display: 'flex', justifyContent: 'space-between', padding: '5px 6px', fontSize: '16px', fontWeight: 800, margin: '4px 0' }}>
+      <div className="dt-reverse" style={{ background: '#000', color: '#fff', display: 'flex', justifyContent: 'space-between', padding: '5px 6px', fontSize: '16px', fontWeight: 800, margin: '4px 0' }}>
         <span>TOTAL</span><span>Rs. {order.grandTotal.toFixed(2)}</span>
       </div>
       <div style={{ textAlign: 'center', fontSize: '10px', fontWeight: 600, color: '#333', padding: '2px 0' }}>RUPEES {numberToWords(Math.round(order.grandTotal))} ONLY</div>
@@ -907,7 +910,7 @@ function ExecutiveReceipt({ order, settings }: { order: Order; settings: Restaur
         <p style={{ fontSize: '10px', fontWeight: 600, color: '#222', marginTop: '4px' }}>{settings.address}</p>
         <p style={{ fontSize: '10px', fontWeight: 700, color: '#000' }}>Tel: {settings.phone1}{settings.phone2 ? ` / ${settings.phone2}` : ''}</p>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 700, padding: '3px 4px', background: '#000', color: '#fff', marginBottom: '4px' }}>
+      <div className="dt-reverse" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 700, padding: '3px 4px', background: '#000', color: '#fff', marginBottom: '4px' }}>
         <span>INVOICE #{order.orderNumber}</span>
         <span style={{ textTransform: 'uppercase' }}>{order.orderType}</span>
       </div>
@@ -939,7 +942,7 @@ function ExecutiveReceipt({ order, settings }: { order: Order; settings: Restaur
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 600 }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
         {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 600 }}><span>Service ({order.serviceChargePercent}%)</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
       </div>
-      <div style={{ background: '#000', color: '#fff', padding: '6px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+      <div className="dt-reverse" style={{ background: '#000', color: '#fff', padding: '6px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
         <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px' }}>GRAND TOTAL</span>
         <span style={{ fontSize: '17px', fontWeight: 900 }}>Rs. {order.grandTotal.toFixed(2)}</span>
       </div>
@@ -1035,7 +1038,7 @@ function BistroReceipt({ order, settings }: { order: Order; settings: Restaurant
       <div style={{ fontSize: '9px', textAlign: 'center', letterSpacing: '2px' }}>{wave}</div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700, padding: '4px 0' }}>
         <span>Order #{order.orderNumber}</span>
-        <span style={{ background: '#000', color: '#fff', padding: '1px 8px', borderRadius: '10px', fontSize: '9px', textTransform: 'uppercase' }}>{order.orderType}</span>
+        <span className="dt-reverse" style={{ background: '#000', color: '#fff', padding: '1px 8px', borderRadius: '10px', fontSize: '9px', textTransform: 'uppercase' }}>{order.orderType}</span>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#444', paddingBottom: '4px' }}>
         <span>{dateStr}</span><span>{timeStr}</span>
@@ -1148,10 +1151,10 @@ function MetroReceipt({ order, settings }: { order: Order; settings: RestaurantS
   const { rs, totalQty, dateStr, timeStr, logoW, logoH, qrData } = useReceiptData(order, settings);
   return (
     <>
-      <div style={{ background: '#000', color: '#fff', padding: '6px 8px', textAlign: 'center', marginBottom: '4px' }}>
+      <div className="dt-reverse" style={{ background: '#000', color: '#fff', padding: '6px 8px', textAlign: 'center', marginBottom: '4px' }}>
         {settings.logo && <img src={settings.logo} alt="Logo" style={{ width: `${logoW}px`, height: `${logoH}px`, objectFit: 'contain', margin: '0 auto 4px', filter: 'invert(1)' }} />}
         <h1 style={{ fontSize: '20px', fontWeight: 900, letterSpacing: '6px', textTransform: 'uppercase', margin: 0 }}>{settings.name}</h1>
-        <div style={{ fontSize: '8px', letterSpacing: '5px', marginTop: '2px', opacity: 0.85 }}>· · · TICKET · · ·</div>
+        <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '5px', marginTop: '2px' }}>· · · TICKET · · ·</div>
       </div>
       <div style={{ fontSize: '10px', fontWeight: 700, color: '#000', textAlign: 'center', padding: '2px 0' }}>{settings.address}</div>
       <div style={{ fontSize: '10px', fontWeight: 700, color: '#000', textAlign: 'center' }}>{settings.phone1}{settings.phone2 ? ` / ${settings.phone2}` : ''}</div>
@@ -1168,10 +1171,10 @@ function MetroReceipt({ order, settings }: { order: Order; settings: RestaurantS
         </div>
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginTop: '4px' }}>
-        <thead><tr style={{ background: '#000', color: '#fff' }}>
-          <th style={{ textAlign: 'left', padding: '3px 4px', fontWeight: 800, textTransform: 'uppercase', fontSize: '9px', letterSpacing: '1px' }}>Item</th>
-          <th style={{ textAlign: 'center', padding: '3px 4px', fontWeight: 800, fontSize: '9px', width: '30px' }}>Qty</th>
-          <th style={{ textAlign: 'right', padding: '3px 4px', fontWeight: 800, fontSize: '9px', width: '55px' }}>Fare</th>
+        <thead><tr className="dt-reverse" style={{ background: '#000', color: '#fff' }}>
+          <th style={{ textAlign: 'left', padding: '3px 4px', fontWeight: 900, textTransform: 'uppercase', fontSize: '11px', letterSpacing: '1px' }}>Item</th>
+          <th style={{ textAlign: 'center', padding: '3px 4px', fontWeight: 900, fontSize: '11px', width: '34px' }}>Qty</th>
+          <th style={{ textAlign: 'right', padding: '3px 4px', fontWeight: 900, fontSize: '11px', width: '60px' }}>Fare</th>
         </tr></thead>
         <tbody>
           {order.items.map((item, i) => (
@@ -1189,7 +1192,7 @@ function MetroReceipt({ order, settings }: { order: Order; settings: RestaurantS
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
         {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>Service ({order.serviceChargePercent}%)</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
       </div>
-      <div style={{ background: '#000', color: '#fff', padding: '6px 8px', display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
+      <div className="dt-reverse" style={{ background: '#000', color: '#fff', padding: '6px 8px', display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
         <span style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '3px', textTransform: 'uppercase' }}>Total Fare</span>
         <span style={{ fontSize: '18px', fontWeight: 900 }}>Rs. {order.grandTotal.toFixed(2)}</span>
       </div>
@@ -1361,7 +1364,7 @@ function TasteBistroReceipt({ order, settings }: { order: Order; settings: Resta
         {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Service Charge ({order.serviceChargePercent}%)</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
       </div>
 
-      <div style={{ background: '#000', color: '#fff', display: 'flex', justifyContent: 'space-between', padding: '6px 8px', margin: '4px 0', fontSize: '16px', fontWeight: 900 }}>
+      <div className="dt-reverse" style={{ background: '#000', color: '#fff', display: 'flex', justifyContent: 'space-between', padding: '6px 8px', margin: '4px 0', fontSize: '16px', fontWeight: 900 }}>
         <span>Total</span><span>{order.grandTotal.toFixed(2)}</span>
       </div>
 
@@ -1746,7 +1749,7 @@ function Design2BoxReceipt({ order, settings }: { order: Order; settings: Restau
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Total Received</span><span>{(order.cashReceived || order.grandTotal).toFixed(2)}</span></div>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Cash</span><span>{(order.cashReceived || order.grandTotal).toFixed(2)}</span></div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 6px', background: '#000', color: '#fff', fontSize: '12px', fontWeight: 800, marginTop: '2px' }}>
+      <div className="dt-reverse" style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 6px', background: '#000', color: '#fff', fontSize: '12px', fontWeight: 800, marginTop: '2px' }}>
         <span>Change</span>
         <span>{Math.max(0, (order.cashReceived || 0) - order.grandTotal).toFixed(2)}</span>
       </div>
@@ -1773,7 +1776,7 @@ function Design3ModernReceipt({ order, settings }: { order: Order; settings: Res
         <p style={{ fontSize: '10px', fontWeight: 600, color: '#333', marginTop: '2px' }}>{settings.address}</p>
         <p style={{ fontSize: '10px', fontWeight: 700, color: '#000' }}>{settings.phone1}{settings.phone2 ? ` | ${settings.phone2}` : ''}</p>
       </div>
-      <div style={{ background: '#000', color: '#fff', textAlign: 'center', padding: '5px', fontSize: '13px', fontWeight: 900, letterSpacing: '2px', margin: '4px 0' }}>
+      <div className="dt-reverse" style={{ background: '#000', color: '#fff', textAlign: 'center', padding: '5px', fontSize: '13px', fontWeight: 900, letterSpacing: '2px', margin: '4px 0' }}>
         CUSTOMER RECEIPT
       </div>
       <div style={{ marginBottom: '4px' }}>
@@ -1810,7 +1813,7 @@ function Design3ModernReceipt({ order, settings }: { order: Order; settings: Res
           <div style={{ fontSize: '12px', fontWeight: 900 }}>{order.tax > 0 ? order.tax.toFixed(2) : '0.00'}</div>
         </div>
       </div>
-      <div style={{ background: '#000', color: '#fff', display: 'flex', justifyContent: 'space-between', padding: '6px 8px', fontSize: '16px', fontWeight: 900, margin: '4px 0' }}>
+      <div className="dt-reverse" style={{ background: '#000', color: '#fff', display: 'flex', justifyContent: 'space-between', padding: '6px 8px', fontSize: '16px', fontWeight: 900, margin: '4px 0' }}>
         <span>TOTAL</span><span>{order.grandTotal.toFixed(2)}</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px', margin: '4px 0', border: '1px solid #000', padding: '6px' }}>
@@ -1904,7 +1907,7 @@ function Design5DeliveryReceipt({ order, settings }: { order: Order; settings: R
         <p style={{ fontSize: '10px', fontWeight: 600, color: '#333', marginTop: '2px' }}>{settings.address}</p>
         <p style={{ fontSize: '10px', fontWeight: 700, color: '#000' }}>{settings.phone1}{settings.phone2 ? ` | ${settings.phone2}` : ''}</p>
       </div>
-      <div style={{ background: '#000', color: '#fff', textAlign: 'center', padding: '5px', fontSize: '13px', fontWeight: 900, letterSpacing: '2px', margin: '4px 0' }}>
+      <div className="dt-reverse" style={{ background: '#000', color: '#fff', textAlign: 'center', padding: '5px', fontSize: '13px', fontWeight: 900, letterSpacing: '2px', margin: '4px 0' }}>
         DELIVERY RECEIPT
       </div>
       <div style={{ marginBottom: '4px' }}>
@@ -2179,11 +2182,13 @@ function KotClassicReceipt({ order, settings }: { order: Order; settings: Restau
   const dashed = '------------------------------------------------';
   const dotted = '................................................';
 
+  // Two to a line only when both fit (see StandardInfoGrid): a fixed
+  // two-column grid pushed the date past the paper edge.
   const labelRow = (label: string, value: React.ReactNode) => (
-    <div style={{ display: 'flex', gap: 6, ...getStyleCSS(rs.orderId, { size: 12, align: 'left', bold: false }) }}>
-      <span style={{ minWidth: 70 }}>{label}</span>
+    <div style={{ display: 'flex', gap: 6, flex: '1 1 calc(50% - 5px)', maxWidth: '100%', ...getStyleCSS(rs.orderId, { size: 12, align: 'left', bold: false }) }}>
+      <span style={{ minWidth: 70, flexShrink: 0 }}>{label}</span>
       <span>:</span>
-      <span style={{ fontWeight: 700 }}>{value}</span>
+      <span style={{ fontWeight: 700, minWidth: 0, overflowWrap: 'break-word' }}>{value}</span>
     </div>
   );
 
@@ -2219,7 +2224,7 @@ function KotClassicReceipt({ order, settings }: { order: Order; settings: Restau
       </div>
 
       {/* Info grid — two columns */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 10px', padding: '2px 0' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px', padding: '2px 0' }}>
         {labelRow('Order No', order.orderNumber)}
         {labelRow('Date', dateStr)}
         {labelRow('Time', timeStr)}

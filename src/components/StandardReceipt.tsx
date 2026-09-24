@@ -15,6 +15,7 @@ import type { Order, RestaurantSettings } from '@/lib/types';
 import { applyReceiptTemplate } from '@/lib/receiptTemplates';
 
 const mono = "'Lucida Console','Consolas','Courier New',monospace";
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function fmt(n: number) {
   return (Math.round((n || 0) * 100) / 100).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -57,7 +58,10 @@ export default function StandardReceipt({ order, settings: rawSettings }: Props)
   const hasCash = !!(order.cashReceived && order.cashReceived > 0);
   const change = Math.max(0, (order.cashReceived || 0) - order.grandTotal);
   const paid = order.status === 'paid' && order.paymentMethod !== 'credit';
-  const dateStr = new Date(order.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+  // A fixed three-letter month: newer Chromium/ICU writes "Sept", which made
+  // the Date/Time line 6px wider than an 80mm slip.
+  const created = new Date(order.createdAt);
+  const dateStr = `${String(created.getDate()).padStart(2, '0')} ${MONTHS[created.getMonth()] || ''} ${created.getFullYear()}`;
   const timeStr = new Date(order.createdAt).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
   const supportNo = (s.supportPhone || '0345-1873354') as string;
 
@@ -95,15 +99,16 @@ export default function StandardReceipt({ order, settings: rawSettings }: Props)
         <tbody>
           <tr>
             <td style={{ padding: '1px 0', whiteSpace: 'nowrap' }}>Date</td>
-            <td style={{ padding: '1px 0', whiteSpace: 'nowrap' }}>: {dateStr}</td>
+            {/* Values may wrap on a narrow roll rather than run off the paper. */}
+            <td style={{ padding: '1px 0' }}>: {dateStr}</td>
             <td style={{ padding: '1px 0', whiteSpace: 'nowrap', textAlign: 'right' }}>Time</td>
-            <td style={{ padding: '1px 0', whiteSpace: 'nowrap', textAlign: 'right' }}>: {timeStr}</td>
+            <td style={{ padding: '1px 0', textAlign: 'right' }}>: {timeStr}</td>
           </tr>
           <tr>
             <td style={{ padding: '1px 0', whiteSpace: 'nowrap' }}>Order No</td>
-            <td style={{ padding: '1px 0', whiteSpace: 'nowrap' }}>: #{order.orderNumber}</td>
+            <td style={{ padding: '1px 0' }}>: #{order.orderNumber}</td>
             <td style={{ padding: '1px 0', whiteSpace: 'nowrap', textAlign: 'right' }}>Type</td>
-            <td style={{ padding: '1px 0', whiteSpace: 'nowrap', textAlign: 'right' }}>: {orderTypeLabel(order)}</td>
+            <td style={{ padding: '1px 0', textAlign: 'right' }}>: {orderTypeLabel(order)}</td>
           </tr>
           {order.tableName && (
             <tr>
@@ -178,7 +183,9 @@ export default function StandardReceipt({ order, settings: rawSettings }: Props)
         </div>
 
         {/* Paid / Unpaid status */}
-        <div style={{ textAlign: 'center', padding: '3px 0', fontWeight: 900, letterSpacing: '2px', fontSize: `${compact ? 11 : 12}px`, background: paid ? '#fff' : '#000', color: paid ? '#000' : '#fff', border: paid ? '1px solid #000' : '1px solid #000' }}>
+        {/* Unpaid prints reversed; .dt-reverse keeps the print stylesheet
+            from repainting the white text black on the black fill. */}
+        <div className={paid ? undefined : 'dt-reverse'} style={{ textAlign: 'center', padding: '3px 0', fontWeight: 900, letterSpacing: '2px', fontSize: `${compact ? 11 : 12}px`, background: paid ? '#fff' : '#000', color: paid ? '#000' : '#fff', border: paid ? '1px solid #000' : '1px solid #000' }}>
           {paid ? '★ PAID ★' : '⚠ UNPAID ⚠'}
         </div>
 
