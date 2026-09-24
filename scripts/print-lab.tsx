@@ -18,6 +18,7 @@ import '@/index.css';
 import PremiumReceipt from '@/components/PremiumReceipt';
 import ReceiptPreview from '@/components/ReceiptPreview';
 import KitchenReceipt from '@/components/KitchenReceipt';
+import { ReceiptCodesProvider, ReceiptCodesSlot } from '@/components/ReceiptCodes';
 import { PREMIUM_TEMPLATES, loadCustomization } from '@/lib/premiumReceiptTemplates';
 import { buildSampleOrder } from '@/lib/sampleOrder';
 import { buildWorkerDocument } from '@/printing/fastPrint';
@@ -57,6 +58,35 @@ const legacySettings: any = {
   receiptStyles: {},
   silentPrint: false,
 };
+// ?qr=auto|text|multi|single&bar=code128|code39&pos=above|footer|below
+// &qrsize=32&barsize=small|medium|large — Settings → Receipt → QR & Barcode.
+{
+  const q = new URLSearchParams(location.search);
+  const qr = q.get('qr');
+  const bar = q.get('bar');
+  if (qr || bar) {
+    const pos = q.get('pos') || 'footer';
+    const codes = {
+      qr: {
+        enabled: !!qr,
+        mode: qr === 'text' ? 'auto' : (qr || 'auto'),
+        autoView: qr === 'text' ? 'text' : 'page',
+        links: [
+          { id: 'g', type: 'google', label: '', url: 'https://g.page/r/CaBcDeFgHiJkEBM/review' },
+          { id: 'f', type: 'facebook', label: '', url: 'facebook.com/lotuscafejhang' },
+          { id: 'w', type: 'whatsapp', label: 'Order on WhatsApp', url: '0300 7623533' },
+          { id: 'i', type: 'instagram', label: '', url: 'https://instagram.com/lotuscafe' },
+        ],
+        singleUrl: 'https://g.page/r/CaBcDeFgHiJkEBM/review',
+        position: pos,
+        sizeMm: Number(q.get('qrsize') || 32),
+      },
+      barcode: { enabled: !!bar, format: bar || 'code128', position: pos, size: q.get('barsize') || 'medium', prefix: q.get('prefix') || '' },
+    };
+    settings.receiptCodes = codes;
+    legacySettings.receiptCodes = codes;
+  }
+}
 // ?line=1.5&word=2&letter=0.5 — Settings → Text spacing, on bills and KOTs.
 {
   const q = new URLSearchParams(location.search);
@@ -228,12 +258,17 @@ function Slips() {
             {slip.kind === 'report' ? (
               <div dangerouslySetInnerHTML={{ __html: thermalReportHtml(REPORTS[slip.id], settings) }} />
             ) : slip.kind === 'receipt' ? (
-              <PremiumReceipt
-                order={order}
-                settings={settings}
-                templateId={slip.id as any}
-                customization={loadCustomization(slip.id as any)}
-              />
+              // As ReceiptPreview wraps every design (QR & barcode slots).
+              <ReceiptCodesProvider order={order} settings={settings}>
+                <ReceiptCodesSlot position="above" />
+                <PremiumReceipt
+                  order={order}
+                  settings={settings}
+                  templateId={slip.id as any}
+                  customization={loadCustomization(slip.id as any)}
+                />
+                <ReceiptCodesSlot position="below" />
+              </ReceiptCodesProvider>
             ) : (
               <div
                 style={{ fontFamily: "'Lucida Console','Consolas','Courier New',monospace", fontWeight: 700 }}

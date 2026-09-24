@@ -12,6 +12,7 @@
 // that a thermal head renders grey mush rather than text.
 // ============================================================
 import React, { useMemo } from 'react';
+import { ReceiptCodesSlot } from '@/components/ReceiptCodes';
 import type { Order, RestaurantSettings, CartItem } from '@/lib/types';
 import {
   getPremiumTemplate,
@@ -700,6 +701,8 @@ export default function PremiumReceipt({ order, settings, templateId, customizat
           ? <img src={s.receiptQrImage} alt="" style={{ width: 96, height: 96, margin: '4px auto 0', display: 'block', objectFit: 'contain' }} />
           : null
       )}
+      {/* Settings → Receipt → QR & Barcode, "Footer" position */}
+      <ReceiptCodesSlot position="footer" />
       {c.showPoweredBy && <div style={{ fontSize: `${base - 3}px`, marginTop: 2 }}>Powered by DT POS</div>}
     </div>
   );

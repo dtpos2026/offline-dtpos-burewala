@@ -14,6 +14,7 @@
 import type { CSSProperties } from 'react';
 import type { Order, RestaurantSettings } from '@/lib/types';
 import { applyReceiptTemplate } from '@/lib/receiptTemplates';
+import { ReceiptCodesSlot } from '@/components/ReceiptCodes';
 
 const mono = "'Lucida Console','Consolas','Courier New',monospace";
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -214,6 +215,9 @@ export default function StandardReceipt({ order, settings: rawSettings }: Props)
           )}
         </div>
       )}
+
+      {/* Settings → Receipt → QR & Barcode, "Footer" position */}
+      <ReceiptCodesSlot position="footer" />
 
       {/* POWERED BY DIGITAL TARGET */}
       {showPowered && (

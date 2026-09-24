@@ -12,6 +12,8 @@ import ReceiptPreview from '@/components/ReceiptPreview';
 import { enqueueReceipt } from '@/lib/printQueue';
 import { toast } from 'sonner';
 import { logReprint, getReprintLog, fetchCloudReprintLog, ReprintAuditEntry } from '@/lib/reprintAudit';
+import { useSearchParams } from 'react-router-dom';
+import { findOrderByRef, parseReceiptRef, receiptRef } from '@/lib/receiptCodes';
 
 type Filter = 'all' | 'paid' | 'partial' | 'running' | 'void' | 'cancelled' | 'foodpanda';
 
@@ -23,6 +25,18 @@ export default function BillReprintPage() {
   const [view, setView] = useState<Order | null>(null);
   const [log, setLog] = useState<ReprintAuditEntry[]>(() => getReprintLog());
   const [showLog, setShowLog] = useState(false);
+  const [params, setParams] = useSearchParams();
+
+  // A scanned receipt barcode lands here as ?ref=R2609241042: open that bill.
+  useEffect(() => {
+    const ref = params.get('ref');
+    if (!ref) return;
+    const hit = findOrderByRef(getOrders(), ref);
+    if (hit) setView(hit);
+    else toast.error(`No bill found for ${ref}`);
+    setSearch(ref);
+    setParams(p => { p.delete('ref'); return p; }, { replace: true });
+  }, [params, setParams]);
 
   useEffect(() => {
     refreshOrdersFromCloud().then(() => setOrders(getOrders())).catch(() => {});
@@ -41,6 +55,11 @@ export default function BillReprintPage() {
     if (filter === 'foodpanda') arr = arr.filter(o => o.orderType === 'foodpanda');
     else if (filter !== 'all') arr = arr.filter(o => o.status === filter);
     const q = search.trim().toLowerCase();
+    // A receipt reference (typed or scanned) finds exactly its bill.
+    if (q && parseReceiptRef(q)) {
+      const hit = findOrderByRef(arr, q);
+      return hit ? [hit] : [];
+    }
     if (q) {
       arr = arr.filter(o =>
         o.orderNumber.toString().includes(q) ||
@@ -93,7 +112,7 @@ export default function BillReprintPage() {
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Bill #, customer, phone, table…"
+              placeholder="Bill #, receipt ref, customer, phone, table…"
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="pl-8 h-9 text-sm"
@@ -129,7 +148,7 @@ export default function BillReprintPage() {
               {o.customer?.name && <p className="text-[11px] text-muted-foreground truncate">{o.customer.name}{o.customer.phone ? ` · ${o.customer.phone}` : ''}</p>}
               {o.tableName && <p className="text-[11px] text-muted-foreground">Table: {o.tableName}</p>}
               <p className="text-xs">{o.items.length} items · <b className="text-primary">Rs. {o.grandTotal.toLocaleString()}</b></p>
-              <p className="text-[10px] text-muted-foreground">{new Date(o.createdAt).toLocaleString('en-PK')}</p>
+              <p className="text-[10px] text-muted-foreground">{new Date(o.createdAt).toLocaleString('en-PK')} · <span className="font-mono">{receiptRef(o)}</span></p>
               <div className="flex gap-1.5 pt-1">
                 <Button size="sm" variant="outline" className="flex-1 h-7 text-[11px]" onClick={() => setView(o)}>
                   <Eye className="h-3 w-3 mr-1" /> View

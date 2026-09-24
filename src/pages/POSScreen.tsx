@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
+import { parseReceiptRef } from '@/lib/receiptCodes';
 import { computeBillTotals } from '@/lib/billTotals';
 import { Search, Plus, Minus, Trash2, CreditCard, Pause, Weight, Edit3, ShoppingCart, RotateCcw, Delete, User, Phone, Ban, Gift, XCircle, ChefHat, MessageCircle, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
 import { normalizePhone, buildPaidMessage, buildDeliveryMessage, openWhatsApp } from '@/lib/whatsapp';
@@ -514,6 +515,8 @@ export default function POSScreen() {
   }, []);
 
   const handleScan = useCallback((res: { code: string; weightKg?: number; price?: number }) => {
+    // A receipt barcode opens its bill (ReceiptScanListener), not an item.
+    if (parseReceiptRef(res.code)) return;
     const item = findByBarcode(res.code);
     if (!item) { toast.error(`Barcode ${res.code} is not linked to any item — set the barcode in Menu`); return; }
     if (res.weightKg && res.weightKg > 0) { addWeighedToCart(item, res.weightKg); return; }

@@ -61,16 +61,38 @@ function rasterGeometry(paperLabel, marginLeftMm, marginRightMm) {
  * the luminance weights slightly, which is below the black/white threshold.
  * Returns { rowBytes, height, data } where `data` is the packed dot rows.
  */
+/**
+ * Inside QR/barcode regions a dot is decided by coverage, not darkness.
+ *
+ * The darkness cut-off is deliberately biased towards ink (a dot a quarter
+ * covered prints) so small text comes out solid. On a code that bias is a
+ * fault: when a module's edge falls between two dots, BOTH edge dots print
+ * and every dark module grows a dot while every light one shrinks by one —
+ * 3/3 became 4/2 and phones could not read the QR.
+ *
+ * So: more than EXACT_HIGH covered is ink, less than EXACT_LOW is paper, and
+ * a dot in between is an edge cut near its middle. The capture is two pixels
+ * per dot with crisp edges, so such a dot is often EXACTLY half covered — a
+ * tie no threshold can break. It takes the colour the ink is coming from:
+ * the side (below or to the right) that is darker. A dark module then keeps
+ * its top/left half-dot and gives up its bottom/right one, a light module
+ * the reverse, and every module keeps its width wherever it lands.
+ */
+const EXACT_LOW = 0.38;
+const EXACT_HIGH = 0.62;
+
 function packDots(pixels, width, height, geom, opts = {}) {
   // darkness 1 (lightest) .. 10 (darkest) -> luminance cut-off 121..238
   const darkness = Math.max(1, Math.min(10, Math.round(Number(opts.darkness) || 6)));
   const cutoff = 108 + darkness * 13;
   const bold = opts.bold === true;
   const { paperDots, leftDots } = geom;
+  // Regions (bitmap pixels) holding a QR code or barcode: see EXACT_LOW/HIGH.
+  const exact = Array.isArray(opts.exactRegions) ? opts.exactRegions : [];
 
   const rowBytes = Math.ceil(paperDots / 8);
   const data = Buffer.alloc(rowBytes * height);
-  const inkAt = (x, y) => {
+  const inkAt = (x, y, cut) => {
     const i = (y * width + x) * 4;
     const b = pixels[i] || 0;
     const g = pixels[i + 1] || 0;
@@ -78,19 +100,40 @@ function packDots(pixels, width, height, geom, opts = {}) {
     const a = pixels[i + 3] ?? 255;
     const alpha = a / 255;
     const lum = ((0.299 * r + 0.587 * g + 0.114 * b) * alpha) + (255 * (1 - alpha));
-    return lum < cutoff;
+    return lum < cut;
+  };
+  // Ink coverage 0..1 of one pixel (0 outside the bitmap).
+  const cover = (x, y) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return 0;
+    const i = (y * width + x) * 4;
+    const alpha = (pixels[i + 3] ?? 255) / 255;
+    const lum = ((0.299 * (pixels[i + 2] || 0) + 0.587 * (pixels[i + 1] || 0) + 0.114 * (pixels[i] || 0)) * alpha) + (255 * (1 - alpha));
+    return 1 - lum / 255;
+  };
+  const exactInk = (x, y) => {
+    const c = cover(x, y);
+    if (c > EXACT_HIGH) return true;
+    if (c < EXACT_LOW) return false;
+    const vertical = cover(x, y + 1) - cover(x, y - 1);
+    const horizontal = cover(x + 1, y) - cover(x - 1, y);
+    const lean = Math.abs(vertical) >= Math.abs(horizontal) ? vertical : horizontal;
+    return lean === 0 ? c >= 0.5 : lean > 0;
   };
   for (let y = 0; y < height; y++) {
     const rowOff = y * rowBytes;
+    const rowExact = exact.length ? exact.filter(r => y >= r.y0 && y < r.y1) : exact;
+    const isExact = (x) => rowExact.length > 0 && rowExact.some(r => x >= r.x0 && x < r.x1);
+    const decide = (x) => (isExact(x) ? exactInk(x, y) : inkAt(x, y, cutoff));
     let prevInk = false;
-    let ink = width > 0 ? inkAt(0, y) : false;
+    let ink = width > 0 ? decide(0) : false;
     for (let x = 0; x < width; x++) {
-      const nextInk = x + 1 < width ? inkAt(x + 1, y) : false;
+      const nextInk = x + 1 < width ? decide(x + 1) : false;
       // Bold widens a stroke by the dot to its right — but never fills a
       // one-dot white gap (ink on both sides). That gap is the white stroke
       // of text reversed out of a black bar, or the hole in an "e"; filling
-      // it is what turned "Please visit again" bars solid black.
-      if (ink || (bold && prevInk && !nextInk)) {
+      // it is what turned "Please visit again" bars solid black. Never on a
+      // code: a wider bar is a different character.
+      if (ink || (bold && prevInk && !nextInk && !isExact(x))) {
         const px = x + leftDots;
         if (px < paperDots) data[rowOff + (px >> 3)] |= (0x80 >> (px & 7));
       }
@@ -311,7 +354,7 @@ function cropBlankSides(image, opts = {}) {
   if (inkWidth * maxScaleUp < size.width) return { image, trimmedLeft: 0, trimmedRight: 0 };
 
   const cropped = image.crop({ x: ink.first, y: 0, width: inkWidth, height: size.height });
-  return { image: cropped, trimmedLeft, trimmedRight };
+  return { image: cropped, trimmedLeft, trimmedRight, cropRect: { x: ink.first, y: 0, width: inkWidth, height: size.height } };
 }
 
 /**
@@ -404,11 +447,34 @@ function cropToMeasureRule(image) {
 
   const height = size.height - rule.barHeight;
   if (height < 1) return null;
+  const cropRect = { x: rule.first, y: rule.barHeight, width: rule.width, height };
   return {
-    image: image.crop({ x: rule.first, y: rule.barHeight, width: rule.width, height }),
+    image: image.crop(cropRect),
     trimmedLeft: rule.first,
     trimmedRight: realWidth - 1 - rule.last,
+    cropRect,
   };
+}
+
+/**
+ * Capture-space rectangles → bitmap-space row/column ranges, through the crop
+ * (`crop`, in capture units) and the resize to `width` x `height`. A pixel of
+ * slack on each side keeps the edge dots of a code inside its region.
+ */
+function mapRegions(regions, crop, width, height) {
+  if (!Array.isArray(regions) || !regions.length || !(crop.width > 0) || !(crop.height > 0)) return [];
+  const sx = width / crop.width;
+  const sy = height / crop.height;
+  const out = [];
+  for (const r of regions) {
+    if (!r || !(r.width > 0) || !(r.height > 0)) continue;
+    const x0 = Math.max(0, Math.floor((r.x - crop.x) * sx) - 1);
+    const x1 = Math.min(width, Math.ceil((r.x + r.width - crop.x) * sx) + 1);
+    const y0 = Math.max(0, Math.floor((r.y - crop.y) * sy) - 1);
+    const y1 = Math.min(height, Math.ceil((r.y + r.height - crop.y) * sy) + 1);
+    if (x1 > x0 && y1 > y0) out.push({ x0, x1, y0, y1 });
+  }
+  return out;
 }
 
 /**
@@ -438,6 +504,7 @@ function escposRasterBytes(image, paperLabel, autoCut = true, opts = {}) {
   // on every bill, so the crop is identical on every bill AND the blank still
   // goes. The ink crop stays as the fallback for a capture with no rule.
   let trimmed = { trimmedLeft: 0, trimmedRight: 0 };
+  const captured = image.getSize();
   if (opts.cropBlankSides !== false && typeof image.crop === 'function') {
     try {
       // Preferred: the document told us its own width, so the crop is the
@@ -485,7 +552,12 @@ function escposRasterBytes(image, paperLabel, autoCut = true, opts = {}) {
     try { opts.onScaleMismatch({ reported: size.width, actual: realWidth, height: size.height }); } catch { /* diagnostics only */ }
   }
 
-  let packed = packDots(bitmap, realWidth, size.height, geom, opts);
+  // QR/barcode boxes arrive in capture coordinates; move them through the
+  // same crop and resize the image just went through.
+  const crop = trimmed.cropRect || { x: 0, y: 0, width: captured.width, height: captured.height };
+  const exactRegions = mapRegions(opts.exactRegions, crop, realWidth, size.height);
+
+  let packed = packDots(bitmap, realWidth, size.height, geom, { ...opts, exactRegions });
 
   // Remove the document's own blank top/bottom, keeping a small deliberate
   // margin. Without this the slip carries its trailing whitespace onto the
@@ -532,6 +604,7 @@ module.exports = {
   paperMmOf,
   rasterGeometry,
   packDots,
+  mapRegions,
   wrapRasterCommands,
   escposRasterBytes,
 };

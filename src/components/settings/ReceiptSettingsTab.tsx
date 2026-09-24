@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { RestaurantSettings, DiningTable, Floor, Kitchen, Waiter, Rider, ReceiptTextStyle } from '@/lib/types';
 import ReceiptPreview from '@/components/ReceiptPreview';
 import TextSpacingCard from '@/components/TextSpacingCard';
+import ReceiptCodesCard from '@/components/settings/ReceiptCodesCard';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -255,8 +256,15 @@ export default function ReceiptSettingsTab({ settings, setSettings, onSave, samp
             </div>
 
 
+            {/* Receipt QR & Barcode — automatic, multi-link or single-link QR and a receipt barcode */}
+            <ReceiptCodesCard settings={settings} setSettings={setSettings} onSave={onSave} sampleOrder={sampleOrder} />
+
             <div className="border rounded-lg p-4 space-y-3">
-              <h3 className="text-sm font-bold">QR Code Settings</h3>
+              <h3 className="text-sm font-bold">Payment QR &amp; older automatic QR</h3>
+              <p className="text-[11px] text-muted-foreground">
+                An uploaded payment QR (JazzCash, Easypaisa, bank) keeps printing as before. The older automatic QR is
+                replaced by the Receipt QR above whenever that is switched on.
+              </p>
             
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">QR Mode</label>
@@ -393,7 +401,8 @@ export default function ReceiptSettingsTab({ settings, setSettings, onSave, samp
               {settings.qrMode === 'auto' && (
                 <div className="bg-accent rounded-lg p-3">
                   <p className="text-xs text-muted-foreground">
-                    ✅ Each receipt will auto-generate a QR code containing: Order ID, Date, Type, Total, Customer info. Works fully offline.
+                    ✅ Each receipt prints a QR with the order ID, date, type and total (no customer details). Works fully offline.
+                    For a QR that opens a proper receipt page on the phone, use Receipt QR &amp; Barcode above.
                   </p>
                 </div>
               )}

@@ -20,6 +20,7 @@ import dtMark from '@/assets/dt-mark.png';
 import NewOrderNotifier from '@/components/NewOrderNotifier';
 import ServiceCallNotifier from '@/components/ServiceCallNotifier';
 import AutoKotPrinter from '@/components/AutoKotPrinter';
+import ReceiptScanListener from '@/components/ReceiptScanListener';
 import AutoReadyTimer from '@/components/AutoReadyTimer';
 import ReadyNotificationBus from '@/components/ReadyNotificationBus';
 import DTMessagesWidget from '@/components/DTMessagesWidget';
@@ -548,6 +549,8 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
           {!isDisplaySurface && <NewOrderNotifier />}
           {!isDisplaySurface && <ServiceCallNotifier />}
           {!isDisplaySurface && <AutoKotPrinter />}
+          {/* A scanned receipt barcode opens its bill (Settings → QR & Barcode). */}
+          {!isDisplaySurface && <ReceiptScanListener />}
           {!isDisplaySurface && <AutoReadyTimer />}
           {!isDisplaySurface && <ReadyNotificationBus />}
           {/* Support chat widget — Dashboard aur Reports par hi, taake billing

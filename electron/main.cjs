@@ -950,6 +950,7 @@ function loadPrintWorkerHtml(win, html) {
 const { escposRasterBytes, rasterGeometry } = require('./escposRaster.cjs');
 const { applyTextWeight } = require('./textWeight.cjs');
 const { applyReversedText } = require('./reversedText.cjs');
+const { CODE_BOXES_JS, toCaptureRegions } = require('./codeRegions.cjs');
 
 ipcMain.handle('print-html', async (_event, options = {}) => {
   const html = String(options.html || '');
@@ -1058,6 +1059,9 @@ ipcMain.handle('print-html-escpos', async (_event, options = {}) => {
     })()`;
     let metrics = await win.webContents.executeJavaScript(measure);
     if (!metrics || metrics.width < 20 || metrics.height < 20) throw new Error('Rendered receipt has no printable area');
+    // QR code / barcode boxes at 1x, so the raster stage prints them dot-exact
+    // (see codeRegions.cjs). None on most slips.
+    const codeBoxes = await win.webContents.executeJavaScript(CODE_BOXES_JS).catch(() => []);
     if (metrics.overflow > 2) {
       try {
         appendLog('WARN', 'DT-Print slip overflow',
@@ -1143,6 +1147,7 @@ ipcMain.handle('print-html-escpos', async (_event, options = {}) => {
           marginLeftMm,
           marginRightMm,
           bottomFeedLines: options.bottomFeedLines,
+          exactRegions: toCaptureRegions(codeBoxes, zoom),
         });
       } catch (e) {
         lastErr = e;

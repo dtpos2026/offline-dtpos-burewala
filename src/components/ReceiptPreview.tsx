@@ -16,6 +16,8 @@ import PremiumReceipt from '@/components/PremiumReceipt';
 import { isPremiumTemplateId } from '@/lib/premiumReceiptTemplates';
 import StandardReceipt from '@/components/StandardReceipt';
 import { spacingNodeProps } from '@/lib/textSpacing';
+import { ReceiptCodesProvider, ReceiptCodesSlot, useReceiptCodes } from '@/components/ReceiptCodes';
+import { getBranches } from '@/lib/store';
 
 const defaultStyle: ReceiptTextStyle = { font: 'default', size: 12, align: 'center', bold: true };
 const URDU_FONTS = ['Aseer Unicode', 'AA Sameer Armaa', 'Jameel Noori Nastaleeq', 'Jameel Noori Nastaleeq Regular'];
@@ -475,8 +477,17 @@ export default function ReceiptPreview({ order, settings, showPrintButton = true
 
   const showCombinedKot = settings.autoKitchenPrint && settings.kotCombinedPrint;
 
+  // Settings → Receipt → QR & Barcode: the branch name for the receipt page.
+  const branchName = (() => {
+    const id = (order as any)?.branchId;
+    if (!id) return undefined;
+    try { return getBranches().find(b => b.id === id)?.name; } catch { return undefined; }
+  })();
+
   const renderReceiptBody = () => (
     <div className="receipt-print-content" style={contentStyle}>
+      <ReceiptCodesProvider order={order} settings={settings} zoom={scaleFactor} branch={branchName}>
+      <ReceiptCodesSlot position="above" />
       {design === 'standard' && <StandardReceipt order={order} settings={settings} />}
       {design === 'compact-thermal' && <StandardReceipt order={order} settings={{ ...settings, receiptCompactMode: true } as any} />}
       {design === 'classic' && <ClassicReceipt order={order} settings={settings} />}
@@ -509,6 +520,8 @@ export default function ReceiptPreview({ order, settings, showPrintButton = true
         <PremiumReceipt order={order} settings={settings} templateId={design} />
       )}
       {/* KOT is printed as a separate auto-cut job — not injected into receipt */}
+      <ReceiptCodesSlot position="below" />
+      </ReceiptCodesProvider>
     </div>
   );
 
@@ -563,11 +576,11 @@ function useReceiptData(order: Order, settings: RestaurantSettings) {
   const logoW = settings.logoWidth || 60;
   const logoH = settings.logoHeight || 60;
   const hasCustomerDetails = order.customer?.name || order.customer?.phone || order.customer?.address;
+  // The old automatic QR. Bill data only: it used to carry the customer's
+  // name and phone, which anyone scanning a discarded receipt could read.
   const qrData = JSON.stringify({
     id: order.id, no: order.orderNumber, date: order.createdAt, type: order.orderType,
     total: order.grandTotal,
-    ...(order.customer?.name ? { name: order.customer.name } : {}),
-    ...(order.customer?.phone ? { phone: order.customer.phone } : {}),
   });
   return { rs, totalQty, dateStr, timeStr, logoW, logoH, hasCustomerDetails, qrData };
 }
@@ -630,8 +643,21 @@ function OrderTypeHeader({ order }: { order: Order; dateStr?: string; timeStr?: 
 }
 
 function QRSection({ settings, qrData }: { settings: RestaurantSettings; qrData: string }) {
-  // Master QR toggle — when explicitly false, never render QR on any receipt
-  if (settings.qrEnabled === false) return null;
+  // Settings → Receipt → QR & Barcode: its codes print here at "Footer", and
+  // its QR replaces the old automatic one (an uploaded payment QR stays).
+  const codes = useReceiptCodes();
+  const newQr = !!codes?.cfg.qr.enabled;
+  const uploaded = settings.qrMode === 'custom' && !!settings.customQrImage;
+  const legacy = settings.qrEnabled !== false && (uploaded || !newQr);
+  return (
+    <>
+      {legacy && <LegacyQr settings={settings} qrData={qrData} />}
+      <ReceiptCodesSlot position="footer" />
+    </>
+  );
+}
+
+function LegacyQr({ settings, qrData }: { settings: RestaurantSettings; qrData: string }) {
   const qrW = settings.customQrWidth || 80;
   const qrH = settings.customQrHeight || 80;
   const autoSize = settings.customQrWidth || 80;
@@ -807,6 +833,7 @@ function CompactReceipt({ order, settings }: { order: Order; settings: Restauran
           <img src={settings.customQrImage} alt="QR" style={{ height: '50px', width: '50px', margin: '0 auto' }} />
         </div>
       )}
+      <ReceiptCodesSlot position="footer" />
     </>
   );
 }

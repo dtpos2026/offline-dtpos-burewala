@@ -26,6 +26,7 @@ const require_ = createRequire(import.meta.url);
 const { rasterGeometry, escposRasterBytes } = require_('../electron/escposRaster.cjs');
 const { STANDARD_WEIGHT_JS } = require_('../electron/textWeight.cjs');
 const { reversedTextJs, cutoffFor } = require_('../electron/reversedText.cjs');
+const { CODE_BOXES_JS, toCaptureRegions } = require_('../electron/codeRegions.cjs');
 // The print window keeps white text white on dark fills; SIM_NO_REVERSE=1
 // shows what the slips printed before that step existed.
 const REVERSE = process.env.SIM_NO_REVERSE !== '1';
@@ -354,6 +355,7 @@ for (const slip of slips) {
     };
   })()`;
   const metrics = await doc.evaluate(measureJs);
+  const codeBoxes = await doc.evaluate(CODE_BOXES_JS);
   const visibility = await doc.evaluate(VISIBILITY_FN, CUTOFF);
   const overflowBy = metrics.scrollWidth > metrics.rectWidth ? await doc.evaluate(OVERFLOW_FN) : [];
 
@@ -406,6 +408,7 @@ for (const slip of slips) {
     marginLeftMm: built.marginLeftMm,
     marginRightMm: built.marginRightMm,
     bottomFeedLines: undefined,
+    exactRegions: process.env.SIM_NO_EXACT === '1' ? undefined : toCaptureRegions(codeBoxes, zoom),
   });
   // Decode the bytes back the way the printer's firmware would.
   const packed = decodeEscposRaster(bytes);
