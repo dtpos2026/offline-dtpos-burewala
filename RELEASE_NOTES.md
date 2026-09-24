@@ -1,5 +1,57 @@
 # DT POS Enterprise — Release Notes
 
+## v1.14.0 — Receipt QR & Barcode, readable black bars on every template, text spacing
+
+- **White text on black bars (all templates inspected).** Every slip the POS
+  prints was checked in the print simulator: 16 premium, 25 classic receipt
+  designs, 8 KOT designs, 7 tokens and 5 reports, for paid and unpaid bills.
+  - **Found:** on 8 designs the bar printed but the text on it did not. That
+    included the TOTAL and grand total on Modern, Executive and Design 3. The
+    UNPAID box on 11 designs printed as a plain black block.
+  - **Cause:** the print stylesheet paints all slip text black.
+  - **Fix:** the templates now mark those blocks, and the print window keeps
+    white text white (and bold) on any dark fill. That covers future
+    templates too.
+  - **Also fixed:** four designs were wider than the paper and got clipped.
+    The Standard receipt printed its date into the "Time" label and cut the
+    time off.
+  - **Result:** 0 invisible text and 0 overflow on all 61 slips.
+- **Text spacing** (Settings → Receipt / KOT): line, word and letter spacing
+  for the bill and the kitchen ticket separately. Nothing changes until you
+  pick a value, and the preview shows exactly what prints.
+- **Receipt QR & Barcode** (Settings → Receipt), each with its own switch,
+  position (above receipt / footer / below receipt), size and print preview:
+  - **QR, three modes:**
+    - *Automatic receipt QR*, unique per bill. On a phone it opens a clean
+      digital receipt page (bill no., date, items, totals, payment status),
+      or shows the bill as plain text with no internet needed.
+    - *Multi-link QR*: Google Reviews, Facebook, Instagram, WhatsApp,
+      website, YouTube, TikTok or custom links. The customer picks one on a
+      mobile page. Add, remove and reorder links; a WhatsApp number becomes
+      a wa.me link.
+    - *Single-link QR*: opens the link directly.
+  - **Barcode:** Code 128 (recommended) or Code 39. It carries a reference
+    unique to each bill (R + date + bill number, optional branch code) or
+    custom text. **Scanning it at the POS opens that bill** in Bill Reprint.
+  - **Offline and private:** generated on the POS when the bill prints.
+    Nothing is uploaded; the receipt page reads the bill from the link
+    itself. No customer name, phone or address ever goes into a code. The
+    old automatic QR no longer carries them either.
+  - **Scannable on thermal paper:** codes print at whole printer dots, and
+    the image route now prints code areas dot-exact. Before, a code landing
+    between two dot rows printed every dark square a dot too tall.
+    - Verified by decoding the simulated printer output with ZXing and jsQR
+      on all 41 receipt designs, in every position, mode, size and format.
+  - Switched off (the default), every bill prints exactly as before. The
+    uploaded payment QR (JazzCash / bank) keeps printing.
+- **One-time step for the scan page:** the receipt and link QR codes open
+  `scan.html`, which is part of the Super Admin panel. Publish it once with
+  `firebase deploy --only hosting` from `superadmin/`. The default address is
+  `https://dtpos-offline.web.app/scan.html`; another address can be set in
+  Settings. Single-link and text-mode QR codes need no page at all.
+- **Not yet:** the "Raw text" printer mode (plain ESC/POS text) does not
+  print the QR or barcode. Automatic and Windows-driver modes do.
+
 ## v1.13.3 — Footers cut off, late prints, printer re-detection, text too bold; café templates
 
 - **Reported** by a café in Lahore on a Black Copper "BlackCopper 80mm Series",
