@@ -8,6 +8,8 @@ import type { Order, RestaurantSettings } from '@/lib/types';
 import { resolveReceiptLayout, type ReceiptLayout } from './receiptLayout';
 import { columnsOf } from './paperProfile';
 import { DEVELOPER_CREDIT } from '@/lib/displayTemplates';
+import { rawCodeBlocks } from './codeRaster';
+import type { CodePosition } from '@/lib/receiptCodes';
 
 const ESC = 0x1b;
 const GS = 0x1d;
@@ -378,6 +380,22 @@ export function buildReceiptBytes(order: Order, settings: RestaurantSettings, ge
   const compact = !!s.receiptCompactMode;
   const sym = s.currencySymbol || 'Rs ';
   const d = new EscposDoc(paperOf(s, geom), docOptionsOf(s, undefined, geom));
+  // Settings → Receipt → QR & Barcode: printed as images at their position
+  // (see codeRaster.ts). Nothing at all when both are off.
+  const codes = (position: CodePosition) => {
+    let blocks: ReturnType<typeof rawCodeBlocks> = [];
+    try { blocks = rawCodeBlocks(order, settings, position, d.layout.contentDots); } catch { /* a code must never stop a bill */ }
+    for (const b of blocks) {
+      d.bold(false).size(1, 1).center();
+      d.raw(...b.raster);
+      if (b.text) d.line(b.text);
+      if (b.caption) d.line(b.caption);
+      d.feed(1);
+    }
+    if (blocks.length) d.left();
+    return blocks.length > 0;
+  };
+  codes('above');
   // ===== RAW TEXT SIZE =====
   // 'large' prints the item rows and the total at double HEIGHT (GS ! keeps
   // the width, so the line still fits the same number of characters). The
@@ -449,8 +467,11 @@ export function buildReceiptBytes(order: Order, settings: RestaurantSettings, ge
   if (s.thankYouText !== '') d.line(s.thankYouText || 'Thank You!');
   if (!compact && (s.visitAgainText || '') !== '') d.line(s.visitAgainText || 'Please Visit Again');
   if (!compact && s.receiptFooter) d.wrap(s.receiptFooter);
+  // With no codes nothing is added here: the bill is byte-for-byte as before.
+  if (codes('footer')) { d.center(); if (bodyBold) d.bold(true); }
   if (!compact && s.marketingFooter) d.wrap(s.marketingFooter);
   d.bold(false);
+  codes('below');
   // Compact saves paper in the BODY. The clearance the blade needs is
   // physical and identical in both modes, so it is not reduced here.
   finishSlip(d, geom);

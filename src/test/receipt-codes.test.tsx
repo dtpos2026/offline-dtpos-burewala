@@ -15,6 +15,7 @@ import {
   receiptPayload, receiptText, fromBase64Url, normalizeLink, safeHttpUrl, qrCaption, DEFAULT_SCAN_PAGE,
 } from '@/lib/receiptCodes';
 import { barcodeLayout, qrLayout } from '@/components/ReceiptCodes';
+import { barcodeDots, qrByteBudget } from '@/lib/codeGeometry';
 import ReceiptPreview from '@/components/ReceiptPreview';
 import ReceiptCodesCard from '@/components/settings/ReceiptCodesCard';
 import { buildSampleOrder } from '@/lib/sampleOrder';
@@ -23,7 +24,7 @@ const require_ = createRequire(import.meta.url);
 const { packDots, mapRegions, rasterGeometry } = require_('../../electron/escposRaster.cjs');
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as any;
-const order = { ...buildSampleOrder(), createdAt: '2026-09-24T10:53:00' } as any;
+const order = { ...buildSampleOrder(), createdAt: '2026-09-24T10:53:00', paidAt: '2026-09-24T10:53:00' } as any;
 const shop: any = { name: 'Chai Corner', phone1: '0300-0000000', currencySymbol: 'Rs ', paperSize: '80mm', receiptDesign: 'classic' };
 const withCodes = (codes: any) => ({ ...shop, receiptCodes: codes });
 
@@ -61,8 +62,8 @@ describe('what the codes carry', () => {
     expect(findOrderByRef([other, order], 'R2609241042')).toBe(order);
     expect(findOrderByRef([other], 'R2609241042')).toBeNull();
   });
-  it('the automatic QR opens the receipt page with the bill — and never the customer', () => {
-    const cfg = readReceiptCodes(withCodes({ qr: { enabled: true, mode: 'auto' } }));
+  it('the automatic QR (receipt-page view) carries the bill — and never the customer', () => {
+    const cfg = readReceiptCodes(withCodes({ v: 2, qr: { enabled: true, mode: 'auto', autoView: 'page' } }));
     const url = qrValueFor(order, shop, cfg)!;
     expect(url.startsWith(`${DEFAULT_SCAN_PAGE}#r=`)).toBe(true);
     const data = JSON.parse(fromBase64Url(url.split('#r=')[1]));
@@ -80,28 +81,87 @@ describe('what the codes carry', () => {
     expect((p.i as unknown[]).length + Number(p['+'])).toBe(40);
     expect(new TextEncoder().encode(JSON.stringify(p)).length).toBeLessThanOrEqual(300);
   });
-  it('text view: the bill as plain text, readable with no internet', () => {
-    const t = receiptText(order, shop, 'R2609241042');
-    expect(t).toContain('Bill #1042');
-    expect(t).toContain('2 x Chicken Biryani  900.00');
-    expect(t).toContain('Total: Rs 1,827.00 · Paid (CASH)');
+  it('text view (the default): the bill as plain text any phone shows, no internet', () => {
+    const t = receiptText(order, shop);
+    expect(t.split('\n')).toEqual([
+      'Chai Corner',
+      'Bill #1042 | 24-09-2026 10:53',
+      '2 x Chicken Biryani = 900',
+      '1 x Zinger Burger = 550',
+      '2 x Cold Drink 500ml = 240',
+      'Discount -100 | Tax 152 | Service 85',
+      'TOTAL Rs 1,827',
+      'PAID (CASH)',
+    ]);
     expect(t).not.toContain('Ahmed');
+    const big = { ...order, items: Array.from({ length: 30 }, (_, i) => ({ id: `i${i}`, name: `Family Platter ${i}`, pricingType: 'fixed', price: 999, quantity: 1, lineTotal: 999 })) };
+    const long = receiptText(big as any, shop);
+    expect(new TextEncoder().encode(long).length).toBeLessThanOrEqual(260);
+    expect(long).toMatch(/\+ \d+ more item\(s\)\nDiscount/);
   });
   it('multi-link: valid links only, in order; WhatsApp numbers become wa.me', () => {
-    const cfg = readReceiptCodes(withCodes({ qr: { enabled: true, mode: 'multi', links: [
+    const links = [
       { id: 'a', type: 'google', url: 'https://g.page/r/abc/review' },
       { id: 'b', type: 'whatsapp', url: '0300 1234567', label: 'Order now' },
       { id: 'c', type: 'website', url: 'javascript:alert(1)' },
-    ] } }));
-    const data = JSON.parse(fromBase64Url(qrValueFor(order, shop, cfg)!.split('#l=')[1]));
+    ];
+    // Default: the links as text — any phone shows them, nothing to publish.
+    const cfg = readReceiptCodes(withCodes({ qr: { enabled: true, mode: 'multi', links } }));
+    expect(cfg.qr.multiView).toBe('text');
+    expect(qrValueFor(order, shop, cfg)!.split('\n')).toEqual([
+      'Chai Corner',
+      'Google Reviews: https://g.page/r/abc/review',
+      'Order now: https://wa.me/923001234567',
+    ]);
+    // The links page, once scan.html is published.
+    const page = readReceiptCodes(withCodes({ qr: { enabled: true, mode: 'multi', multiView: 'page', links } }));
+    const data = JSON.parse(fromBase64Url(qrValueFor(order, shop, page)!.split('#l=')[1]));
     expect(data.k).toEqual([['google', 'https://g.page/r/abc/review'], ['whatsapp', 'https://wa.me/923001234567', 'Order now']]);
   });
-  it('single-link: the QR is the link itself; bad links print nothing', () => {
+  it('single: a link opens directly; any other text is shown on the phone', () => {
     const on = (url: string) => readReceiptCodes(withCodes({ qr: { enabled: true, mode: 'single', singleUrl: url } }));
     expect(qrValueFor(order, shop, on('facebook.com/chaicorner'))).toBe('https://facebook.com/chaicorner');
     expect(qrValueFor(order, shop, on('0300 1234567'))).toBe('https://wa.me/923001234567');
-    expect(qrValueFor(order, shop, on('not a link'))).toBeNull();
+    expect(qrValueFor(order, shop, on('Wi-Fi: ChaiKhass / 12345678'))).toBe('Wi-Fi: ChaiKhass / 12345678');
+    expect(qrValueFor(order, shop, on('   '))).toBeNull();
     expect(qrCaption(on('https://instagram.com/x'))).toBe('Scan to follow us on Instagram');
+    expect(qrCaption(on('Wi-Fi: ChaiKhass'))).toBe('Scan for details');
+  });
+  it('the barcode carries the bill in words by default — and the POS still finds the bill', () => {
+    const cfg = readReceiptCodes(withCodes({ barcode: { enabled: true } }));
+    expect(cfg.barcode.content).toBe('info');
+    expect(cfg.barcode.size).toBe('medium');
+    // Medium bars (3 dots) fit 12 characters on 80mm: the most readable text that fits.
+    expect(barcodeValueFor(order, cfg, shop)).toBe('#1042 Rs1827');
+    expect(barcodeValueFor({ ...order, grandTotal: 1827.5 }, cfg, shop)).toBe('Bill 1042');
+    expect(barcodeValueFor(order, cfg, { ...shop, paperSize: '58mm' })).toBe('#1042');
+    expect(barcodeValueFor(order, readReceiptCodes(withCodes({ barcode: { enabled: true, prefix: 'LHR1' } })), shop)).toBe('LHR1 #1042');
+    // Small bars (2 dots) fit 20: the bill in words.
+    const small = readReceiptCodes(withCodes({ barcode: { enabled: true, size: 'small' } }));
+    expect(barcodeValueFor(order, small, shop)).toBe('Bill 1042 Rs 1827');
+    expect(barcodeValueFor({ ...order, grandTotal: 1827.5 }, small, shop)).toBe('Bill 1042 Rs 1827.50');
+    expect(barcodeValueFor(order, small, { ...shop, paperSize: '58mm' })).toBe('#1042 Rs1827');
+    // Code 39 has no "#".
+    expect(barcodeValueFor(order, readReceiptCodes(withCodes({ barcode: { enabled: true, format: 'code39' } })), shop)).toBe('Bill 1042');
+    // Every value prints at the bar width it was chosen for.
+    expect(barcodeLayout('code128', '#1042 Rs1827', 'medium', 64)!.dotsPerModule).toBe(3);
+    expect(barcodeLayout('code128', 'Bill 1042 Rs 1827', 'small', 64)!.dotsPerModule).toBe(2);
+    expect(parseReceiptRef('Bill 1042 Rs 1827')).toEqual({ prefix: '', orderNumber: 1042, amount: 1827 });
+    expect(parseReceiptRef('#1042 Rs1827')).toEqual({ prefix: '', orderNumber: 1042, amount: 1827 });
+    expect(parseReceiptRef('LHR1 #1042')).toEqual({ prefix: 'LHR1', orderNumber: 1042 });
+    expect(parseReceiptRef('LHR1 Bill 1042')).toEqual({ prefix: 'LHR1', orderNumber: 1042 });
+    const older = { ...order, id: 'old', grandTotal: 500, createdAt: '2025-01-01T10:00:00' };
+    expect(findOrderByRef([older, order], 'Bill 1042 Rs 1827')).toBe(order);
+    expect(findOrderByRef([older], 'Bill 1042 Rs 1827')).toBe(older);  // amount is a hint, the number decides
+    expect(findOrderByRef([order], 'Bill 999')).toBeNull();
+  });
+  it('settings saved by 1.14.0 move to the new defaults; choices saved since are kept', () => {
+    const old = readReceiptCodes(withCodes({ qr: { enabled: true, autoView: 'page', sizeMm: 32 }, barcode: { enabled: true, content: 'receipt' } }));
+    expect(old.qr.autoView).toBe('text');
+    expect(old.qr.sizeMm).toBe(40);
+    expect(old.barcode.content).toBe('info');
+    const kept = readReceiptCodes(withCodes({ v: 2, qr: { enabled: true, autoView: 'page', sizeMm: 32 }, barcode: { enabled: true, content: 'receipt' } }));
+    expect([kept.qr.autoView, kept.qr.sizeMm, kept.barcode.content]).toEqual(['page', 32, 'receipt']);
   });
   it('links are refused unless they are http(s) — and a phone number is not a website', () => {
     expect(safeHttpUrl('data:text/html,hi')).toBeNull();
@@ -125,6 +185,51 @@ describe('printed sizes are whole printer dots', () => {
     expect(l.widthMm * 8).toBe(l.modules * l.dotsPerModule);
     expect(l.widthMm).toBeLessThanOrEqual(64);
   });
+  it('the bill text in a QR fits its size with every module 5 dots wide', () => {
+    expect(qrByteBudget(40, 64)).toBe(213);
+    expect(qrByteBudget(36, 64)).toBe(180);
+    expect(qrByteBudget(44, 64)).toBe(287);
+    expect(qrByteBudget(24, 64)).toBe(62);
+    // The sample bill (3 items) is whole in the default QR, at 5 dots a module.
+    const cfg = readReceiptCodes(withCodes({ v: 2, qr: { enabled: true } }));
+    expect(cfg.qr.sizeMm).toBe(40);
+    const whole = qrValueFor(order, shop, cfg)!;
+    expect(whole).toContain('2 x Cold Drink 500ml = 240');
+    expect(whole).not.toContain('more item');
+    expect(qrLayout(whole, 40, 64)!.dotsPerModule).toBe(5);
+    const big = { ...order, items: Array.from({ length: 30 }, (_, i) => ({ id: `i${i}`, name: `Family Platter ${i}`, pricingType: 'fixed', price: 999, quantity: 1, lineTotal: 999 })) };
+    const settings = withCodes({ v: 2, qr: { enabled: true } });
+    const value = qrValueFor(big as any, settings, readReceiptCodes(settings))!;
+    expect(new TextEncoder().encode(value).length).toBeLessThanOrEqual(213);
+    expect(value).toMatch(/\+ \d+ more item\(s\)/);
+    expect(qrLayout(value, 40, 64)!.dotsPerModule).toBeGreaterThanOrEqual(5);
+  });
+  it('ink spread: dark QR areas lose a dot on their right and lower edge, nothing inside', () => {
+    const l = qrLayout('Chai Corner\nBill #1042', 36, 64)!;
+    const d = l.dotsPerModule;
+    expect(d).toBeGreaterThanOrEqual(4);
+    expect(l.trimDots).toBe(1);
+    const at = (r: number, c: number, dx: number, dy: number) => l.ink((c + l.quiet) * d + dx, (r + l.quiet) * d + dy);
+    // Finder pattern: the top row of 7 dark modules is one bar, trimmed only at its right end and below.
+    for (let c = 0; c < 7; c++) for (let dx = 0; dx < d; dx++) {
+      expect(at(0, c, dx, 0)).toBe(!(c === 6 && dx === d - 1));
+      expect(at(0, c, dx, d - 1)).toBe(c === 0 || (c === 6 && dx < d - 1)); // modules below are light except the sides
+    }
+    // Light modules stay light; small codes are not trimmed at all.
+    for (let dx = 0; dx < d; dx++) expect(at(1, 1, dx, 1)).toBe(false);
+    const small = qrLayout('x'.repeat(150), 20, 64)!;
+    expect(small.dotsPerModule).toBeLessThan(4);
+    expect(small.trimDots).toBe(0);
+    // The drawn path carries the same trims (module units, whole dots).
+    expect(l.path).toContain(`h${Math.round((7 - 1 / d) * 1000) / 1000}v${Math.round((1 - 1 / d) * 1000) / 1000}`);
+  });
+  it('ink spread: from 3-dot bars up every bar is a dot narrower and every space a dot wider', () => {
+    const c128 = encodeCode128('#1042 Rs1827');
+    expect(barcodeDots(c128, 2)).toEqual(c128.widths.map(w => w * 2));
+    expect(barcodeDots(c128, 3)).toEqual(c128.widths.map((w, i) => w * 3 + (i % 2 === 0 ? -1 : 1)));
+    const c39 = encodeCode39('BILL 1042');
+    expect(barcodeDots(c39, 3).slice(0, 9)).toEqual(c39.widths.slice(0, 9).map((w, i) => (w === 1 ? 3 : 7) + (i % 2 === 0 ? -1 : 1)));
+  });
   it('barcode bars narrow to fit, and Code 39 too wide for the paper falls back to Code 128', () => {
     const medium = barcodeLayout('code128', 'R2609241042', 'medium', 64)!;
     expect(medium.dotsPerModule).toBe(3);
@@ -143,7 +248,7 @@ describe('on the bill', () => {
     const blocks = print.querySelectorAll(`.dt-receipt-codes[data-position="${position}"]`);
     expect(blocks).toHaveLength(1);
     expect(print.querySelectorAll('.dt-receipt-codes svg[aria-label="QR code"]')).toHaveLength(1);
-    expect(print.querySelector('.dt-receipt-codes svg[aria-label^="Barcode R2609241042"]')).not.toBeNull();
+    expect(print.querySelector('.dt-receipt-codes svg[aria-label="Barcode #1042 Rs1827"]')).not.toBeNull();
   });
   it('the new QR replaces the old automatic one; switched off, the bill is exactly as before', () => {
     render(<ReceiptPreview order={order} settings={withCodes(codesAt('footer'))} showPrintButton={false} />);
@@ -208,8 +313,79 @@ describe('the settings card', () => {
     expect(saved().qr.links[0]).toMatchObject({ type: 'google', url: 'https://g.page/r/abc/review' });
     fireEvent.click(screen.getByRole('switch', { name: 'Barcode on receipts' }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Below receipt' })[1]);
-    expect(saved().barcode).toMatchObject({ enabled: true, position: 'below', format: 'code128', content: 'receipt' });
+    expect(saved().barcode).toMatchObject({ enabled: true, position: 'below', format: 'code128', content: 'info' });
+    expect(saved().v).toBe(2);
     // the live preview carries both codes
     expect(document.querySelectorAll('.receipt-print-portal .dt-receipt-codes svg').length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('Fast Billing / Raw text bills print the codes too', () => {
+  // The raw bill is ESC/POS text — the QR "never generated" there. It now
+  // carries both codes as GS v 0 images; with both off it is unchanged.
+  const GSV0 = [0x1d, 0x76, 0x30, 0x00];
+  const images = (bytes: number[]) => {
+    const found: { at: number; rowBytes: number; rows: number; data: number[] }[] = [];
+    for (let i = 0; i + 8 < bytes.length; i++) {
+      if (GSV0.every((b, k) => bytes[i + k] === b)) {
+        const rowBytes = bytes[i + 4] | (bytes[i + 5] << 8);
+        const rows = bytes[i + 6] | (bytes[i + 7] << 8);
+        found.push({ at: i, rowBytes, rows, data: bytes.slice(i + 8, i + 8 + rowBytes * rows) });
+        i += 8 + rowBytes * rows - 1;
+      }
+    }
+    return found;
+  };
+  const indexOfText = (bytes: number[], t: string) => {
+    const want = Array.from(new TextEncoder().encode(t));
+    for (let i = 0; i < bytes.length; i++) if (want.every((b, k) => bytes[i + k] === b)) return i;
+    return -1;
+  };
+
+  it('off: no image in the raw bill', async () => {
+    const { buildReceiptBytes } = await import('@/printing/escposBuilder');
+    expect(images(buildReceiptBytes(order, shop))).toHaveLength(0);
+  });
+
+  it('on: the QR prints dot-for-dot, the barcode as bars, in 128-row bands', async () => {
+    const { buildReceiptBytes } = await import('@/printing/escposBuilder');
+    const settings = withCodes({ v: 2, qr: { enabled: true }, barcode: { enabled: true } });
+    const bytes = buildReceiptBytes(order, { ...settings, thankYouText: 'Thank You!' });
+    const imgs = images(bytes);
+    expect(imgs.length).toBeGreaterThanOrEqual(3); // QR in 128-row bands + barcode
+    expect(Math.max(...imgs.map(i => i.rows))).toBeLessThanOrEqual(128);
+    // Rebuild the QR from its bands and compare with the QR it should be.
+    const { qrValueFor: value } = await import('@/lib/receiptCodes');
+    const layout = qrLayout(value(order, settings, readReceiptCodes(settings))!, 40, 64)!;
+    const side = layout.modules * layout.dotsPerModule;
+    const qrBands = imgs.filter(i => i.rows <= 128);
+    const rowBytes = qrBands[0].rowBytes;
+    const rows: number[][] = [];
+    for (const b of qrBands) for (let y = 0; y < b.rows; y++) rows.push(b.data.slice(y * rowBytes, (y + 1) * rowBytes));
+    const dot = (x: number, y: number) => (rows[y][x >> 3] >> (7 - (x & 7))) & 1;
+    const x0 = Math.floor((Math.max(rowBytes * 8, side) - side) / 2); // centred in the print area
+    let mismatches = 0;
+    for (let y = 0; y < side; y++) for (let x = 0; x < side; x++) if (!!dot(x0 + x, y) !== layout.ink(x, y)) mismatches++;
+    expect(mismatches).toBe(0);
+    // ...and every module centre is the module it should be.
+    const d = layout.dotsPerModule;
+    for (let r = 0; r < layout.size; r++) for (let c = 0; c < layout.size; c++) {
+      if (!!dot(x0 + (c + layout.quiet) * d + (d >> 1), (r + layout.quiet) * d + (d >> 1)) !== layout.dark(r, c)) mismatches++;
+    }
+    expect(mismatches).toBe(0);
+    // Human-readable line and captions follow as text.
+    expect(indexOfText(bytes, '#1042 Rs1827')).toBeGreaterThan(-1);
+    expect(indexOfText(bytes, 'Scan for your receipt details')).toBeGreaterThan(-1);
+  });
+
+  it('positions: above the shop name, after the thank-you, or at the very end', async () => {
+    const { buildReceiptBytes } = await import('@/printing/escposBuilder');
+    const at = (position: string) => {
+      const bytes = buildReceiptBytes(order, { ...withCodes({ v: 2, barcode: { enabled: true, position } }), thankYouText: 'Thank You!', marketingFooter: 'DIGITAL TARGET' });
+      return { img: images(bytes)[0].at, name: indexOfText(bytes, 'Chai Corner'), thanks: indexOfText(bytes, 'Thank You!'), credit: indexOfText(bytes, 'DIGITAL TARGET') };
+    };
+    const above = at('above'); expect(above.img).toBeLessThan(above.name);
+    const footer = at('footer'); expect(footer.img).toBeGreaterThan(footer.thanks); expect(footer.img).toBeLessThan(footer.credit);
+    const below = at('below'); expect(below.img).toBeGreaterThan(below.credit);
   });
 });

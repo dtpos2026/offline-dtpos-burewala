@@ -1,5 +1,64 @@
 # DT POS Enterprise — Release Notes
 
+## v1.14.1 — QR & barcode scanning fixed: bill info on any phone, codes on every printer mode
+
+- **Reported:** the QR did not print on some counters. Where it did print, a
+  phone showed no text or link. The barcode showed a reference code instead
+  of the bill.
+- **Causes found:**
+  1. Counters on Fast Billing Mode, or with the printer set to "Raw text",
+     print the bill as plain ESC/POS text. That route had no QR or barcode.
+  2. The automatic QR and the multi-link QR opened a web page (`scan.html`)
+     that has to be published from Super Admin first. Until then the phone
+     opened nothing useful.
+  3. The QR packed up to 300 bytes into 32 mm, so each square was only 3
+     printer dots (0.375 mm) wide. Thermal heads spread ink, so squares that
+     small run together, worst on printers that print dark. The barcode's
+     2-dot bars closed up the same way.
+- **Fixes:**
+  - **Fast Billing / Raw text bills now print the QR and barcode.** They come
+    out as printer images, at the same size and position as on designed
+    bills. With the codes switched off, the raw bill is byte-for-byte
+    unchanged.
+  - **The QR shows the bill as text by default:** shop, bill no., date and
+    time, items, discount/tax/service, TOTAL and PAID (CASH). Any phone
+    camera shows it, with no internet and nothing to publish.
+  - **Multi-link QR shows the links as text by default:** the shop name,
+    then one link per line; the customer taps the one they want. The links
+    page is still available once `scan.html` is published.
+  - **Single QR** takes any link (opens directly) or any text, such as a
+    Wi-Fi password.
+  - **The barcode carries bill info.** At the default Medium size, scanning
+    shows e.g. `#1042 Rs1827` (bill number and amount). Small bars fit
+    `Bill 1042 Rs 1827`. Scanning at the POS still opens the bill in Bill
+    Reprint. The settings card shows exactly what a scan will show.
+  - **Sized for thermal paper:**
+    - At the default 40 mm, every QR square is 5 printer dots (0.625 mm).
+      The bill text is fitted to the QR's size, so a larger QR lists more
+      items and the rest are counted.
+    - Dark areas are drawn one dot short on their right and lower edges, so
+      the printer's ink spread brings them back to their true size.
+    - From Medium up, bars are drawn a dot narrower and gaps a dot wider,
+      for the same reason.
+  - Settings saved by 1.14.0 move to the new defaults: text QR, 40 mm and
+    the bill-info barcode.
+- **Verified (in simulation):**
+  - All 41 receipt designs (image route) and the raw bill were checked with
+    ZXing and jsQR. The QR decodes to the full bill text; the barcode reads
+    `#1042 Rs1827`, or `Bill 1042 Rs 1827` with Small bars. The multi-link QR
+    decodes to all four links. There was 0 overflow and 0 invisible text.
+  - Printed codes were also tested against simulated ink spread and fade,
+    then phone-camera frames with tilt, blur, noise and 1.3–2.2 camera
+    pixels per printer dot:
+    - **QR and barcode:** 100% of frames decode from normal print up to 1.5
+      dots of ink spread.
+    - **Very light printer (half a dot of fade):** the QR decodes in 60–83%
+      of frames, so a phone reads it within a second.
+- **Not yet tested on a physical printer and phone.** Please print one bill
+  with the QR and barcode on, then scan it:
+  - Android: Camera or Google Lens.
+  - iPhone: Camera.
+
 ## v1.14.0 — Receipt QR & Barcode, readable black bars on every template, text spacing
 
 - **White text on black bars (all templates inspected).** Every slip the POS

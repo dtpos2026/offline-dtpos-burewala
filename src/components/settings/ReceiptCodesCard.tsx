@@ -53,7 +53,7 @@ function Segmented<T extends string>({ value, options, onChange, testId }: {
 export default function ReceiptCodesCard({ settings, setSettings, onSave, sampleOrder }: Props) {
   const cfg = readReceiptCodes(settings);
   const write = (next: ReceiptCodesConfig) =>
-    setSettings(prev => ({ ...prev, receiptCodes: next }) as RestaurantSettings);
+    setSettings(prev => ({ ...prev, receiptCodes: { ...next, v: 2 } }) as RestaurantSettings);
   const setQr = (patch: Partial<ReceiptCodesConfig['qr']>) => write({ ...cfg, qr: { ...cfg.qr, ...patch } });
   const setBar = (patch: Partial<ReceiptCodesConfig['barcode']>) => write({ ...cfg, barcode: { ...cfg.barcode, ...patch } });
 
@@ -61,7 +61,7 @@ export default function ReceiptCodesCard({ settings, setSettings, onSave, sample
   const maxMm = maxCodeWidthMm(settings);
   const qrValue = cfg.qr.enabled ? qrValueFor(sampleOrder, settings, cfg) : null;
   const qr = qrValue ? qrLayout(qrValue, cfg.qr.sizeMm, maxMm) : null;
-  const barValue = cfg.barcode.enabled ? barcodeValueFor(sampleOrder, cfg) : null;
+  const barValue = cfg.barcode.enabled ? barcodeValueFor(sampleOrder, cfg, settings) : null;
   const bar = barValue ? barcodeLayout(cfg.barcode.format, barValue, cfg.barcode.size, maxMm) : null;
 
   const links = cfg.qr.links;
@@ -102,7 +102,7 @@ export default function ReceiptCodesCard({ settings, setSettings, onSave, sample
                   {([
                     { value: 'auto', title: 'Automatic receipt QR', desc: 'Unique to every bill: bill no., date, items, total, payment status.' },
                     { value: 'multi', title: 'Multi-link QR', desc: 'Google review, Facebook, WhatsApp… one QR, customer picks a link.' },
-                    { value: 'single', title: 'Single-link QR', desc: 'One link; scanning opens it directly.' },
+                    { value: 'single', title: 'Single link / text QR', desc: 'Any link (opens directly) or any text (shown on the phone).' },
                   ] as const).map(m => (
                     <button key={m.value} type="button" onClick={() => setQr({ mode: m.value })}
                       className={`rounded-lg border p-2.5 text-left transition-colors ${cfg.qr.mode === m.value ? 'border-primary bg-primary/10 ring-1 ring-primary/40' : 'hover:bg-accent'}`}>
@@ -116,13 +116,28 @@ export default function ReceiptCodesCard({ settings, setSettings, onSave, sample
                   <div className="space-y-1.5">
                     <Label className="text-xs">When a customer scans it</Label>
                     <Segmented testId="qr-auto-view" value={cfg.qr.autoView} onChange={v => setQr({ autoView: v })} options={[
+                      { value: 'text', label: 'Show the bill as text (recommended)' },
                       { value: 'page', label: 'Open the digital receipt page' },
-                      { value: 'text', label: 'Show the bill as text' },
                     ]} />
                     <p className="text-[11px] text-muted-foreground">
                       {cfg.qr.autoView === 'page'
-                        ? 'A clean receipt page on the phone. The bill travels inside the QR — the phone only needs internet to open the page.'
-                        : 'The phone shows the bill as plain text. Works with no internet anywhere.'}
+                        ? 'A clean receipt page on the phone. Needs the scan page published once from Super Admin (see below) and internet on the phone.'
+                        : 'Any phone camera shows the bill — shop, bill no., date, items, total, paid — as text. No internet, nothing to set up.'}
+                    </p>
+                  </div>
+                )}
+
+                {cfg.qr.mode === 'multi' && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">When a customer scans it</Label>
+                    <Segmented testId="qr-multi-view" value={cfg.qr.multiView} onChange={v => setQr({ multiView: v })} options={[
+                      { value: 'text', label: 'Show the links (recommended)' },
+                      { value: 'page', label: 'Open the links page' },
+                    ]} />
+                    <p className="text-[11px] text-muted-foreground">
+                      {cfg.qr.multiView === 'page'
+                        ? 'A page with one button per link. Needs the scan page published once from Super Admin (see below) and internet on the phone.'
+                        : 'The phone shows your shop name and every link, one per line — the customer taps the one they want. Nothing to set up.'}
                     </p>
                   </div>
                 )}
@@ -161,12 +176,12 @@ export default function ReceiptCodesCard({ settings, setSettings, onSave, sample
 
                 {cfg.qr.mode === 'single' && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Link</Label>
-                    <Input aria-label="Single link" className="h-8 text-xs" placeholder="https://g.page/r/…/review  ·  facebook.com/yourpage  ·  0300 1234567 (WhatsApp)"
+                    <Label className="text-xs">Link or text</Label>
+                    <Input aria-label="Single link" className="h-8 text-xs" placeholder="https://g.page/r/…/review  ·  0300 1234567 (WhatsApp)  ·  or any text, e.g. Wi-Fi: ChaiKhass / 12345678"
                       value={cfg.qr.singleUrl} onChange={e => setQr({ singleUrl: e.target.value })} />
-                    {cfg.qr.singleUrl.trim() && !normalizeLink(detectLinkType(cfg.qr.singleUrl), cfg.qr.singleUrl)
-                      ? <p className="text-[11px] text-destructive">Not a valid link — the QR will not print until it is.</p>
-                      : cfg.qr.singleUrl.trim() && <p className="text-[11px] text-muted-foreground">Opens: {normalizeLink(detectLinkType(cfg.qr.singleUrl), cfg.qr.singleUrl)}</p>}
+                    {cfg.qr.singleUrl.trim() && (normalizeLink(detectLinkType(cfg.qr.singleUrl), cfg.qr.singleUrl)
+                      ? <p className="text-[11px] text-muted-foreground">Scanning opens: {normalizeLink(detectLinkType(cfg.qr.singleUrl), cfg.qr.singleUrl)}</p>
+                      : <p className="text-[11px] text-muted-foreground">Not a link — scanning shows this text on the phone.</p>)}
                   </div>
                 )}
 
@@ -188,11 +203,14 @@ export default function ReceiptCodesCard({ settings, setSettings, onSave, sample
                   </div>
                   <Slider aria-label="QR size" min={QR_SIZE_MM.min} max={QR_SIZE_MM.max} step={1} value={[cfg.qr.sizeMm]} onValueChange={([v]) => setQr({ sizeMm: v })} />
                   {qrValue && !qr && <p className="text-[11px] text-destructive">Too much data for a QR on this paper.</p>}
-                  {qr && qr.dotsPerModule < 3 && (
-                    <p className="text-[11px] text-amber-600">Each QR square prints {(qr.dotsPerModule / 8).toFixed(2)} mm — make it larger for easy scanning off thermal paper.</p>
+                  {qr && qr.dotsPerModule < 4 && (
+                    <p className="text-[11px] text-amber-600">Each QR square prints {(qr.dotsPerModule / 8).toFixed(2)} mm — make the QR larger (or put less in it) so every phone reads it off thermal paper.</p>
+                  )}
+                  {cfg.qr.mode === 'auto' && cfg.qr.autoView === 'text' && (
+                    <p className="text-[11px] text-muted-foreground">A larger QR lists more of the bill's items; the rest are counted.</p>
                   )}
                   {cfg.qr.enabled && !qrValue && cfg.qr.mode !== 'auto' && (
-                    <p className="text-[11px] text-destructive">Add a valid link — without one no QR prints.</p>
+                    <p className="text-[11px] text-destructive">{cfg.qr.mode === 'multi' ? 'Add a valid link' : 'Type a link or some text'} — without it no QR prints.</p>
                   )}
                 </div>
               </>
@@ -214,13 +232,20 @@ export default function ReceiptCodesCard({ settings, setSettings, onSave, sample
                 <div className="space-y-1.5">
                   <Label className="text-xs">What it carries</Label>
                   <Segmented testId="barcode-content" value={cfg.barcode.content} onChange={v => setBar({ content: v })} options={[
-                    { value: 'receipt', label: 'Receipt reference (unique per bill)' },
+                    { value: 'info', label: 'Bill info (recommended)' },
+                    { value: 'receipt', label: 'Short reference' },
                     { value: 'custom', label: 'Custom text' },
                   ]} />
-                  {cfg.barcode.content === 'receipt'
-                    ? <p className="text-[11px] text-muted-foreground">e.g. <span className="font-mono">{barcodeValueFor(sampleOrder, cfg)}</span> — R, the date and the bill number. Scan it at the POS to open that bill in Bill Reprint.</p>
-                    : <Input aria-label="Barcode text" className="h-8 text-xs font-mono" placeholder={cfg.barcode.format === 'code39' ? 'Up to 12 characters: A-Z 0-9 - . $ / + %' : 'Up to 20 characters'}
-                        value={cfg.barcode.customText} onChange={e => setBar({ customText: e.target.value })} />}
+                  {cfg.barcode.content === 'custom'
+                    ? <Input aria-label="Barcode text" className="h-8 text-xs font-mono" placeholder={cfg.barcode.format === 'code39' ? 'Up to 12 characters: A-Z 0-9 - . $ / + %' : 'Up to 20 characters'}
+                        value={cfg.barcode.customText} onChange={e => setBar({ customText: e.target.value })} />
+                    : <p className="text-[11px] text-muted-foreground">
+                        Scanning shows <span className="font-mono font-semibold">{barValue ?? barcodeValueFor(sampleOrder, { ...cfg, barcode: { ...cfg.barcode, enabled: true } }, settings)}</span>
+                        {cfg.barcode.content === 'info'
+                          ? (/Rs/.test(barValue ?? '') ? ' — the bill number and amount' : ' — the bill number (Small bars fit the amount too)')
+                          : ' — R, the date and the bill number'}.
+                        Scanned at the POS it opens that bill in Bill Reprint.
+                      </p>}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
@@ -246,6 +271,7 @@ export default function ReceiptCodesCard({ settings, setSettings, onSave, sample
                     <Segmented testId="barcode-size" value={cfg.barcode.size} onChange={v => setBar({ size: v })} options={[
                       { value: 'small', label: 'Small' }, { value: 'medium', label: 'Medium' }, { value: 'large', label: 'Large' },
                     ]} />
+                    <p className="text-[11px] text-muted-foreground">Medium and Large bars scan best off thermal paper; Small fits the most text.</p>
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 items-end">
@@ -265,7 +291,7 @@ export default function ReceiptCodesCard({ settings, setSettings, onSave, sample
             )}
           </section>
 
-          {cfg.qr.enabled && cfg.qr.mode !== 'single' && !(cfg.qr.mode === 'auto' && cfg.qr.autoView === 'text') && (
+          {cfg.qr.enabled && ((cfg.qr.mode === 'auto' && cfg.qr.autoView === 'page') || (cfg.qr.mode === 'multi' && cfg.qr.multiView === 'page')) && (
             <div className="space-y-1.5">
               <Label className="text-xs">Scan page address</Label>
               <Input className="h-8 text-xs font-mono" placeholder={DEFAULT_SCAN_PAGE} value={cfg.scanPageUrl === DEFAULT_SCAN_PAGE ? '' : cfg.scanPageUrl}

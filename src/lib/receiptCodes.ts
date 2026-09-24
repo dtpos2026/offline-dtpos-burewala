@@ -13,8 +13,10 @@
 //     single  one link; the QR opens it directly.
 //
 //   Barcode (Code 128, or Code 39 for older scanners)
-//     receipt a reference unique to every bill: R + date + bill number, e.g.
-//             R2609241042. Scanning it at the POS opens that bill.
+//     info    the bill in words — "Bill 1042 Rs 1827" — so any scanner or
+//             phone shows the bill number and amount; scanning it at the
+//             POS still opens that bill (default).
+//     receipt a compact reference, R + date + bill number (R2609241042).
 //     custom  the same text on every bill.
 //
 // Everything is generated on the POS, offline, at print time from the saved
@@ -24,6 +26,7 @@
 // ============================================================
 import type { Order, RestaurantSettings } from '@/lib/types';
 import { sanitizeForFormat, type BarcodeFormat } from '@/lib/linearBarcode';
+import { BAR_DOTS, qrByteBudget } from '@/lib/codeGeometry';
 
 export type CodePosition = 'above' | 'footer' | 'below';
 export type QrMode = 'auto' | 'multi' | 'single';
@@ -43,6 +46,8 @@ export interface ReceiptQrConfig {
   mode: QrMode;
   /** Auto mode: open the receipt page, or show the bill as plain text. */
   autoView: 'page' | 'text';
+  /** Multi-link mode: list the links as text (any phone), or open the links page (scan.html published). */
+  multiView: 'page' | 'text';
   links: QrLink[];
   singleUrl: string;
   /** Line printed under the code ('' = a sensible default for the mode). */
@@ -55,7 +60,7 @@ export interface ReceiptQrConfig {
 export interface ReceiptBarcodeConfig {
   enabled: boolean;
   format: BarcodeFormat;
-  content: 'receipt' | 'custom';
+  content: 'info' | 'receipt' | 'custom';
   customText: string;
   /** Optional branch/counter code in front of the reference, e.g. LHR1. */
   prefix: string;
@@ -67,6 +72,8 @@ export interface ReceiptBarcodeConfig {
 }
 
 export interface ReceiptCodesConfig {
+  /** 2 = saved by 1.14.1+ (older saves get the new defaults, see readReceiptCodes). */
+  v?: number;
   qr: ReceiptQrConfig;
   barcode: ReceiptBarcodeConfig;
   /** The public page receipt and link QR codes open (superadmin/public/scan.html). */
@@ -76,7 +83,10 @@ export interface ReceiptCodesConfig {
 /** Where scan.html is published with the Super Admin panel (firebase deploy). */
 export const DEFAULT_SCAN_PAGE = 'https://dtpos-offline.web.app/scan.html';
 
-export const QR_SIZE_MM = { min: 20, max: 50, default: 32 };
+// At 40mm the text QR of a typical bill (3-4 items) keeps every module at
+// 5 printer dots (0.625mm): what a phone reads off thermal paper even when
+// the printer runs dark or light.
+export const QR_SIZE_MM = { min: 20, max: 50, default: 40 };
 
 export const LINK_TYPES: Record<QrLinkType, { label: string; placeholder: string; caption: string }> = {
   google: { label: 'Google Reviews', placeholder: 'https://g.page/r/…/review', caption: 'Scan to review us on Google' },
@@ -94,7 +104,8 @@ export const DEFAULT_RECEIPT_CODES: ReceiptCodesConfig = {
   qr: {
     enabled: false,
     mode: 'auto',
-    autoView: 'page',
+    autoView: 'text',
+    multiView: 'text',
     links: [],
     singleUrl: '',
     caption: '',
@@ -104,7 +115,7 @@ export const DEFAULT_RECEIPT_CODES: ReceiptCodesConfig = {
   barcode: {
     enabled: false,
     format: 'code128',
-    content: 'receipt',
+    content: 'info',
     customText: '',
     prefix: '',
     showText: true,
@@ -123,17 +134,26 @@ const text = (v: unknown, max: number) => String(v ?? '').slice(0, max);
 /** The shop's QR & barcode settings, complete and bounded. Never throws. */
 export function readReceiptCodes(settings: unknown): ReceiptCodesConfig {
   const raw = ((settings as any)?.receiptCodes || {}) as Partial<ReceiptCodesConfig>;
-  const q = (raw.qr || {}) as Partial<ReceiptQrConfig>;
-  const b = (raw.barcode || {}) as Partial<ReceiptBarcodeConfig>;
+  let q = (raw.qr || {}) as Partial<ReceiptQrConfig>;
+  let b = (raw.barcode || {}) as Partial<ReceiptBarcodeConfig>;
+  // Saved by 1.14.0, which wrote its defaults out in full: those defaults
+  // (receipt page, 32mm, compact reference) showed a customer nothing useful
+  // until the scan page was published. They become the new defaults.
+  if (raw.v !== 2) {
+    q = { ...q, ...(q.autoView === 'page' ? { autoView: 'text' as const } : {}), ...(Number(q.sizeMm) === 32 ? { sizeMm: QR_SIZE_MM.default } : {}) };
+    b = { ...b, ...(b.content === 'receipt' ? { content: 'info' as const } : {}) };
+  }
   const d = DEFAULT_RECEIPT_CODES;
   const size = Number(q.sizeMm);
   const links = Array.isArray(q.links) ? q.links : [];
   const format = pick(b.format, ['code128', 'code39'] as const, d.barcode.format);
   return {
+    v: 2,
     qr: {
       enabled: q.enabled === true,
       mode: pick(q.mode, ['auto', 'multi', 'single'] as const, d.qr.mode),
       autoView: pick(q.autoView, ['page', 'text'] as const, d.qr.autoView),
+      multiView: pick(q.multiView, ['page', 'text'] as const, d.qr.multiView),
       links: links.slice(0, 10).map((l, i) => ({
         id: text(l?.id, 40) || `link-${i}`,
         type: pick(l?.type, LINK_TYPE_ORDER, 'custom'),
@@ -148,7 +168,7 @@ export function readReceiptCodes(settings: unknown): ReceiptCodesConfig {
     barcode: {
       enabled: b.enabled === true,
       format,
-      content: pick(b.content, ['receipt', 'custom'] as const, d.barcode.content),
+      content: pick(b.content, ['info', 'receipt', 'custom'] as const, d.barcode.content),
       // What fits 80mm paper at a scannable bar width (see ReceiptCodes).
       customText: sanitizeForFormat(format, text(b.customText, 60), format === 'code39' ? 12 : 20),
       prefix: sanitizeForFormat('code39', text(b.prefix, 12), 6).replace(/[^A-Z0-9]/g, ''),
@@ -223,26 +243,58 @@ export function receiptRef(order: Pick<Order, 'createdAt' | 'orderNumber'>, pref
 
 const REF_RE = /^(?:([A-Z0-9]{1,6})-)?R(\d{2})(\d{2})(\d{2})(\d{1,9})$/;
 
-/** Read a scanned receipt reference back, or null if it is not one. */
-export function parseReceiptRef(code: string): { prefix: string; yy: number; mm: number; dd: number; orderNumber: number } | null {
-  const m = REF_RE.exec(String(code || '').trim().toUpperCase());
-  if (!m) return null;
-  const mm = Number(m[3]);
-  const dd = Number(m[4]);
-  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
-  return { prefix: m[1] || '', yy: Number(m[2]), mm, dd, orderNumber: Number(m[5]) };
+/** "Bill 1042 Rs 1827" or "#1042 Rs1827", optionally after a branch code — the bill-info barcode. */
+const INFO_RE = /^(?:([A-Z0-9]{1,6})\s+)?(?:BILL\s*#?\s*|#)(\d{1,9})(?:\s+RS\.?\s*([\d.,]+))?$/;
+
+export interface ScannedBill {
+  prefix: string;
+  orderNumber: number;
+  /** Compact reference only: the bill's date. */
+  yy?: number; mm?: number; dd?: number;
+  /** Bill-info barcode only: the amount printed in it. */
+  amount?: number;
 }
 
-/** The order a scanned reference points to (same bill number and date). */
-export function findOrderByRef<T extends Pick<Order, 'createdAt' | 'orderNumber'>>(orders: T[], code: string): T | null {
+/** Read a scanned bill barcode back (either format), or null if it is not one. */
+export function parseReceiptRef(code: string): ScannedBill | null {
+  const text = String(code || '').trim().toUpperCase();
+  const m = REF_RE.exec(text);
+  if (m) {
+    const mm = Number(m[3]);
+    const dd = Number(m[4]);
+    if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+    return { prefix: m[1] || '', yy: Number(m[2]), mm, dd, orderNumber: Number(m[5]) };
+  }
+  const i = INFO_RE.exec(text.replace(/\s+/g, ' '));
+  if (i) {
+    const amount = i[3] ? Number(i[3].replace(/,/g, '')) : undefined;
+    return { prefix: i[1] || '', orderNumber: Number(i[2]), ...(Number.isFinite(amount) ? { amount } : {}) };
+  }
+  return null;
+}
+
+/**
+ * The order a scanned barcode points to. The compact reference carries the
+ * date; the bill-info one the amount. Bill numbers never repeat on a POS, so
+ * either settles it — the date or amount only guards against old data.
+ */
+export function findOrderByRef<T extends Pick<Order, 'createdAt' | 'orderNumber'> & { grandTotal?: number }>(orders: T[], code: string): T | null {
   const r = parseReceiptRef(code);
   if (!r) return null;
   const hits = orders.filter(o => Number(o.orderNumber) === r.orderNumber);
-  const sameDay = hits.find(o => {
-    const d = new Date(o.createdAt);
-    return d.getFullYear() % 100 === r.yy && d.getMonth() + 1 === r.mm && d.getDate() === r.dd;
-  });
-  return sameDay || null;
+  if (r.yy != null) {
+    return hits.find(o => {
+      const d = new Date(o.createdAt);
+      return d.getFullYear() % 100 === r.yy && d.getMonth() + 1 === r.mm && d.getDate() === r.dd;
+    }) || null;
+  }
+  if (!hits.length) return null;
+  const newest = (list: T[]) => [...list].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+  if (r.amount != null) {
+    const same = hits.filter(o => Math.abs((Number(o.grandTotal) || 0) - r.amount!) < 0.01);
+    if (same.length) return newest(same);
+  }
+  return newest(hits);
 }
 
 // ------------------------------------------------------------ what the QR carries
@@ -268,8 +320,12 @@ export function fromBase64Url(s: string): string {
  * count of the rest; the paper receipt has them all.
  */
 export const RECEIPT_PAYLOAD_BUDGET = 300;
-/** Plain-text receipt budget (characters). */
-export const RECEIPT_TEXT_BUDGET = 360;
+/**
+ * Most plain-text receipt bytes (UTF-8) ever put in a QR. The QR's size
+ * sets the real budget (qrByteBudget): 213 bytes at the default 40mm keeps
+ * every module 5 dots wide; a bigger QR lists more items.
+ */
+export const RECEIPT_TEXT_BUDGET = 260;
 
 const num = (v: unknown) => Math.round((Number(v) || 0) * 100) / 100;
 
@@ -337,39 +393,69 @@ export function receiptPayload(order: Order, settings: RestaurantSettings, opts:
 }
 
 const money = (v: number) => v.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Amounts in the text QR: "1,827", "1,827.50" — every byte is a module less. */
+const cash = (v: number) => (Number.isInteger(v) ? v.toLocaleString('en-PK') : money(v));
 
-/** The bill as plain text — what a phone shows with no internet at all. */
-export function receiptText(order: Order, settings: RestaurantSettings, ref?: string): string {
+/** Whole numbers without decimals, others with two: "1827", "1827.50". */
+const amt = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(2));
+
+function dmyStamp(iso: string | undefined): string {
+  const d = new Date(iso || Date.now());
+  if (Number.isNaN(d.getTime())) return '';
+  return `${two(d.getDate())}-${two(d.getMonth() + 1)}-${d.getFullYear()} ${two(d.getHours())}:${two(d.getMinutes())}`;
+}
+
+/**
+ * The bill as plain text — what any phone shows on scanning, with no
+ * internet and no page to publish. Items until the budget, the rest counted.
+ */
+export function receiptText(order: Order, settings: RestaurantSettings, _ref?: string, budget = RECEIPT_TEXT_BUDGET): string {
+  const limit = Math.min(RECEIPT_TEXT_BUDGET, budget);
   const s = settings as any;
   const cur = String(s.currencySymbol ?? 'Rs').trim() || 'Rs';
-  const status = paymentStatus(order);
-  const head = [
-    String(s.name || '').slice(0, 60),
-    `Bill #${order.orderNumber} · ${localStamp(order.createdAt)}`,
-  ];
+  const status = paymentStatus(order).toUpperCase();
+  const bytes = (t: string) => new TextEncoder().encode(t).length;
+  const head = [String(s.name || '').slice(0, 40), `Bill #${order.orderNumber} | ${dmyStamp(order.paidAt || order.createdAt)}`].filter(Boolean);
+  const sums: string[] = [];
+  if (num(order.discount)) sums.push(`Discount -${cash(num(order.discount))}`);
+  if (num(order.tax)) sums.push(`Tax ${cash(num(order.tax))}`);
+  if (num(order.serviceCharge)) sums.push(`Service ${cash(num(order.serviceCharge))}`);
+  if (num((order as any).deliveryChargeAmount)) sums.push(`Delivery ${cash(num((order as any).deliveryChargeAmount))}`);
   const tail = [
-    `Total: ${cur} ${money(num(order.grandTotal))} · ${status.charAt(0).toUpperCase()}${status.slice(1)}${order.paymentMethod ? ` (${String(order.paymentMethod).toUpperCase()})` : ''}`,
-    ...(ref ? [`Ref ${ref}`] : []),
+    ...(sums.length ? [sums.join(' | ')] : []),
+    `TOTAL ${cur} ${cash(num(order.grandTotal))}`,
+    `${status}${order.paymentMethod ? ` (${String(order.paymentMethod).toUpperCase()})` : ''}`,
   ];
-  const lines = [...head];
   const items = order.items || [];
-  let used = [...head, ...tail].join('\n').length;
-  let shown = 0;
+  const lines: string[] = [];
+  let used = bytes([...head, ...tail].join('\n'));
   for (const it of items) {
-    const qty = it.pricingType === 'weight' && it.weightGrams ? `${(it.weightGrams / 1000).toFixed(3)} kg` : `${Number(it.quantity) || 1} x`;
-    const line = `${qty} ${String(it.name || '').slice(0, 32)}  ${money(num(it.lineTotal))}`;
-    if (used + line.length + 1 > RECEIPT_TEXT_BUDGET - 20) break;
+    const qty = it.pricingType === 'weight' && it.weightGrams ? `${(it.weightGrams / 1000).toFixed(3)}kg` : `${Number(it.quantity) || 1} x`;
+    const line = `${qty} ${String(it.name || '').slice(0, 28)} = ${cash(num(it.lineTotal))}`;
+    const more = items.length - lines.length - 1;
+    const reserve = more > 0 ? 20 : 0; // room for the "+ n more item(s)" line
+    if (used + bytes(line) + 1 + reserve > limit) break;
     lines.push(line);
-    used += line.length + 1;
-    shown++;
+    used += bytes(line) + 1;
   }
-  if (shown < items.length) lines.push(`+ ${items.length - shown} more item(s)`);
-  return [...lines, ...tail].join('\n');
+  if (lines.length < items.length) lines.push(`+ ${items.length - lines.length} more item(s)`);
+  return [...head, ...lines, ...tail].join('\n');
 }
 
 function withHash(page: string, key: 'r' | 'l', data: string): string {
   const base = page.split('#')[0];
   return `${base}#${key}=${data}`;
+}
+
+/**
+ * The shop's links as plain text, one per line under its name: any phone
+ * shows them on scanning, with no page to publish. Null when none is valid.
+ */
+export function linksText(cfg: ReceiptCodesConfig, settings: RestaurantSettings): string | null {
+  const links = validLinks(cfg);
+  if (!links.length) return null;
+  const name = String((settings as any).name || '').trim().slice(0, 40);
+  return [...(name ? [name] : []), ...links.map(l => `${l.label || LINK_TYPES[l.type].label}: ${l.url}`)].join('\n');
 }
 
 /** A multi-link QR: the page lists the shop's links. Null when none is valid. */
@@ -383,10 +469,14 @@ export function linksQrValue(cfg: ReceiptCodesConfig, settings: RestaurantSettin
 /** What the QR on this bill encodes, or null when there is nothing to print. */
 export function qrValueFor(order: Order, settings: RestaurantSettings, cfg: ReceiptCodesConfig, branch?: string): string | null {
   if (!cfg.qr.enabled) return null;
-  if (cfg.qr.mode === 'single') return normalizeLink(detectLinkType(cfg.qr.singleUrl), cfg.qr.singleUrl);
-  if (cfg.qr.mode === 'multi') return linksQrValue(cfg, settings);
+  if (cfg.qr.mode === 'single') {
+    const link = normalizeLink(detectLinkType(cfg.qr.singleUrl), cfg.qr.singleUrl);
+    // Not a link: the QR carries the text itself (Wi-Fi password, a note…).
+    return link || cfg.qr.singleUrl.trim().slice(0, 300) || null;
+  }
+  if (cfg.qr.mode === 'multi') return cfg.qr.multiView === 'page' ? linksQrValue(cfg, settings) : linksText(cfg, settings);
   const ref = receiptRef(order, cfg.barcode.prefix);
-  if (cfg.qr.autoView === 'text') return receiptText(order, settings, ref);
+  if (cfg.qr.autoView === 'text') return receiptText(order, settings, ref, qrByteBudget(cfg.qr.sizeMm, maxCodeWidthMm(settings)));
   return withHash(cfg.scanPageUrl, 'r', toBase64Url(JSON.stringify(receiptPayload(order, settings, { branch, ref }))));
 }
 
@@ -406,13 +496,55 @@ export function linkTypeOf(url: string): QrLinkType {
 export function qrCaption(cfg: ReceiptCodesConfig): string {
   if (cfg.qr.caption.trim()) return cfg.qr.caption.trim();
   if (cfg.qr.mode === 'multi') return 'Scan to review & follow us';
-  if (cfg.qr.mode === 'single') return LINK_TYPES[detectLinkType(cfg.qr.singleUrl)].caption;
+  if (cfg.qr.mode === 'single') {
+    return normalizeLink(detectLinkType(cfg.qr.singleUrl), cfg.qr.singleUrl)
+      ? LINK_TYPES[detectLinkType(cfg.qr.singleUrl)].caption
+      : 'Scan for details';
+  }
   return cfg.qr.autoView === 'text' ? 'Scan for your receipt details' : 'Scan for your digital receipt';
 }
 
+/** Widest code that still sits inside the slip's margins (mm). */
+export function maxCodeWidthMm(settings: unknown): number {
+  return (settings as any)?.paperSize === '58mm' ? 44 : 64;
+}
+
+/**
+ * Characters of plain text a Code 128 barcode carries across the slip with
+ * bars `dots` wide: 20 on 80mm at 2 dots, 12 at 3; 12 and 7 on 58mm.
+ */
+export function barcodeMaxChars(settings: unknown, dots = 2): number {
+  const modules = Math.floor((maxCodeWidthMm(settings) * 8) / Math.max(2, dots));
+  return Math.max(4, Math.floor((modules - 35) / 11));
+}
+
+/**
+ * The most readable bill text that fits `maxChars`: "Bill 1042 Rs 1827",
+ * "#1042 Rs 1827", "#1042 Rs1827", "Bill 1042", "#1042". Code 39 has no "#".
+ */
+export function billInfoText(order: Pick<Order, 'orderNumber'> & { grandTotal?: number }, prefix: string, maxChars: number, format: BarcodeFormat = 'code128'): string {
+  const p = String(prefix || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+  const pre = p ? `${p} ` : '';
+  const n = Math.max(0, Math.floor(Number(order.orderNumber) || 0));
+  const a = amt(num(order.grandTotal));
+  const hash = format !== 'code39';
+  const options = [
+    `${pre}Bill ${n} Rs ${a}`,
+    ...(hash ? [`${pre}#${n} Rs ${a}`, `${pre}#${n} Rs${a}`] : []),
+    `${pre}Bill ${n}`,
+    ...(hash ? [`${pre}#${n}`] : []),
+  ];
+  return options.find(t => t.length <= maxChars) || options[options.length - 1];
+}
+
 /** What the barcode on this bill encodes, or null when there is nothing to print. */
-export function barcodeValueFor(order: Pick<Order, 'createdAt' | 'orderNumber'>, cfg: ReceiptCodesConfig): string | null {
+export function barcodeValueFor(order: Pick<Order, 'createdAt' | 'orderNumber'> & { grandTotal?: number }, cfg: ReceiptCodesConfig, settings?: unknown): string | null {
   if (!cfg.barcode.enabled) return null;
   if (cfg.barcode.content === 'custom') return cfg.barcode.customText.trim() || null;
-  return receiptRef(order, cfg.barcode.prefix);
+  if (cfg.barcode.content === 'receipt') return receiptRef(order, cfg.barcode.prefix);
+  // What fits at the chosen bar width (wider bars survive a dark printer);
+  // only when even the shortest text is too long, the narrowest bars.
+  const at = (dots: number) => billInfoText(order, cfg.barcode.prefix, barcodeMaxChars(settings, dots), cfg.barcode.format);
+  const chosen = at(BAR_DOTS[cfg.barcode.size]);
+  return chosen.length <= barcodeMaxChars(settings, BAR_DOTS[cfg.barcode.size]) ? chosen : at(2);
 }
