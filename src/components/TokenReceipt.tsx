@@ -25,6 +25,8 @@ interface Props {
   settings: RestaurantSettings;
   autoPrint?: boolean;
   onAutoPrintComplete?: (r: { success: boolean; error?: string }) => void;
+  /** Called the moment the auto-print actually starts (the print host's start watchdog). */
+  onAutoPrintStart?: () => void;
   printerOverride?: string;
 }
 
@@ -34,7 +36,7 @@ export function getTokenItems(order: Order, settings: RestaurantSettings) {
   return getTokenLines(order, settings, getMenuItems());
 }
 
-export default function TokenReceipt({ order, settings, autoPrint = false, onAutoPrintComplete, printerOverride }: Props) {
+export default function TokenReceipt({ order, settings, autoPrint = false, onAutoPrintComplete, onAutoPrintStart, printerOverride }: Props) {
   const portalRef = useRef<HTMLDivElement | null>(null);
   const firedRef = useRef(false);
   const items = useMemo(() => getTokenItems(order, settings), [order, settings]);
@@ -59,7 +61,10 @@ export default function TokenReceipt({ order, settings, autoPrint = false, onAut
   useEffect(() => {
     if (!autoPrint || firedRef.current) return;
     firedRef.current = true;
+    let started = false;
     const run = async () => {
+      started = true;
+      try { onAutoPrintStart?.(); } catch { /* host gone */ }
       try {
         if (items.length === 0) {
           onAutoPrintComplete?.({ success: true, error: 'no token items — skipped' });
@@ -145,7 +150,8 @@ export default function TokenReceipt({ order, settings, autoPrint = false, onAut
       }
     };
     const t = setTimeout(run, 0);
-    return () => clearTimeout(t);
+    // Only an unmount (the host dropped the job) cancels a print not yet started.
+    return () => { if (!started) { clearTimeout(t); firedRef.current = false; } };
   }, [autoPrint]);
 
   if (typeof document === 'undefined') return null;

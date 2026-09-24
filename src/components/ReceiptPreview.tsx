@@ -142,6 +142,8 @@ interface Props {
    *  marks complete. WITHOUT this, the host's 500ms timer on the component
    *  unmount kar diya to print detached DOM pe fire hota tha = BLANK slip. */
   onAutoPrintComplete?: (result: { success: boolean; error?: string }) => void;
+  /** Called the moment the auto-print actually starts (the print host's start watchdog). */
+  onAutoPrintStart?: () => void;
   /** Queue-resolved printer (job.printerId) — role-resolution se upar priority. */
   printerOverride?: string;
 }
@@ -177,7 +179,7 @@ export function prewarmReceiptPrinting() {
   try { prewarmDirectPrint(); } catch { /* prewarming must never break a print */ }
 }
 
-export default function ReceiptPreview({ order, settings, showPrintButton = true, autoPrint = false, onAutoPrintComplete, printerOverride }: Props) {
+export default function ReceiptPreview({ order, settings, showPrintButton = true, autoPrint = false, onAutoPrintComplete, onAutoPrintStart, printerOverride }: Props) {
   const autoPrintTriggeredRef = useRef(false);
   const previewReceiptRef = useRef<HTMLDivElement | null>(null);
   const printReceiptRef = useRef<HTMLDivElement | null>(null);
@@ -431,22 +433,40 @@ export default function ReceiptPreview({ order, settings, showPrintButton = true
   }, [paperWidth, settings, usePrinterDefaultPageSize, order, margins, printerOverride]);
 
 
+  // ===== AUTO-PRINT: ONCE PER MOUNT, NEVER CANCELLED BY A RE-RENDER =====
+  // This effect used to depend on handlePrint and onAutoPrintComplete, which
+  // are new on every render (the print host's header clock re-renders it
+  // every second). A render landing between scheduling and the timer firing
+  // ran the cleanup — cancelling the print — and the ref then stopped it from
+  // being scheduled again. The job sat until the host's 20-second safety
+  // timeout retried it: "Retrieve → Pay prints 20 seconds late" on a busy
+  // till. Now it depends on autoPrint alone and calls the latest handlers.
+  const handlePrintRef = useRef(handlePrint);
+  handlePrintRef.current = handlePrint;
+  const onAutoPrintCompleteRef = useRef(onAutoPrintComplete);
+  onAutoPrintCompleteRef.current = onAutoPrintComplete;
+  const onAutoPrintStartRef = useRef(onAutoPrintStart);
+  onAutoPrintStartRef.current = onAutoPrintStart;
   useEffect(() => {
-    // FIX #3 (double receipt on card): don't re-run on dep change
+    // FIX #3 (double receipt on card): one print per mount.
     if (!autoPrint || autoPrintTriggeredRef.current) return;
-    autoPrintTriggeredRef.current = true; // set IMMEDIATELY, not after timer
     autoPrintTriggeredRef.current = true;
-
+    let started = false;
     // No artificial delay: handlePrint waits for layout + fonts itself, so the
     // print command goes out on the next frame after the receipt mounts.
     const timeout = window.setTimeout(() => {
-      handlePrint()
-        .then((r) => { try { onAutoPrintComplete?.(r); } catch { /* host gone */ } })
-        .catch((e) => { try { onAutoPrintComplete?.({ success: false, error: e?.message || String(e) }); } catch { /* host gone */ } });
+      started = true;
+      try { onAutoPrintStartRef.current?.(); } catch { /* host gone */ }
+      handlePrintRef.current()
+        .then((r) => { try { onAutoPrintCompleteRef.current?.(r); } catch { /* host gone */ } })
+        .catch((e) => { try { onAutoPrintCompleteRef.current?.({ success: false, error: e?.message || String(e) }); } catch { /* host gone */ } });
     }, 0);
-
-    return () => window.clearTimeout(timeout);
-  }, [autoPrint, handlePrint, onAutoPrintComplete]);
+    // Only an unmount (the host dropped the job) cancels a print not yet started.
+    return () => {
+      if (!started) { window.clearTimeout(timeout); autoPrintTriggeredRef.current = false; }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount, by design
+  }, [autoPrint]);
 
   const wrapperStyle: React.CSSProperties = {
     width: paperWidth,

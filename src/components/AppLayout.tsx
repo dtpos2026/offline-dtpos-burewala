@@ -327,6 +327,30 @@ function BranchSelector() {
  */
 const DISPLAY_SURFACES = ['/customer-display', '/kds-tv'];
 
+/**
+ * The header's live clock. Its own component, so the once-a-second tick
+ * re-renders this pill only — it used to re-render the whole layout, the
+ * print host and the slip being printed with it, every second.
+ */
+function HeaderClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="hidden md:flex items-center gap-2 bg-sidebar-foreground/10 border border-sidebar-foreground/20 rounded-md px-2.5 py-1 shadow-inner">
+      <span className="text-[11px] font-bold font-mono text-sidebar-foreground tabular-nums tracking-wider">
+        {now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+      </span>
+      <span className="h-3 w-px bg-sidebar-foreground/30" />
+      <span className="text-[10px] font-semibold text-sidebar-foreground/85 tracking-wide">
+        {now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+      </span>
+    </div>
+  );
+}
+
 export default function AppLayout({ children, userRole, onLogout }: Props) {
   useAppLang(); // language switch par sidebar refresh
   const location = useLocation();
@@ -353,13 +377,6 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
     document.documentElement.style.fontSize = `${zoom}%`;
     localStorage.setItem('desi-pos-zoom', String(zoom));
   }, [zoom]);
-
-  // Live date/time ticker for the header clock pill
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
 
   useEffect(() => {
     localStorage.setItem('pos-sidebar-collapsed', collapsed ? '1' : '0');
@@ -504,15 +521,7 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
             <BranchSelector />
 
             {/* Live clock pill — sits left of zoom controls */}
-            <div className="hidden md:flex items-center gap-2 bg-sidebar-foreground/10 border border-sidebar-foreground/20 rounded-md px-2.5 py-1 shadow-inner">
-              <span className="text-[11px] font-bold font-mono text-sidebar-foreground tabular-nums tracking-wider">
-                {now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </span>
-              <span className="h-3 w-px bg-sidebar-foreground/30" />
-              <span className="text-[10px] font-semibold text-sidebar-foreground/85 tracking-wide">
-                {now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-              </span>
-            </div>
+            <HeaderClock />
 
             <div className="flex items-center gap-1 bg-sidebar-foreground/10 border border-sidebar-foreground/20 rounded-md px-1 py-0.5">
               <button onClick={() => setZoom(z => Math.max(70, z - 5))} className="p-1 rounded hover:bg-sidebar-foreground/20 transition-smooth" title="Zoom Out">

@@ -21,6 +21,8 @@ interface Props {
   autoPrintDelayMs?: number;
   noPrintPortal?: boolean; // when combined with receipt, skip own portal
   onAutoPrintComplete?: (result: { success: boolean; error?: string }) => void;
+  /** Called the moment the auto-print actually starts (the print host's start watchdog). */
+  onAutoPrintStart?: () => void;
   /** Render only newly-added items with an ORDER UPDATED banner. */
   updateMode?: boolean;
   /** Queue-resolved printer (job.printerId) — station routing ki top priority. */
@@ -92,7 +94,7 @@ function getStyleCSS(style: ReceiptTextStyle | undefined, fallback?: Partial<Rec
   };
 }
 
-export default function KitchenReceipt({ order: rawOrder, settings, showPrintButton = true, autoPrint = false, autoPrintDelayMs = 120, noPrintPortal = false, onAutoPrintComplete, updateMode = false, diffItemIds, diffDeltas, cancelDeltas, cancelNames, printerOverride }: Props) {
+export default function KitchenReceipt({ order: rawOrder, settings, showPrintButton = true, autoPrint = false, autoPrintDelayMs = 120, noPrintPortal = false, onAutoPrintComplete, onAutoPrintStart, updateMode = false, diffItemIds, diffDeltas, cancelDeltas, cancelNames, printerOverride }: Props) {
   // ===== KOT diff: when updateMode is true, render only new/added items with adjusted quantities.
   //       This ensures Kitchen does NOT re-cook items that were already on a previous KOT.
   const order = useMemo(() => {
@@ -359,16 +361,31 @@ export default function KitchenReceipt({ order: rawOrder, settings, showPrintBut
   }, [paperWidth, settings, usePrinterDefaultPageSize, margins, printerOverride]);
 
 
+  // Once per mount; a re-render (the print host's header clock) must never
+  // cancel it — see the same effect in ReceiptPreview.
+  const handlePrintRef = useRef(handlePrint);
+  handlePrintRef.current = handlePrint;
+  const onAutoPrintCompleteRef = useRef(onAutoPrintComplete);
+  onAutoPrintCompleteRef.current = onAutoPrintComplete;
+  const onAutoPrintStartRef = useRef(onAutoPrintStart);
+  onAutoPrintStartRef.current = onAutoPrintStart;
   useEffect(() => {
     if (!autoPrint || autoPrintDone.current) return;
     autoPrintDone.current = true;
+    let started = false;
     const t = setTimeout(() => {
-      handlePrint()
-        .then((result) => onAutoPrintComplete?.(result))
-        .catch((err) => onAutoPrintComplete?.({ success: false, error: err?.message || String(err) }));
+      started = true;
+      try { onAutoPrintStartRef.current?.(); } catch { /* host gone */ }
+      handlePrintRef.current()
+        .then((result) => onAutoPrintCompleteRef.current?.(result))
+        .catch((err) => onAutoPrintCompleteRef.current?.({ success: false, error: err?.message || String(err) }));
     }, Math.max(0, autoPrintDelayMs));
-    return () => clearTimeout(t);
-  }, [autoPrint, autoPrintDelayMs, handlePrint, onAutoPrintComplete]);
+    // Only an unmount (the host dropped the job) cancels a print not yet started.
+    return () => {
+      if (!started) { clearTimeout(t); autoPrintDone.current = false; }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount, by design
+  }, [autoPrint]);
 
   const now = new Date(order.createdAt);
   const time = now.toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });

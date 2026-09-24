@@ -5,7 +5,7 @@
 //
 // Backward-compat: triggerAutoKot(orderId) still works — it now enqueues a
 // KOT job through the centralized print queue.
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { getOrders, getSettings } from '@/lib/store';
 import {
   getProcessableJobs,
@@ -30,7 +30,18 @@ interface ActiveRender {
   job: PrintJob;
   order: Order;
   copyIndex: number; // 0-based copy currently printing
+  /** Bumped by the start watchdog to mount the slip afresh. */
+  attempt?: number;
 }
+
+/**
+ * A slip that has not STARTED printing this long after it was mounted never
+ * will — it is mounted afresh rather than left for the 20-second safety
+ * timeout. Starting is one timer tick after mount, and a busy main thread
+ * delays this watchdog as much as the print, so it cannot fire first.
+ */
+const START_WATCHDOG_MS = 2500;
+const MAX_START_KICKS = 2;
 
 const PRINT_BUFFER_MS = 500; // receipt dialog fallback buffer; KOT waits for native print callback
 
@@ -102,8 +113,10 @@ function isDisplayWindow(): boolean {
   }
 }
 
-export default function AutoKotPrinter() {
+function AutoKotPrinter() {
   const [active, setActive] = useState<ActiveRender | null>(null);
+  // The job id + copy + attempt whose slip has actually started printing.
+  const startedRef = useRef<string | null>(null);
   const busyRef = useRef(false);
   const processNextRef = useRef<(() => void) | null>(null);
   const myHostId = useRef<string>(`host_${Math.random().toString(36).slice(2, 9)}`);
@@ -202,8 +215,21 @@ export default function AutoKotPrinter() {
       setActive({ job, order, copyIndex: 0 });
     };
 
+    // ===== RECEIPT FIRST ON PAY =====
+    // Picking a job synchronously inside the queue-change event took the FIRST
+    // job queued, before the rest of the same click had queued anything else.
+    // Retrieve → Pay queues the new items' KOT and then the paid receipt, so
+    // the customer's receipt waited for the kitchen ticket to print. Now the
+    // pick waits for the click to finish (one microtask), sees every job it
+    // queued, and the receipt-first rule below applies.
+    let kickQueued = false;
     const unsub = onPrintQueueChange(() => {
-      if (!busyRef.current) processNext();
+      if (busyRef.current || kickQueued) return;
+      kickQueued = true;
+      queueMicrotask(() => {
+        kickQueued = false;
+        if (!busyRef.current) processNext();
+      });
     });
     // kick off in case there are pending jobs at mount
     const t = setTimeout(processNext, 0);
@@ -225,12 +251,34 @@ export default function AutoKotPrinter() {
   // already removed from the DOM → the printer would get a blank page or nothing at all.
   // Ab receipt bhi KOT ki tarah onAutoPrintComplete callback ka intezar
   // does this. A 20s safety timeout prevents the queue from getting stuck. =====
+  const renderKey = active ? `${active.job.id}-${active.copyIndex}-${active.attempt || 0}` : '';
+  const onSlipStart = () => {
+    if (!active) return;
+    startedRef.current = renderKey;
+    // Stamp the moment the print actually starts (first copy only).
+    if (active.copyIndex === 0) {
+      try { markPrintCommandSent(active.job.id); } catch { /* queue storage gone */ }
+    }
+  };
+
+  // ===== START WATCHDOG =====
+  // A slip that never starts printing (its start was lost) is mounted afresh
+  // after START_WATCHDOG_MS instead of waiting out the 20-second timeout.
   useEffect(() => {
     if (!active) return;
-    // Stamp the moment print command is fired (first copy only)
-    if (active.copyIndex === 0) {
-      try { markPrintCommandSent(active.job.id); } catch {}
-    }
+    const key = renderKey;
+    const t = setTimeout(() => {
+      if (startedRef.current === key) return;
+      if ((active.attempt || 0) >= MAX_START_KICKS) return; // the safety timeout takes it from here
+      try { console.warn('[DT-Print] slip did not start — mounting it again', { jobId: active.job.id, attempt: (active.attempt || 0) + 1 }); } catch { /* no console */ }
+      setActive(a => (a && a.job.id === active.job.id && a.copyIndex === active.copyIndex ? { ...a, attempt: (a.attempt || 0) + 1 } : a));
+    }, START_WATCHDOG_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the slip being printed
+  }, [renderKey]);
+
+  useEffect(() => {
+    if (!active) return;
     // ===== FIX (queue-jam / "everything prints on restart"): safety
     // timeout now applies to BOTH KOT + receipt. Previously the KOT callback would
     // miss ho jata to busyRef hamesha true → POORI queue jam → har naya
@@ -253,7 +301,9 @@ export default function AutoKotPrinter() {
       try { localStorage.setItem('dtpos-print-host-lock', JSON.stringify({ id: hostIdRef.current, at: Date.now() })); } catch {}
     }, 3000);
     return () => { clearTimeout(safety); clearInterval(heartbeat); };
-  }, [active]);
+    // A watchdog re-mount (attempt) is the same job: it keeps its timeout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.job.id, active?.copyIndex]);
 
   const handleReceiptComplete = (result: { success: boolean; error?: string }) => {
     if (!active) return;
@@ -267,7 +317,7 @@ export default function AutoKotPrinter() {
     }
     const totalCopies = Math.max(1, active.job.copies || 1);
     if (active.copyIndex + 1 < totalCopies) {
-      setActive(a => (a ? { ...a, copyIndex: a.copyIndex + 1 } : a));
+      setActive(a => (a ? { ...a, copyIndex: a.copyIndex + 1, attempt: 0 } : a));
     } else {
       markPrinted(active.job.id);
       busyRef.current = false;
@@ -288,7 +338,7 @@ export default function AutoKotPrinter() {
     }
     const totalCopies = Math.max(1, active.job.copies || 1);
     if (active.copyIndex + 1 < totalCopies) {
-      setActive(a => (a ? { ...a, copyIndex: a.copyIndex + 1 } : a));
+      setActive(a => (a ? { ...a, copyIndex: a.copyIndex + 1, attempt: 0 } : a));
     } else {
       markPrinted(active.job.id);
       busyRef.current = false;
@@ -307,32 +357,35 @@ export default function AutoKotPrinter() {
     <div style={{ position: 'fixed', left: -9999, top: -9999, width: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
       {isToken ? (
         <TokenReceipt
-          key={`${active.job.id}-${active.copyIndex}`}
+          key={renderKey}
           order={active.order}
           settings={settings}
           autoPrint
+          onAutoPrintStart={onSlipStart}
           onAutoPrintComplete={handleReceiptComplete}
           printerOverride={active.job.printerId}
         />
       ) : isReceipt ? (
         <ReceiptPreview
-          key={`${active.job.id}-${active.copyIndex}`}
+          key={renderKey}
           order={active.order}
           settings={settings}
           autoPrint
           showPrintButton={false}
+          onAutoPrintStart={onSlipStart}
           onAutoPrintComplete={handleReceiptComplete}
           printerOverride={active.job.printerId}
         />
       ) : (
         <KitchenReceipt
-          key={`${active.job.id}-${active.copyIndex}`}
+          key={renderKey}
           order={active.order}
           settings={settings}
           printerOverride={active.job.printerId}
           autoPrint
           autoPrintDelayMs={0}
           showPrintButton={false}
+          onAutoPrintStart={onSlipStart}
           onAutoPrintComplete={handleKotComplete}
           updateMode={active.job.updateMode}
           diffItemIds={active.job.diffItemIds}
@@ -344,6 +397,13 @@ export default function AutoKotPrinter() {
     </div>
   );
 }
+
+/**
+ * Memoised: it takes no props, so the layout re-rendering around it (the
+ * header clock ticks every second) never re-renders the print host or the
+ * slip it is printing.
+ */
+export default memo(AutoKotPrinter);
 
 /** Backward-compatible helper — enqueues a KOT through the central queue. */
 export function triggerAutoKot(orderId: string) {

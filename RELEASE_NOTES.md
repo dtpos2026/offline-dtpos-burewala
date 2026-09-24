@@ -1,5 +1,51 @@
 # DT POS Enterprise — Release Notes
 
+## v1.14.2 — Retrieve → Pay prints at once (the 20-second wait on the counter)
+
+- **Reported** from a counter with a Black Copper BC-88AC (USB, ESC/POS):
+  paying a bill from Retrieve printed the receipt and KOT about 20 seconds
+  late. Print Speed Test showed Enqueue→Render 20464–20670 ms, then under a
+  second to print. The printer was not the cause: the jobs waited in the POS
+  print queue before printing started.
+- **Cause 1: a lost print start.**
+  - The print host sits in the main layout, and the layout re-rendered
+    every second for its header clock.
+  - Each re-render gave the slip being printed new props. The slip's
+    auto-print effect then cancelled the print it had just scheduled, and
+    never scheduled it again.
+  - The job waited for the 20-second safety timeout, which retried it.
+  - A busy till makes the tick land in that gap on most bills: a large
+    order history, or a Retrieve → Pay that saves the order and the table
+    and queues a KOT. On a fast machine with few orders it rarely happens,
+    so the same bill printed fine elsewhere.
+- **Cause 2: the KOT went first.** Retrieve → Pay queues the new items' KOT
+  before the paid receipt, and the host took the KOT the instant it was
+  queued. The customer's receipt waited for the kitchen ticket to print.
+- **Fixes:**
+  - The receipt, KOT and token slips start their print once per mount, and
+    no re-render can cancel it.
+  - The print host is memoised, and the header clock re-renders only
+    itself. The layout no longer re-renders every second, which also makes
+    the POS lighter on slow machines.
+  - Start watchdog: a slip that has not started printing 2.5 s after it
+    appears is mounted again, instead of waiting out the 20-second timeout.
+  - The host picks its next job after the click has queued everything, so
+    on Pay the receipt always goes first and the KOT follows.
+  - Print Speed Test now stamps "Cmd" when the print actually starts.
+- **Verified:**
+  - A test mounts the print host the way the layout does and re-renders it
+    every 2 ms. It then queues a KOT update and a paid receipt in one click,
+    as Retrieve → Pay does.
+    - **Before:** nothing printed within 5 seconds.
+    - **After:** the receipt started first, in 0.14 s, and both slips
+      finished in about 0.3 s.
+  - Receipt and KOT tests confirm a re-render never stops the print, and
+    nothing prints twice.
+  - The full suite passes (869 tests).
+- **Not yet confirmed on the counter.** After updating, pay a bill from
+  Retrieve and check Print Speed Test: Enqueue→Render should now be a few
+  milliseconds.
+
 ## v1.14.1 — QR & barcode scanning fixed: bill info on any phone, codes on every printer mode
 
 - **Reported:** the QR did not print on some counters. Where it did print, a
