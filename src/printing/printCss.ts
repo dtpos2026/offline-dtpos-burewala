@@ -171,6 +171,20 @@ export function buildPrintCss(paperWidth: PaperSize, compact: boolean = false): 
       max-width: 100% !important;
     }
 
+    /* ===== Shop text spacing (Settings → Receipt / KOT → Text spacing) =====
+       Only on slips that carry the attributes (src/lib/textSpacing.ts); the
+       extra attribute outranks the root letter-spacing above and compact
+       mode's row line-height. */
+    body.thermal-printing .receipt-print-portal[data-active-print="true"] .print-receipt[data-dt-spacing],
+    body[data-print-active="true"] .receipt-print-portal[data-active-print="true"] .print-receipt[data-dt-spacing] {
+      word-spacing: var(--dt-word-spacing, normal) !important;
+      letter-spacing: var(--dt-letter-spacing, 0) !important;
+    }
+    body.thermal-printing .receipt-print-portal[data-active-print="true"] .print-receipt[data-dt-line] *,
+    body[data-print-active="true"] .receipt-print-portal[data-active-print="true"] .print-receipt[data-dt-line] * {
+      line-height: var(--dt-line-height) !important;
+    }
+
     /* Headings always extra-bold */
     body.thermal-printing .receipt-print-portal[data-active-print="true"] .print-receipt h1,
     body.thermal-printing .receipt-print-portal[data-active-print="true"] .print-receipt h2,

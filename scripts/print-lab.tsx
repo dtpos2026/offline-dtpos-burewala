@@ -57,6 +57,13 @@ const legacySettings: any = {
   receiptStyles: {},
   silentPrint: false,
 };
+// ?line=1.5&word=2&letter=0.5 — Settings → Text spacing, on bills and KOTs.
+{
+  const q = new URLSearchParams(location.search);
+  for (const [param, bill, kot] of [['line', 'receiptLineSpacing', 'kotLineSpacing'], ['word', 'receiptWordSpacing', 'kotWordSpacing'], ['letter', 'receiptLetterSpacing', 'kotLetterSpacing']]) {
+    if (q.get(param) != null) { legacySettings[bill] = Number(q.get(param)); legacySettings[kot] = Number(q.get(param)); }
+  }
+}
 
 /** Every receipt design the POS offers besides the premium ones. */
 const LEGACY_DESIGNS = [

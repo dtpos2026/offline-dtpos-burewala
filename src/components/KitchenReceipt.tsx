@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { DEVELOPER_CREDIT } from '@/lib/displayTemplates';
 import { createPortal } from 'react-dom';
+import { spacingNodeProps } from '@/lib/textSpacing';
 import { Order, RestaurantSettings, ReceiptTextStyle } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
@@ -990,12 +991,14 @@ export default function KitchenReceipt({ order: rawOrder, settings, showPrintBut
     zoom: scaleFactor,
     transformOrigin: 'top left',
   };
+  // Settings → KOT → Text spacing (nothing when "As designed").
+  const kotSpacing = spacingNodeProps(settings, 'kot');
 
   return (
     <>
       <div className="space-y-2">
         <div className="mx-auto w-fit max-w-full rounded-lg border bg-white p-3 shadow-sm">
-          <div ref={previewRef} style={wrapperStyle}>
+          <div ref={previewRef} {...kotSpacing.attrs} style={{ ...wrapperStyle, ...kotSpacing.style }}>
             <div style={contentStyle}>{receiptBody}</div>
           </div>
         </div>
@@ -1008,7 +1011,7 @@ export default function KitchenReceipt({ order: rawOrder, settings, showPrintBut
       {/* Print portal */}
       {!noPrintPortal && typeof document !== 'undefined' && createPortal(
         <div className="receipt-print-portal" aria-hidden="true">
-          <div ref={printRef} className="receipt-paper print-receipt bg-white text-black" data-paper-size={paperWidth} data-kot-design={design} style={wrapperStyle}>
+          <div ref={printRef} className="receipt-paper print-receipt bg-white text-black" data-paper-size={paperWidth} data-kot-design={design} {...kotSpacing.attrs} style={{ ...wrapperStyle, ...kotSpacing.style }}>
             <div style={contentStyle}>{receiptBody}</div>
           </div>
         </div>,

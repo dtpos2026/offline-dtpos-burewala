@@ -11,11 +11,36 @@
 //   receiptShowDiscount, receiptShowTax, receiptShowFooter,
 //   receiptShowPoweredBy, receiptCompactMode
 // ============================================================
+import type { CSSProperties } from 'react';
 import type { Order, RestaurantSettings } from '@/lib/types';
 import { applyReceiptTemplate } from '@/lib/receiptTemplates';
 
 const mono = "'Lucida Console','Consolas','Courier New',monospace";
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Order details as plain lines, the way the screen shows them. They used to
+// be a four-cell table, and the print stylesheet gives every table cell
+// padding and a border: at 80mm the cells could not hold "24 Sep 2026" and
+// "10:49 am", so the date ran into the Time label and the time off the paper.
+// Labels are padded to one width (monospace), each "label : value" group
+// stays whole, and on a narrow roll the right-hand group takes its own line.
+const INFO_LABEL: CSSProperties = { display: 'inline-block', minWidth: '9ch' };
+function infoPair(a: [string, string], b: [string, string]) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: '8px', padding: '1px 0' }}>
+      <span style={{ whiteSpace: 'nowrap' }}><span style={INFO_LABEL}>{a[0]}</span>: {a[1]}</span>
+      <span style={{ whiteSpace: 'nowrap', marginLeft: 'auto' }}>{b[0]} : {b[1]}</span>
+    </div>
+  );
+}
+function infoLine(label: string, value: string) {
+  return (
+    <div style={{ display: 'flex', padding: '1px 0' }}>
+      <span style={{ ...INFO_LABEL, flexShrink: 0 }}>{label}</span>
+      <span style={{ minWidth: 0, overflowWrap: 'break-word' }}>: {value}</span>
+    </div>
+  );
+}
 
 function fmt(n: number) {
   return (Math.round((n || 0) * 100) / 100).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -94,36 +119,13 @@ export default function StandardReceipt({ order, settings: rawSettings }: Props)
         <span style={{ fontSize: `${fsTitle}px`, fontWeight: 900, letterSpacing: '2px' }}>CUSTOMER RECEIPT</span>
       </div>
 
-      {/* INFO GRID — Date / Time / Order # / Type */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: `${fsBody}px`, fontWeight: 700 }}>
-        <tbody>
-          <tr>
-            <td style={{ padding: '1px 0', whiteSpace: 'nowrap' }}>Date</td>
-            {/* Values may wrap on a narrow roll rather than run off the paper. */}
-            <td style={{ padding: '1px 0' }}>: {dateStr}</td>
-            <td style={{ padding: '1px 0', whiteSpace: 'nowrap', textAlign: 'right' }}>Time</td>
-            <td style={{ padding: '1px 0', textAlign: 'right' }}>: {timeStr}</td>
-          </tr>
-          <tr>
-            <td style={{ padding: '1px 0', whiteSpace: 'nowrap' }}>Order No</td>
-            <td style={{ padding: '1px 0' }}>: #{order.orderNumber}</td>
-            <td style={{ padding: '1px 0', whiteSpace: 'nowrap', textAlign: 'right' }}>Type</td>
-            <td style={{ padding: '1px 0', textAlign: 'right' }}>: {orderTypeLabel(order)}</td>
-          </tr>
-          {order.tableName && (
-            <tr>
-              <td style={{ padding: '1px 0', whiteSpace: 'nowrap' }}>Table</td>
-              <td colSpan={3} style={{ padding: '1px 0' }}>: {order.tableName}</td>
-            </tr>
-          )}
-          {order.customer?.name && (
-            <tr>
-              <td style={{ padding: '1px 0', whiteSpace: 'nowrap' }}>Cust.</td>
-              <td colSpan={3} style={{ padding: '1px 0' }}>: {order.customer.name}{order.customer.phone ? ` · ${order.customer.phone}` : ''}</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      {/* ORDER DETAILS — Date / Time / Order # / Type (see infoPair) */}
+      <div style={{ fontSize: `${fsBody}px`, fontWeight: 700 }}>
+        {infoPair(['Date', dateStr], ['Time', timeStr])}
+        {infoPair(['Order No', `#${order.orderNumber}`], ['Type', orderTypeLabel(order)])}
+        {order.tableName && infoLine('Table', String(order.tableName))}
+        {order.customer?.name && infoLine('Cust.', `${order.customer.name}${order.customer.phone ? ` · ${order.customer.phone}` : ''}`)}
+      </div>
 
       {/* ITEMS TABLE */}
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '4px', fontSize: `${fsItem}px`, tableLayout: 'fixed' }}>

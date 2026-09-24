@@ -14,6 +14,7 @@ import React from 'react';
 import { toast } from 'sonner';
 import { RestaurantSettings, DiningTable, Floor, Kitchen, Waiter, Rider, ReceiptTextStyle } from '@/lib/types';
 import ReceiptPreview from '@/components/ReceiptPreview';
+import TextSpacingCard from '@/components/TextSpacingCard';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -90,6 +91,11 @@ export default function ReceiptSettingsTab({ settings, setSettings, onSave, samp
                     <div className="text-xs opacity-80">{d.desc}</div>
                   </button>
                 ))}
+              </div>
+
+              {/* Line / word / letter spacing — shown in the preview below */}
+              <div className="mt-4">
+                <TextSpacingCard settings={settings} setSettings={setSettings} kind="bill" />
               </div>
 
               {/* Live Receipt Preview — shows currently selected design with sample data */}

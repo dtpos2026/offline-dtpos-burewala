@@ -15,6 +15,7 @@ import { StandardInfoGrid, StandardInfoRows, getOrderTypeLabel } from '@/lib/sta
 import PremiumReceipt from '@/components/PremiumReceipt';
 import { isPremiumTemplateId } from '@/lib/premiumReceiptTemplates';
 import StandardReceipt from '@/components/StandardReceipt';
+import { spacingNodeProps } from '@/lib/textSpacing';
 
 const defaultStyle: ReceiptTextStyle = { font: 'default', size: 12, align: 'center', bold: true };
 const URDU_FONTS = ['Aseer Unicode', 'AA Sameer Armaa', 'Jameel Noori Nastaleeq', 'Jameel Noori Nastaleeq Regular'];
@@ -511,6 +512,9 @@ export default function ReceiptPreview({ order, settings, showPrintButton = true
     </div>
   );
 
+  // Settings → Receipt → Text spacing (nothing when "As designed").
+  const spacing = spacingNodeProps(settings, 'bill');
+
   const renderReceiptNode = (printOnly = false) => (
     <div
         ref={node => {
@@ -520,7 +524,8 @@ export default function ReceiptPreview({ order, settings, showPrintButton = true
       className={printOnly ? 'receipt-paper print-receipt bg-white text-black' : 'receipt-paper bg-white text-black'}
       data-paper-size={paperWidth}
       data-design={design}
-      style={wrapperStyle}
+      {...spacing.attrs}
+      style={{ ...wrapperStyle, ...spacing.style }}
       data-scale={scalePercent}
     >
       {renderReceiptBody()}

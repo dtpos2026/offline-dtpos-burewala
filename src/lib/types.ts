@@ -598,6 +598,13 @@ export interface RestaurantSettings {
     | 'premium-rounded-panel'
     // Café designs: regular body type, "2 × Item" lines, pickup number.
     | 'premium-cafe-classic' | 'premium-coffee-house' | 'premium-cafe-counter';
+  // ===== Text spacing (src/lib/textSpacing.ts) — unset = as designed =====
+  receiptLineSpacing?: number;    // line height multiplier, 1.0–2.2
+  receiptWordSpacing?: number;    // extra px between words
+  receiptLetterSpacing?: number;  // extra px between letters
+  kotLineSpacing?: number;
+  kotWordSpacing?: number;
+  kotLetterSpacing?: number;
   // ===== Standard Receipt section toggles (default ON) =====
   receiptShowLogo?: boolean;
   receiptShowAddress?: boolean;

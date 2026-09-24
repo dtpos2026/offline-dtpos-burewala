@@ -10,6 +10,7 @@ import NotePresetsEditor from '@/components/settings/NotePresetsEditor';
 import { RestaurantSettings, DiningTable, Floor, Kitchen, Waiter, Rider, ReceiptTextStyle } from '@/lib/types';
 import ReceiptStyleEditor from '@/components/ReceiptStyleEditor';
 import KitchenReceipt from '@/components/KitchenReceipt';
+import TextSpacingCard from '@/components/TextSpacingCard';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2, AlertTriangle, Download, Printer, Palette, MapPin, Navigation, ShoppingBag, Globe2, Settings as SettingsIcon, MessageCircle } from 'lucide-react';
@@ -228,6 +229,11 @@ export default function KotSettingsTab({ settings, setSettings, onSave, printers
                       <span className="text-[10px] block mt-0.5 opacity-80">{t.desc}</span>
                     </button>
                   ))}
+                </div>
+
+                {/* Line / word / letter spacing — shown in the preview below */}
+                <div className="mt-4">
+                  <TextSpacingCard settings={settings} setSettings={setSettings} kind="kot" />
                 </div>
 
                 {/* Live KOT Preview — shows currently selected KOT design with sample data */}

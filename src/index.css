@@ -766,3 +766,14 @@
   color: hsl(262 60% 38%) !important;
   box-shadow: 0 4px 12px -6px hsl(262 60% 38% / 0.35);
 }
+
+/* ===== Shop text spacing (Settings → Receipt / KOT → Text spacing) =====
+   Present only when the shop picked a value (src/lib/textSpacing.ts); the
+   print window applies the same values through printCss.ts. */
+[data-dt-spacing] {
+  word-spacing: var(--dt-word-spacing, normal);
+  letter-spacing: var(--dt-letter-spacing, normal);
+}
+[data-dt-line] * {
+  line-height: var(--dt-line-height) !important;
+}
