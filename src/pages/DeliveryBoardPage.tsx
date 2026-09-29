@@ -156,7 +156,7 @@ export default function DeliveryBoardPage() {
             const colOrders = orders.filter(o => o.deliveryStatus === col.id);
             return (
               <div key={col.id} className="flex flex-col min-w-0">
-                <div className={`${col.color} text-primary-foreground rounded-t-md px-2 py-1.5 flex items-center justify-between`}>
+                <div data-delivery-col={col.id} className={`${col.color} text-primary-foreground rounded-t-md px-2 py-1.5 flex items-center justify-between`}>
                   <span className="text-[11px] font-bold uppercase tracking-wide">{col.label}</span>
                   <Badge variant="secondary" className="text-[10px] h-4">{colOrders.length}</Badge>
                 </div>
@@ -225,11 +225,11 @@ export default function DeliveryBoardPage() {
 
 
                               {/* WhatsApp */}
-                              <div className="flex gap-1">
+                              <div className="flex flex-wrap gap-1">
                                 <Button
                                   size="sm"
                                   disabled={!hasPhone}
-                                  className="flex-1 h-7 text-[11px] bg-[#25D366] hover:bg-[#1ebe57] text-white"
+                                  className="flex-1 min-w-[84px] h-7 text-[11px] bg-[#25D366] hover:bg-[#1ebe57] text-white"
                                   onClick={(e) => { e.stopPropagation(); sendWhatsApp(order); }}
                                   title={hasPhone ? 'Send WhatsApp Message' : 'Customer number not available'}
                                 >
@@ -239,7 +239,7 @@ export default function DeliveryBoardPage() {
                                   size="sm"
                                   disabled={!hasPhone}
                                   variant="outline"
-                                  className="flex-1 h-7 text-[11px]"
+                                  className="flex-1 min-w-[84px] h-7 text-[11px]"
                                   onClick={(e) => { e.stopPropagation(); sendTracking(order); }}
                                   title={hasPhone ? 'Send Tracking Link' : 'Customer number not available'}
                                 >

@@ -102,6 +102,8 @@ html[data-ui="modern"] [data-slot="badge"][data-variant="destructive"][class*="b
 
 /* ---------- solid accent surfaces keep readable text ---------- */
 html[data-ui="modern"] :is(.bg-gradient-gold, .bg-gradient-primary, .bg-gradient-hero) { color: hsl(var(--primary-foreground)); }
+/* …and an icon placed straight inside such a tile (the old design drew it in the dark brand colour) */
+html[data-ui="modern"] :is(.bg-gradient-gold, .bg-gradient-primary, .bg-gradient-hero, .bg-primary) > .text-primary { color: hsl(var(--primary-foreground)); }
 
 /* ---------- panels: one hairline, not a 2px frame (buttons and radios keep theirs) ---------- */
 html[data-ui="modern"] :is(div, section, label, article).border-2 { border-width: 1px; }
@@ -250,4 +252,30 @@ html[data-ui="modern"] .bg-status-onway\/10 { background-color: hsl(var(--card))
 /* ---------- reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   html[data-ui="modern"] * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+/* ---------- Delivery board: quiet column headers with a coloured top edge ---------- */
+html[data-ui="modern"] [data-delivery-col] {
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
+  border-bottom-color: transparent;
+  border-top: 3px solid hsl(var(--col-c, var(--border)));
+}
+html[data-ui="modern"] [data-delivery-col="pending"]   { --col-c: var(--status-pending); }
+html[data-ui="modern"] [data-delivery-col="cooking"]   { --col-c: var(--status-cooking); }
+html[data-ui="modern"] [data-delivery-col="ready"]     { --col-c: var(--status-warning); }
+html[data-ui="modern"] [data-delivery-col="onway"]     { --col-c: var(--status-onway); }
+html[data-ui="modern"] [data-delivery-col="delivered"] { --col-c: var(--status-delivered); }
+html[data-ui="modern"] [data-delivery-col="cancelled"] { --col-c: var(--status-cancelled); }
+
+/* ---------- a toolbar "delete everything" action: outlined red, not a solid block ---------- */
+html[data-ui="modern"] [data-slot="button"][data-variant="destructive"][data-soft-destructive] {
+  background: hsl(var(--card));
+  color: hsl(var(--destructive));
+  border: 1px solid hsl(0 70% 86%);
+  box-shadow: var(--ui-shadow-xs);
+}
+html[data-ui="modern"] [data-slot="button"][data-variant="destructive"][data-soft-destructive]:hover:not(:disabled) {
+  background: hsl(0 80% 96%);
 }

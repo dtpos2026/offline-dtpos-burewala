@@ -301,6 +301,7 @@ export default function MenuManagerPage() {
           <Button
             size="sm"
             variant="destructive"
+            data-soft-destructive
             onClick={async () => {
               const ans = prompt(`This will PERMANENTLY delete the entire menu (${items.length} items + ${categories.length} categories).\n\nType "DELETE ALL" to confirm:`);
               if (ans !== 'DELETE ALL') { if (ans !== null) toast.error('Cancelled — text did not match'); return; }

@@ -1,5 +1,73 @@
 # DT POS Enterprise — Release Notes
 
+## v1.15.0 — Modern interface, Module Management and a matching Super Admin
+
+- **What changed:** how the software looks and how you move around it. Nothing
+  about how it works. Sales, bills, KOT, tokens, inventory, reports, printing,
+  users, permissions, the licence and every stored record are untouched.
+- **Modern interface (new default).** Light, warm and flat, with one accent
+  colour and one type scale used on every screen. Classic is still there:
+  Settings → Theme → **Interface style** → Classic brings the old look back
+  at once, and back again to Modern. No restart is needed. The choice is saved
+  on that computer only.
+- **Accent colour.** Pick one of nine colours (Ember is the default), or your own. A pale colour is
+  darkened automatically so the white text on buttons stays readable.
+- **Shorter sidebar.** The restaurant's name and logo lead; "Powered by
+  Digital Target" is a small credit. The sidebar shows the everyday modules
+  (POS, Tables, Retrieve, Kitchen, Delivery, Pickup, Dashboard, Reports, Menu,
+  Inventory, Customers). Everything else is one click away under **More**,
+  which has search and groups. Collapse the sidebar to icons; each icon shows
+  its name on hover. The header has a "Go to module" search.
+- **Settings → Modules (Module Management).** For each module choose Sidebar,
+  More or Hidden, put it in order, and star favourites. This is navigation
+  only: a hidden module keeps every record, and a person can still only open
+  what their user permissions allow. Settings can never be hidden. "Restore
+  default" puts everything back. The list is saved per computer.
+- **Redesigned screens.** Dashboard (sales, orders, average order, profit,
+  trend and order-type charts, shift and business day), Retrieve (bill
+  cards with Pay / Edit), Settings (a structured centre with grouped
+  sections), Login and the start-up screen. Every other screen takes the new
+  look from the shared tokens: buttons, fields, tables, dialogs, badges,
+  tabs, toasts, empty and loading states.
+- **Super Admin uses the same design system.** A dark admin rail with icons,
+  a page title bar, stat cards, tidier tables with status pills, and matching
+  dialogs. Same sections, same functions: issue licence, clients, devices,
+  device map, offline billing, support and verify are unchanged.
+  - The panel now bundles its fonts and icons. Run `npm install` inside
+    `superadmin/` once after updating (three small packages were added:
+    `@fontsource/manrope`, `@fontsource/jetbrains-mono`, `lucide-react`).
+- **Restart button.** Settings → Theme offers "Restart application" inside the
+  Windows app ("Reload screen" in a browser). It is only a relaunch; it does not reset data, the cache, the
+  licence, users, orders or settings. Switching style or accent does not need
+  it.
+- **Safety, by design and by test.**
+  - The new stylesheets apply only under the Modern attribute. A test fails
+    if any rule can reach Classic or the print window.
+  - Receipt, KOT and token printing build their own document, which never
+    carries the attribute, so none of the new rules can match there and
+    printed output does not change.
+  - Turning the style or a module on and off writes only its own keys (a test
+    checks that no data, licence, user or printer key changes).
+  - Fonts and icons are bundled; everything works offline.
+- **Verified:**
+  - Type-check clean; 909 tests pass (68 files), including new tests for the
+    style switch, accent readability, CSS scoping, module visibility, the
+    sidebar and the More launcher.
+  - Both builds pass (POS and Super Admin).
+  - Every POS route (57, all but the rider phone app) was opened at 1920 × 1080, 1366 × 768,
+    1024 × 768 and 800 × 600, in Modern, and at 1366 × 768 in Classic.
+    None overflows sideways, and none throws an error. The Super Admin's
+    eight sections were checked at 1440, 1024 and 800 wide.
+- **Known limits, said plainly:**
+  - Checked in a browser (Chromium) with demo data, not on a Windows counter
+    with a physical printer or on a phone. Please look over the screens you
+    use most after updating.
+  - There is no dark mode in Modern. Classic keeps its dark option.
+  - The POS order screen keeps its compact density on purpose, so a full
+    menu stays on one screen.
+  - Two React console warnings on Tables and Reports (a nested button, a
+    missing list key) existed before this release and are unchanged.
+
 ## v1.14.2 — Retrieve → Pay prints at once (the 20-second wait on the counter)
 
 - **Reported** from a counter with a Black Copper BC-88AC (USB, ESC/POS):
