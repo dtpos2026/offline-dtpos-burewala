@@ -1,52 +1,74 @@
-// Digital Target brand tokens for the Super Admin panel.
-// Light, professional purple theme — matches the POS licence screen branding.
-export const BRAND = '#3C096C';
-export const BRAND_SOFT = '#5A189A';
-export const ACCENT = '#7B2CBF';
-export const ACCENT_SOFT = '#E0AAFF';
-export const INK = '#F7F3FC';       // page background
-export const INK_2 = '#FFFFFF';     // surfaces
-export const TEXT = '#1B0B2E';
-export const STRONG = '#3C096C';    // emphasised text
-export const MUTED = 'rgba(27,11,46,0.62)';
-export const LINE = 'rgba(60,9,108,0.14)';
-export const TINT = 'rgba(60,9,108,0.045)';
-export const TINT_2 = 'rgba(60,9,108,0.075)';
+// Super Admin look — the SAME design tokens as the POS (src/styles/ui-tokens.css).
+//
+// Every colour, radius and shadow below is a CSS variable from that file, so a
+// change to the design system reaches the POS and this panel together. The
+// names of the exports are kept so every screen keeps working unchanged.
+//
+// CSS variables do not resolve inside SVG presentation attributes (Leaflet map
+// markers), so ACCENT_HEX exists for those few places only.
+
+export const BRAND = 'var(--ui-text)';            // headings / dark surfaces
+export const BRAND_SOFT = 'var(--ui-text)';
+export const ACCENT = 'var(--ui-accent)';
+export const ACCENT_HEX = '#d3420d';              // = the default accent, for SVG attributes
+export const ACCENT_SOFT = 'var(--ui-accent-soft)';
+export const INK = 'var(--ui-bg)';                // page background
+export const INK_2 = 'var(--ui-surface)';         // surfaces
+export const TEXT = 'var(--ui-text)';
+export const STRONG = 'var(--ui-text)';           // emphasised text
+export const MUTED = 'var(--ui-text-muted)';
+export const LINE = 'var(--ui-border)';
+export const LINE_STRONG = 'var(--ui-border-strong)';
+export const TINT = 'var(--ui-surface-2)';
+export const TINT_2 = 'hsl(var(--accent))';
+export const OVERLAY = 'var(--ui-overlay)';
+
+/** The dark admin rail — the "higher level" signal — is the ink colour itself. */
+export const RAIL = 'var(--ui-text)';
+export const RAIL_TEXT = 'hsl(30 12% 78%)';
+export const RAIL_MUTED = 'hsl(30 8% 58%)';
+export const RAIL_LINE = 'hsl(0 0% 100% / 0.10)';
 
 export const STATUS = {
-  active:    { fg: '#047857', bg: 'rgba(16,185,129,0.12)', bd: 'rgba(16,185,129,0.35)' },
-  expired:   { fg: '#B91C1C', bg: 'rgba(239,68,68,0.10)',  bd: 'rgba(239,68,68,0.32)'  },
-  suspended: { fg: '#B45309', bg: 'rgba(245,158,11,0.14)', bd: 'rgba(245,158,11,0.38)' },
+  active:    { fg: 'var(--ui-success-text)', bg: 'var(--ui-success-soft)', bd: 'var(--ui-success-border)' },
+  expired:   { fg: 'var(--ui-danger-text)',  bg: 'var(--ui-danger-soft)',  bd: 'var(--ui-danger-border)'  },
+  suspended: { fg: 'var(--ui-warning-text)', bg: 'var(--ui-warning-soft)', bd: 'var(--ui-warning-border)' },
 } as const;
 
 export const card: React.CSSProperties = {
   background: INK_2,
   border: `1px solid ${LINE}`,
-  borderRadius: 16,
-  boxShadow: '0 18px 40px -28px rgba(60,9,108,0.45)',
+  borderRadius: 'var(--ui-radius-card)',
+  boxShadow: 'var(--ui-shadow-sm)',
 };
 
 export const input: React.CSSProperties = {
-  width: '100%', padding: '10px 12px', marginTop: 6, boxSizing: 'border-box',
-  background: '#fff', color: TEXT,
-  border: `1px solid ${LINE}`, borderRadius: 10,
-  fontSize: 14, outline: 'none',
+  width: '100%', minHeight: 40, padding: '9px 12px', marginTop: 6, boxSizing: 'border-box',
+  background: INK_2, color: TEXT, fontFamily: 'inherit', lineHeight: 1.35,
+  border: `1px solid ${LINE_STRONG}`, borderRadius: 'var(--ui-radius-control)',
+  fontSize: 14, outline: 'none', boxShadow: 'var(--ui-shadow-xs)',
 };
 
 export const label: React.CSSProperties = {
-  fontSize: 10.5, fontWeight: 800, letterSpacing: 1.1,
-  textTransform: 'uppercase', color: ACCENT,
+  display: 'block', fontSize: 12, fontWeight: 600, color: MUTED,
 };
 
 export const primaryBtn: React.CSSProperties = {
-  padding: '12px 16px', border: 'none', borderRadius: 11,
-  background: `linear-gradient(135deg, ${BRAND_SOFT}, ${BRAND})`,
-  color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer',
-  boxShadow: '0 10px 26px -12px rgba(90,24,154,0.6)',
+  minHeight: 40, padding: '9px 18px', border: 'none', borderRadius: 'var(--ui-radius-control)',
+  background: ACCENT, color: 'var(--ui-accent-fg)', fontFamily: 'inherit',
+  fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+  boxShadow: '0 1px 2px hsl(var(--primary) / 0.28)',
 };
 
 export const ghostBtn: React.CSSProperties = {
-  padding: '9px 14px', borderRadius: 10, background: TINT,
-  color: BRAND, border: `1px solid ${LINE}`,
-  fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+  minHeight: 34, padding: '7px 14px', borderRadius: 'var(--ui-radius-control)',
+  background: INK_2, color: TEXT, border: `1px solid ${LINE_STRONG}`, fontFamily: 'inherit',
+  fontSize: 12.5, fontWeight: 600, cursor: 'pointer', boxShadow: 'var(--ui-shadow-xs)',
 };
+
+/** A small status / tag pill. */
+export const pill = (tone: { fg: string; bg: string; bd: string }): React.CSSProperties => ({
+  display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 10px', borderRadius: 'var(--ui-radius-pill)',
+  fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap',
+  color: tone.fg, background: tone.bg, border: `1px solid ${tone.bd}`,
+});

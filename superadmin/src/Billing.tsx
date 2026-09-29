@@ -15,7 +15,7 @@ import {
 } from './billingModel';
 import { cachedInvoices, cachedProfile, deleteInvoice, saveInvoice, saveProfile, watchInvoices, watchProfile } from './billingCloud';
 import { canvasMeasure, layoutInvoice, paintInvoice, type Images, type InvoiceFormat } from './invoiceRender';
-import { ACCENT, BRAND, LINE, MUTED, STATUS, STRONG, TINT, card, ghostBtn, input, label, primaryBtn } from './theme';
+import { ACCENT, BRAND, INK_2, LINE, MUTED, OVERLAY, STATUS, STRONG, TEXT, TINT, TINT_2, card, ghostBtn, input, label, pill, primaryBtn } from './theme';
 
 type Filter = 'all' | 'paid' | 'unpaid';
 
@@ -95,8 +95,8 @@ export default function Billing({ clients }: { clients: Client[] }) {
     catch (e) { setErr(`Not deleted: ${(e as Error).message}`); }
   };
 
-  const th: React.CSSProperties = { textAlign: 'left', padding: '8px 10px', fontSize: 11, color: MUTED, fontWeight: 800, whiteSpace: 'nowrap' };
-  const td: React.CSSProperties = { padding: '9px 10px', fontSize: 12.5, borderTop: `1px solid ${LINE}`, whiteSpace: 'nowrap' };
+  const th: React.CSSProperties = { textAlign: 'left', padding: '9px 10px', fontSize: 12, color: MUTED, fontWeight: 600, whiteSpace: 'nowrap', background: TINT };
+  const td: React.CSSProperties = { padding: '12px 10px', fontSize: 13, borderTop: `1px solid ${LINE}`, whiteSpace: 'nowrap' };
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
@@ -109,7 +109,7 @@ export default function Billing({ clients }: { clients: Client[] }) {
 
       <section style={{ ...card, padding: 18 }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: BRAND }}>Offline Billing / ERP</h2>
+          <h2 style={{ fontSize: 'var(--ui-text-card-title)', fontWeight: 700, margin: 0, color: BRAND }}>Offline Billing / ERP</h2>
           <span style={{ fontSize: 11.5, color: MUTED }}>Offline POS customers — separate from online billing</span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button style={ghostBtn} onClick={() => setShowProfile(true)}>Invoice settings</button>
@@ -119,7 +119,7 @@ export default function Billing({ clients }: { clients: Client[] }) {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search invoice, restaurant, owner, phone, license…" style={{ ...input, marginTop: 0, maxWidth: 380 }} />
           {(['all', 'unpaid', 'paid'] as Filter[]).map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{ ...ghostBtn, background: filter === f ? ACCENT : TINT, color: filter === f ? '#fff' : BRAND }}>
+            <button key={f} onClick={() => setFilter(f)} style={{ ...ghostBtn, background: filter === f ? ACCENT : INK_2, color: filter === f ? 'var(--ui-accent-fg)' : TEXT, borderColor: filter === f ? ACCENT : undefined }}>
               {f === 'all' ? 'All' : f === 'paid' ? 'Paid' : 'Unpaid'}
             </button>
           ))}
@@ -131,16 +131,16 @@ export default function Billing({ clients }: { clients: Client[] }) {
             <thead><tr>{['Invoice', 'Date', 'Restaurant', 'License', 'Package', 'Total', 'Status', ''].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
             <tbody>
               {rows.map(i => (
-                <tr key={i.id}>
-                  <td style={{ ...td, fontFamily: 'monospace', fontWeight: 700 }}>{i.invoiceNo}</td>
+                <tr key={i.id} className="sa-row">
+                  <td style={{ ...td, fontFamily: 'var(--ui-font-mono)', fontWeight: 600 }}>{i.invoiceNo}</td>
                   <td style={td}>{i.date}</td>
                   <td style={td}><div style={{ fontWeight: 700 }}>{i.customer.restaurant}</div><div style={{ fontSize: 11, color: MUTED }}>{i.customer.owner}{i.customer.phone ? ` · ${i.customer.phone}` : ''}</div></td>
-                  <td style={{ ...td, fontFamily: 'monospace', fontSize: 11 }}>{maskLicenseKey(i.customer.licenseKey) || '—'}</td>
+                  <td style={{ ...td, fontFamily: 'var(--ui-font-mono)', fontSize: 11 }}>{maskLicenseKey(i.customer.licenseKey) || '—'}</td>
                   <td style={td}>{i.pkg}</td>
-                  <td style={{ ...td, fontWeight: 800 }}>{money(invoiceTotal(i), profile.currency)}</td>
+                  <td style={{ ...td, fontWeight: 700 }}>{money(invoiceTotal(i), profile.currency)}</td>
                   <td style={td}>
-                    <span style={{ padding: '3px 9px', borderRadius: 20, fontSize: 10.5, fontWeight: 800, color: i.paid ? STATUS.active.fg : STATUS.suspended.fg, background: i.paid ? STATUS.active.bg : STATUS.suspended.bg, border: `1px solid ${i.paid ? STATUS.active.bd : STATUS.suspended.bd}` }}>
-                      {i.paid ? 'PAID' : 'UNPAID'}
+                    <span style={pill(i.paid ? STATUS.active : STATUS.suspended)}>
+                      {i.paid ? 'Paid' : 'Unpaid'}
                     </span>
                     {i.paid && i.paymentDate && <div style={{ fontSize: 10.5, color: MUTED }}>{i.paymentDate}</div>}
                   </td>
@@ -183,18 +183,18 @@ export default function Billing({ clients }: { clients: Client[] }) {
 function Tile({ k, v, tone }: { k: string; v: string; tone?: string }) {
   return (
     <div style={{ ...card, padding: '12px 14px' }}>
-      <div style={{ ...label, color: MUTED }}>{k}</div>
-      <div style={{ fontSize: 20, fontWeight: 800, color: tone || STRONG, marginTop: 4 }}>{v}</div>
+      <div style={{ ...label, fontWeight: 500, fontSize: 12.5 }}>{k}</div>
+      <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: tone || STRONG, marginTop: 4 }}>{v}</div>
     </div>
   );
 }
 
 function Modal({ title, children, onClose, width = 760 }: { title: string; children: React.ReactNode; onClose: () => void; width?: number }) {
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 16, zIndex: 70, overflowY: 'auto' }}>
-      <div onClick={e => e.stopPropagation()} style={{ ...card, padding: 20, width: `min(${width}px, 100%)`, marginTop: 24 }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: OVERLAY, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 16, zIndex: 70, overflowY: 'auto' }}>
+      <div onClick={e => e.stopPropagation()} style={{ ...card, boxShadow: 'var(--ui-shadow-pop)', borderRadius: 'var(--ui-radius-dialog)', padding: 22, width: `min(${width}px, 100%)`, marginTop: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
-          <h3 style={{ margin: 0, color: BRAND, fontSize: 16, fontWeight: 800 }}>{title}</h3>
+          <h3 style={{ margin: 0, color: BRAND, fontSize: 'var(--ui-text-section)', fontWeight: 700 }}>{title}</h3>
           <button onClick={onClose} style={{ ...ghostBtn, marginLeft: 'auto', padding: '5px 10px' }}>Close</button>
         </div>
         {children}
@@ -230,19 +230,19 @@ function Editor({ inv, clients, currency, onClose, onSave }: {
           </select>
         </div>
       )}
-      <h4 style={{ color: BRAND, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, margin: '8px 0' }}>Customer</h4>
+      <h4 style={{ color: MUTED, fontSize: 12, fontWeight: 600, margin: '8px 0' }}>Customer</h4>
       <div style={grid}>
         <Field k="Restaurant name"><input style={input} value={f.customer.restaurant} onChange={e => setC('restaurant', e.target.value)} /></Field>
         <Field k="Owner name"><input style={input} value={f.customer.owner} onChange={e => setC('owner', e.target.value)} /></Field>
         <Field k="Phone"><input style={input} value={f.customer.phone} onChange={e => setC('phone', e.target.value)} /></Field>
         <Field k="WhatsApp"><input style={input} value={f.customer.whatsapp} onChange={e => setC('whatsapp', e.target.value)} /></Field>
         <Field k="Address" span={2}><input style={input} value={f.customer.address} onChange={e => setC('address', e.target.value)} /></Field>
-        <Field k="License number"><input style={{ ...input, fontFamily: 'monospace' }} value={f.customer.licenseKey} onChange={e => setC('licenseKey', e.target.value.toUpperCase())} /></Field>
+        <Field k="License number"><input style={{ ...input, fontFamily: 'var(--ui-font-mono)' }} value={f.customer.licenseKey} onChange={e => setC('licenseKey', e.target.value.toUpperCase())} /></Field>
         <Field k="License reference / link"><input style={input} value={f.customer.licenseRef} onChange={e => setC('licenseRef', e.target.value)} /></Field>
       </div>
-      <h4 style={{ color: BRAND, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, margin: '16px 0 8px' }}>Billing</h4>
+      <h4 style={{ color: MUTED, fontSize: 12, fontWeight: 600, margin: '16px 0 8px' }}>Billing</h4>
       <div style={grid}>
-        <Field k="Invoice number"><input style={{ ...input, fontFamily: 'monospace' }} value={f.invoiceNo} onChange={e => setF({ ...f, invoiceNo: e.target.value })} /></Field>
+        <Field k="Invoice number"><input style={{ ...input, fontFamily: 'var(--ui-font-mono)' }} value={f.invoiceNo} onChange={e => setF({ ...f, invoiceNo: e.target.value })} /></Field>
         <Field k="Date"><input type="date" style={input} value={f.date} onChange={e => setF({ ...f, date: e.target.value })} /></Field>
         <Field k="Software / package"><input style={input} value={f.pkg} onChange={e => setF({ ...f, pkg: e.target.value })} /></Field>
         <Field k={`Payment amount (${currency})`}><input type="number" min={0} style={input} value={f.amount} onChange={e => setF({ ...f, amount: num(e.target.value) })} /></Field>
@@ -261,7 +261,7 @@ function Editor({ inv, clients, currency, onClose, onSave }: {
       </div>
       <div style={{ ...grid, marginTop: 12 }}>
         <Field k={`Discount (${currency})`}><input type="number" min={0} style={input} value={f.discount} onChange={e => setF({ ...f, discount: num(e.target.value) })} /></Field>
-        <Field k="Total"><div style={{ ...input, fontWeight: 800, color: BRAND }}>{money(invoiceTotal(f), currency)}</div></Field>
+        <Field k="Total"><div style={{ ...input, fontWeight: 700, color: BRAND, background: TINT }}>{money(invoiceTotal(f), currency)}</div></Field>
         <Field k="Status">
           <select style={input} value={f.paid ? 'paid' : 'unpaid'} onChange={e => setF({ ...f, paid: e.target.value === 'paid', paymentDate: e.target.value === 'paid' ? (f.paymentDate || today()) : '' })}>
             <option value="unpaid">Unpaid</option>
@@ -350,7 +350,7 @@ function Preview({ inv, profile, onClose }: { inv: OfflineInvoice; profile: Bill
     <Modal title={`Invoice ${inv.invoiceNo}`} onClose={onClose} width={900}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12, alignItems: 'center' }}>
         {(['a4', '80mm'] as InvoiceFormat[]).map(k => (
-          <button key={k} style={{ ...ghostBtn, background: format === k ? ACCENT : TINT, color: format === k ? '#fff' : BRAND }} onClick={() => setFormat(k)}>
+          <button key={k} style={{ ...ghostBtn, background: format === k ? ACCENT : INK_2, color: format === k ? 'var(--ui-accent-fg)' : TEXT, borderColor: format === k ? ACCENT : undefined }} onClick={() => setFormat(k)}>
             {k === 'a4' ? 'A4 invoice' : '80 mm receipt'}
           </button>
         ))}
@@ -361,9 +361,9 @@ function Preview({ inv, profile, onClose }: { inv: OfflineInvoice; profile: Bill
         </span>
       </div>
       {msg && <p role="status" style={{ fontSize: 12, color: STATUS.active.fg, fontWeight: 700 }}>{msg}</p>}
-      <div style={{ background: '#e9e4f0', borderRadius: 12, padding: 12, display: 'flex', justifyContent: 'center', maxHeight: '65vh', overflow: 'auto' }}>
+      <div style={{ background: TINT_2, borderRadius: 'var(--ui-radius-control)', padding: 12, display: 'flex', justifyContent: 'center', maxHeight: '65vh', overflow: 'auto' }}>
         {!images && <span style={{ color: MUTED, fontSize: 13 }}>Preparing the invoice…</span>}
-        <canvas ref={shown} style={{ width: format === 'a4' ? 'min(640px, 100%)' : 302, height: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,.18)', background: '#fff', display: images ? 'block' : 'none' }} />
+        <canvas ref={shown} style={{ width: format === 'a4' ? 'min(640px, 100%)' : 302, height: 'auto', boxShadow: 'var(--ui-shadow-pop)', background: '#fff', display: images ? 'block' : 'none' }} />
       </div>
       <p style={{ fontSize: 11.5, color: MUTED, marginTop: 10, wordBreak: 'break-all' }}>
         QR opens: <a href={link} target="_blank" rel="noreferrer" style={{ color: ACCENT }}>{link}</a> — it carries only this random reference; the page shows the invoice number, restaurant, owner, masked license and its status.

@@ -11,7 +11,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { BRAND, ACCENT, MUTED, LINE } from './theme';
+import { BRAND, ACCENT, ACCENT_HEX, MUTED, LINE } from './theme';
+import { MapPin as MapPinIcon } from 'lucide-react';
 import { statusOf } from './registry';
 import type { MapPin } from './pins';
 
@@ -33,7 +34,7 @@ export interface MapMarker {
 export function markersFromPins(pins: MapPin[]): MapMarker[] {
   return pins.map(p => {
     const status = statusOf(p.client);
-    const colour = DOT[status] || ACCENT;
+    const colour = DOT[status] || ACCENT_HEX;
     return {
       lat: p.lat, lng: p.lng, colour,
       html: `<div style="font-family:system-ui;min-width:190px">
@@ -95,16 +96,18 @@ export default function DeviceMap({ pins, markers, height = 420, emptyTitle, emp
 
   return (
     <div style={{ position: 'relative' }}>
-      <div ref={elRef} style={{ height, borderRadius: 14, overflow: 'hidden', border: `1px solid ${LINE}` }} />
+      <div ref={elRef} style={{ height, borderRadius: 'var(--ui-radius-card)', overflow: 'hidden', border: `1px solid ${LINE}` }} />
       {list.length === 0 && (
         <div style={{
           position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
-          background: 'rgba(247,243,252,0.9)', borderRadius: 14, pointerEvents: 'none',
+          background: 'hsl(var(--background) / 0.9)', borderRadius: 'var(--ui-radius-card)', pointerEvents: 'none',
           textAlign: 'center', padding: 24,
         }}>
           <div>
-            <div style={{ fontSize: 30, marginBottom: 8 }}>📍</div>
-            <div style={{ fontWeight: 800, fontSize: 14 }}>{emptyTitle || 'No device locations yet'}</div>
+            <span style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--ui-accent-soft)', color: ACCENT, display: 'inline-grid', placeItems: 'center', marginBottom: 10 }}>
+              <MapPinIcon size={22} strokeWidth={1.75} aria-hidden />
+            </span>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{emptyTitle || 'No device locations yet'}</div>
             <div style={{ fontSize: 12, color: MUTED, marginTop: 6, maxWidth: 340, lineHeight: 1.6 }}>
               {emptyText || (<>
                 A pin appears when you paste a shop's activation code under

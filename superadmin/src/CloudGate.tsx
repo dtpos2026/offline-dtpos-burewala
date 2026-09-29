@@ -2,7 +2,7 @@
 // created in Firebase Authentication can open the panel.
 import { useState } from 'react';
 import { adminSignIn, cloudSelfTest, type CloudCheck } from './cloud';
-import { BRAND, ACCENT, INK, INK_2, TEXT, MUTED, LINE, card, input, label, primaryBtn } from './theme';
+import { ACCENT, INK, INK_2, TEXT, MUTED, LINE, LINE_STRONG, STATUS, RAIL, card, input, label, primaryBtn } from './theme';
 
 export default function CloudGate() {
   const [email, setEmail] = useState('');
@@ -29,13 +29,13 @@ export default function CloudGate() {
   return (
     <div style={{
       minHeight: '100vh', display: 'grid', placeItems: 'center', color: TEXT, padding: 20,
-      background: `radial-gradient(1000px 500px at 20% -10%, rgba(224,170,255,0.6) 0%, transparent 60%), ${INK}`,
+      background: INK,
     }}>
-      <form onSubmit={go} style={{ ...card, width: 360, background: INK_2, border: `1px solid ${LINE}`, padding: 26 }}>
+      <form onSubmit={go} style={{ ...card, width: 380, maxWidth: '100%', background: INK_2, border: `1px solid ${LINE}`, boxShadow: 'var(--ui-shadow-card)', padding: 28 }}>
         <img src="./dt-mark.png" alt="Digital Target" width={44} height={44}
-             style={{ width: 44, height: 44, objectFit: 'contain', borderRadius: 12, background: BRAND, padding: 8 }} />
-        <h1 style={{ fontSize: 19, fontWeight: 900, margin: '14px 0 2px' }}>Super Admin</h1>
-        <p style={{ fontSize: 11.5, color: MUTED, margin: '0 0 18px' }}>Digital Target staff sign in</p>
+             style={{ width: 44, height: 44, objectFit: 'contain', borderRadius: 12, background: RAIL, padding: 8 }} />
+        <h1 style={{ fontSize: 'var(--ui-text-page)', fontWeight: 700, margin: '16px 0 2px' }}>Super Admin</h1>
+        <p style={{ fontSize: 13, color: MUTED, margin: '0 0 20px' }}>Digital Target staff sign in</p>
 
         <label style={label}>Email</label>
         <input style={input} type="email" value={email} autoFocus required
@@ -45,14 +45,14 @@ export default function CloudGate() {
         <input style={input} type="password" value={pass} required
                onChange={e => setPass(e.target.value)} placeholder="••••••••" />
 
-        {err && <div style={{ marginTop: 12, fontSize: 12, color: '#B91C1C' }}>{err}</div>}
+        {err && <div role="alert" style={{ marginTop: 12, fontSize: 12.5, color: STATUS.expired.fg }}>{err}</div>}
 
         <button type="submit" disabled={busy} style={{ ...primaryBtn, width: '100%', marginTop: 18 }}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
         <button type="button" onClick={runTest} disabled={testing}
-                style={{ width: '100%', marginTop: 10, padding: '9px 12px', borderRadius: 10, cursor: 'pointer',
-                         border: `1px solid ${LINE}`, background: 'transparent', color: TEXT, fontSize: 12, fontWeight: 700 }}>
+                style={{ width: '100%', minHeight: 38, marginTop: 10, padding: '8px 12px', borderRadius: 'var(--ui-radius-control)', cursor: 'pointer',
+                         border: `1px solid ${LINE_STRONG}`, background: INK_2, color: TEXT, fontSize: 12.5, fontWeight: 600 }}>
           {testing ? 'Checking cloud…' : 'Test cloud connection'}
         </button>
 
@@ -60,7 +60,7 @@ export default function CloudGate() {
           <div style={{ marginTop: 12, border: `1px solid ${LINE}`, borderRadius: 10, overflow: 'hidden' }}>
             {checks.map(c => (
               <div key={c.label} style={{ display: 'flex', gap: 8, padding: '8px 10px', borderBottom: `1px solid ${LINE}`, fontSize: 11.5 }}>
-                <span style={{ color: c.ok ? '#15803D' : '#B91C1C', fontWeight: 900 }}>{c.ok ? '✓' : '✕'}</span>
+                <span style={{ color: c.ok ? STATUS.active.fg : STATUS.expired.fg, fontWeight: 700 }}>{c.ok ? '✓' : '✕'}</span>
                 <span style={{ minWidth: 96, fontWeight: 700 }}>{c.label}</span>
                 <span style={{ color: MUTED }}>{c.detail}</span>
               </div>
@@ -68,7 +68,7 @@ export default function CloudGate() {
           </div>
         )}
 
-        <p style={{ fontSize: 10.5, color: MUTED, marginTop: 14, lineHeight: 1.5 }}>
+        <p style={{ fontSize: 12, color: MUTED, marginTop: 16, lineHeight: 1.6 }}>
           Accounts are created in the Firebase console under Authentication.
           <span style={{ color: ACCENT }}> The POS software itself never goes online.</span>
         </p>

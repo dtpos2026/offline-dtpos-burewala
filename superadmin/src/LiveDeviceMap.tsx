@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import DeviceMap, { escapeHtml, type MapMarker } from './DeviceMap';
 import { watchDevices, watchDeviceStatuses, watchLicenseStatuses, docIdFor, type DeviceDoc, type StatusDoc } from './cloud';
 import { isOnline, lastSeenLabel, locationLabel, serverDecision } from './deviceState';
-import { BRAND, MUTED, card } from './theme';
+import { BRAND, MUTED, STATUS, card } from './theme';
 
 const COLOUR = { online: '#16a34a', offline: '#64748b', blocked: '#dc2626' };
 
@@ -54,13 +54,13 @@ export default function LiveDeviceMap() {
   return (
     <section style={{ ...card, padding: 20 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>Live installations</h2>
+        <h2 style={{ fontSize: 'var(--ui-text-card-title)', fontWeight: 700, margin: 0 }}>Live installations</h2>
         <span style={{ fontSize: 12, color: MUTED }}>{markers.length} placed · {unplaced.length} without a location</span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, fontSize: 11, color: MUTED }}>
           <Legend c={COLOUR.online} t="Online" /><Legend c={COLOUR.offline} t="Offline" /><Legend c={COLOUR.blocked} t="Blocked" />
         </span>
       </div>
-      {err && <p role="alert" style={{ color: '#b91c1c', fontSize: 12 }}>{err}</p>}
+      {err && <p role="alert" style={{ color: STATUS.expired.fg, fontSize: 12.5 }}>{err}</p>}
       <DeviceMap
         markers={markers}
         emptyTitle="No live locations yet"
@@ -71,10 +71,10 @@ export default function LiveDeviceMap() {
       </p>
       {unplaced.length > 0 && (
         <div style={{ marginTop: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 4 }}>Location unavailable</div>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Location unavailable</div>
           {unplaced.map(d => (
             <div key={d.deviceId} style={{ fontSize: 12, color: MUTED, padding: '3px 0' }}>
-              {d.business || '—'} · <span style={{ fontFamily: 'monospace' }}>{d.deviceId.slice(0, 18)}…</span> · {isOnline(d, now) ? 'Online' : `Offline, last seen ${lastSeenLabel(d.lastSyncAt, now)}`}
+              {d.business || '—'} · <span style={{ fontFamily: 'var(--ui-font-mono)' }}>{d.deviceId.slice(0, 18)}…</span> · {isOnline(d, now) ? 'Online' : `Offline, last seen ${lastSeenLabel(d.lastSyncAt, now)}`}
             </div>
           ))}
         </div>

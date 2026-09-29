@@ -2,13 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Super Admin base. Colours, radii, shadows and type all come from the shared
+ * design tokens (src/styles/ui-tokens.css) — the same ones the POS uses. */
 * {
   margin: 0;
   box-sizing: border-box;
 }
 
+html, body, #root { min-height: 100%; }
+
 body {
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background: #F7F3FC;
-  color: #1B0B2E;
+  font-family: var(--ui-font);
+  font-size: var(--ui-text-body);
+  font-feature-settings: 'cv11', 'ss01';
+  letter-spacing: -0.003em;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { font-family: var(--ui-font-display); letter-spacing: -0.02em; }
+
+::selection { background: hsl(var(--primary) / 0.18); }
+
+:focus-visible { outline: 2px solid hsl(var(--ring) / 0.55); outline-offset: 2px; }
+input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; }
+
+/* Fields, buttons and rows share one hover / focus behaviour. Their sizes and
+ * colours are set inline from theme.ts. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+select:focus, textarea:focus {
+  border-color: hsl(var(--ring) / 0.7) !important;
+  box-shadow: var(--ui-shadow-focus) !important;
+}
+input::placeholder, textarea::placeholder { color: hsl(var(--muted-foreground) / 0.7); }
+button { font-family: inherit; transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, filter .15s ease; }
+button:hover:not(:disabled) { filter: brightness(0.97); }
+button:disabled { opacity: .55; cursor: not-allowed !important; }
+.sa-row:hover { background: hsl(var(--muted) / 0.6); }
+.sa-nav-item { transition: background-color .15s ease, color .15s ease; }
+.sa-nav-item:hover:not([aria-current="page"]) { background: hsl(0 0% 100% / 0.07); color: #fff; filter: none; }
+.sa-nav-item[aria-current="page"]:hover { filter: none; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.26);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.45); background-clip: padding-box; }
+
+/* A grid page whose table is wider than the window scrolls inside its card
+ * instead of pushing the whole page sideways. */
+.sa-page > div { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+
+/* Narrow windows: the rail becomes a top bar (see App.tsx) */
+@media (max-width: 860px) {
+  .sa-shell { flex-direction: column; }
+  .sa-sidebar { width: 100% !important; height: auto !important; position: static !important; flex-direction: row !important; align-items: center; overflow-x: auto; }
+  .sa-brand-text, .sa-foot-extra { display: none !important; }
+  .sa-sidebar-brand { padding: 10px 12px !important; }
+  .sa-sidebar-nav { flex-direction: row !important; padding: 8px !important; overflow: visible !important; }
+  .sa-sidebar-foot { border-top: 0 !important; margin-left: auto; flex: none; padding: 8px 12px !important; }
+  .sa-page { padding: 16px 14px 48px !important; }
+  .sa-pagebar { padding: 16px 14px 0 !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }

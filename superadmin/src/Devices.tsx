@@ -16,13 +16,17 @@ import {
   type DeviceDoc, type StatusDoc,
 } from './cloud';
 import { isOnline, lastSeenLabel, locationLabel, serverDecision, ONLINE_WINDOW_MS } from './deviceState';
-import { BRAND, ACCENT, MUTED, INK_2 as CARD, LINE as BORDER } from './theme';
+import { BRAND, ACCENT, MUTED, INK_2 as CARD, LINE as BORDER, LINE_STRONG, TINT, STATUS, card, input, primaryBtn, ghostBtn, pill } from './theme';
+import { Modal } from './ui';
 
 const fmt = (ms?: number) => (ms ? new Date(ms).toLocaleString() : '—');
 
-const TONE: Record<string, string> = {
-  active: '#15803d', suspended: '#b45309', revoked: '#b91c1c', deleted: '#7f1d1d', pending: '#7c3aed',
-  'device-limit': '#b91c1c', unknown: '#64748b',
+type Tone = { fg: string; bg: string; bd: string };
+const INFO: Tone = { fg: 'var(--ui-info-text)', bg: 'var(--ui-info-soft)', bd: 'var(--ui-info-border)' };
+const QUIET: Tone = { fg: MUTED, bg: TINT, bd: BORDER };
+const TONE: Record<string, Tone> = {
+  active: STATUS.active, suspended: STATUS.suspended, revoked: STATUS.expired, deleted: STATUS.expired, pending: INFO,
+  'device-limit': STATUS.expired, unknown: QUIET,
 };
 
 type Filter = 'all' | 'online' | 'offline' | 'blocked';
@@ -119,26 +123,26 @@ export default function Devices() {
     finally { setBusy(''); }
   }
 
-  const th: React.CSSProperties = { textAlign: 'left', padding: '8px 10px', fontSize: 11, color: MUTED, fontWeight: 800, whiteSpace: 'nowrap' };
-  const td: React.CSSProperties = { padding: '8px 10px', fontSize: 12.5, borderTop: `1px solid ${BORDER}`, whiteSpace: 'nowrap' };
+  const th: React.CSSProperties = { textAlign: 'left', padding: '9px 10px', fontSize: 12, color: MUTED, fontWeight: 600, whiteSpace: 'nowrap', background: TINT };
+  const td: React.CSSProperties = { padding: '12px 10px', fontSize: 13, borderTop: `1px solid ${BORDER}`, whiteSpace: 'nowrap' };
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
         <Stat label="Registered" value={devices.length} tone={BRAND} />
-        <Stat label="Online now" value={onlineNow.length} tone="#15803d" hint={`Reported in the last ${ONLINE_WINDOW_MS / 60000} min`} />
-        <Stat label="Offline" value={devices.length - onlineNow.length} tone="#64748b" />
-        <Stat label="Blocked" value={blocked.length} tone="#b91c1c" />
+        <Stat label="Online now" value={onlineNow.length} tone={STATUS.active.fg} hint={`Reported in the last ${ONLINE_WINDOW_MS / 60000} min`} />
+        <Stat label="Offline" value={devices.length - onlineNow.length} tone={MUTED} />
+        <Stat label="Blocked" value={blocked.length} tone={STATUS.expired.fg} />
       </div>
 
-      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 16 }}>
-        <h2 style={{ margin: '0 0 8px', color: BRAND, fontSize: 15, fontWeight: 800 }}>Active devices (online now)</h2>
+      <div style={{ ...card, padding: 18 }}>
+        <h2 style={{ margin: '0 0 10px', color: BRAND, fontSize: 'var(--ui-text-card-title)', fontWeight: 700 }}>Active devices (online now)</h2>
         {onlineNow.length === 0
           ? <p style={{ margin: 0, fontSize: 12, color: MUTED }}>No computer has reported in the last {ONLINE_WINDOW_MS / 60000} minutes.</p>
           : (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {onlineNow.map(d => (
-                <button key={d.deviceId} onClick={() => setOpen(d)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 999, border: `1px solid ${BORDER}`, background: '#fff', cursor: 'pointer', fontSize: 12 }}>
+                <button key={d.deviceId} onClick={() => setOpen(d)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, border: `1px solid ${LINE_STRONG}`, background: CARD, color: 'inherit', cursor: 'pointer', fontSize: 12.5 }}>
                   <Dot on /> <b>{d.business || d.deviceId.slice(0, 10)}</b>
                   <span style={{ color: MUTED }}>{d.hostname || ''} · {lastSeenLabel(d.lastSyncAt, now)}</span>
                 </button>
@@ -147,25 +151,25 @@ export default function Devices() {
           )}
       </div>
 
-      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 16 }}>
+      <div style={{ ...card, padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-          <h2 style={{ margin: 0, color: BRAND, fontSize: 16, fontWeight: 800 }}>Devices &amp; Installations</h2>
+          <h2 style={{ margin: '0 6px 0 0', color: BRAND, fontSize: 'var(--ui-text-card-title)', fontWeight: 700 }}>Devices &amp; Installations</h2>
           {(['all', 'online', 'offline', 'blocked'] as Filter[]).map(f => (
             <button key={f} onClick={() => setFilter(f)} style={{
-              padding: '5px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
-              border: `1px solid ${filter === f ? ACCENT : BORDER}`, background: filter === f ? ACCENT : '#fff', color: filter === f ? '#fff' : MUTED,
+              padding: '5px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              border: `1px solid ${filter === f ? ACCENT : LINE_STRONG}`, background: filter === f ? ACCENT : CARD, color: filter === f ? 'var(--ui-accent-fg)' : MUTED,
             }}>{f[0].toUpperCase() + f.slice(1)}</button>
           ))}
           <input
             placeholder="Search shop, device, city…"
             value={q}
             onChange={e => setQ(e.target.value)}
-            style={{ marginLeft: 'auto', padding: '8px 10px', borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 13, minWidth: 220 }}
+            style={{ ...input, marginTop: 0, width: 'auto', marginLeft: 'auto', minWidth: 240 }}
           />
         </div>
 
-        {err && <p role="alert" style={{ color: '#b91c1c', fontSize: 12, fontWeight: 700 }}>{err}</p>}
-        {note && <p role="status" style={{ color: '#166534', fontSize: 12, fontWeight: 700 }}>{note}</p>}
+        {err && <p role="alert" style={{ color: STATUS.expired.fg, fontSize: 12.5, fontWeight: 600, margin: '0 0 10px' }}>{err}</p>}
+        {note && <p role="status" style={{ color: STATUS.active.fg, fontSize: 12.5, fontWeight: 600, margin: '0 0 10px' }}>{note}</p>}
 
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -181,16 +185,16 @@ export default function Devices() {
                 const dec = decisionFor(d);
                 const slots = d.licenseKey ? ledgers.get(docIdFor(d.licenseKey)) : undefined;
                 return (
-                  <tr key={d.deviceId}>
+                  <tr key={d.deviceId} className="sa-row">
                     <td style={td}>
-                      <button onClick={() => setOpen(d)} style={{ background: 'none', border: 0, color: ACCENT, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+                      <button onClick={() => setOpen(d)} style={{ background: 'none', border: 0, color: ACCENT, fontWeight: 600, cursor: 'pointer', padding: 0, fontSize: 13 }}>
                         {d.business || '—'}
                       </button>
                       <div style={{ fontSize: 11, color: MUTED }}>{d.hostname || ''}</div>
                     </td>
-                    <td style={{ ...td, fontFamily: 'monospace', fontSize: 11 }} title={d.deviceId}>{d.deviceId.slice(0, 18)}…</td>
+                    <td style={{ ...td, fontFamily: 'var(--ui-font-mono)', fontSize: 11 }} title={d.deviceId}>{d.deviceId.slice(0, 18)}…</td>
                     <td style={td}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, color: on ? '#15803d' : '#64748b' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, color: on ? STATUS.active.fg : MUTED }}>
                         <Dot on={on} /> {on ? 'Online' : 'Offline'}
                       </span>
                       <div style={{ fontSize: 11, color: MUTED }}>Last seen {lastSeenLabel(d.lastSyncAt, now)}</div>
@@ -203,11 +207,11 @@ export default function Devices() {
                     <td style={td}>{slots ? `${slots.length} used${slots.includes(d.deviceId) ? '' : ' · not in list'}` : '—'}</td>
                     <td style={td}>{d.appVersion || '—'}</td>
                     <td style={{ ...td, whiteSpace: 'normal', minWidth: 180, fontSize: 12 }}>{locationLabel(d)}</td>
-                    <td style={td}>
-                      <button disabled={busy === d.deviceId} onClick={() => change(d, 'active')} style={btn('#16a34a')}>Activate</button>
-                      <button disabled={busy === d.deviceId} onClick={() => change(d, 'suspended')} style={btn('#d97706')}>Suspend</button>
-                      <button disabled={busy === d.deviceId} onClick={() => change(d, 'revoked')} style={btn('#b91c1c')}>Revoke</button>
-                      <button disabled={busy === d.deviceId} onClick={() => remove(d)} style={btn('#7f1d1d')}>Delete</button>
+                    <td style={{ ...td, whiteSpace: 'normal', minWidth: 172 }}>
+                      <button disabled={busy === d.deviceId} onClick={() => change(d, 'active')} style={btn(STATUS.active)}>Activate</button>
+                      <button disabled={busy === d.deviceId} onClick={() => change(d, 'suspended')} style={btn(STATUS.suspended)}>Suspend</button>
+                      <button disabled={busy === d.deviceId} onClick={() => change(d, 'revoked')} style={btn(STATUS.expired)}>Revoke</button>
+                      <button disabled={busy === d.deviceId} onClick={() => remove(d)} style={btn(STATUS.expired)}>Delete</button>
                     </td>
                   </tr>
                 );
@@ -225,14 +229,14 @@ export default function Devices() {
       </div>
 
       {removed.length > 0 && (
-        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 16 }}>
-          <h2 style={{ margin: '0 0 8px', color: BRAND, fontSize: 15, fontWeight: 800 }}>Removed devices ({removed.length})</h2>
+        <div style={{ ...card, padding: 18 }}>
+          <h2 style={{ margin: '0 0 8px', color: BRAND, fontSize: 'var(--ui-text-card-title)', fontWeight: 700 }}>Removed devices ({removed.length})</h2>
           <p style={{ margin: '0 0 8px', fontSize: 12, color: MUTED }}>A removed computer is asked for the licence key again; entering it registers the computer again if a slot is free.</p>
           {removed.map(s => (
             <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: `1px solid ${BORDER}`, fontSize: 12 }}>
-              <span style={{ fontFamily: 'monospace' }}>{s.deviceId || s.id}</span>
+              <span style={{ fontFamily: 'var(--ui-font-mono)' }}>{s.deviceId || s.id}</span>
               <span style={{ color: MUTED }}>removed {fmt(s.updatedAt)}{s.by ? ` by ${s.by}` : ''}</span>
-              <button disabled={busy === s.id} onClick={() => allowAgain(s)} style={{ ...btn(ACCENT), marginLeft: 'auto' }}>Clear record</button>
+              <button disabled={busy === s.id} onClick={() => allowAgain(s)} style={{ ...btn({ fg: ACCENT, bg: CARD, bd: LINE_STRONG }), marginLeft: 'auto' }}>Clear record</button>
             </div>
           ))}
         </div>
@@ -256,24 +260,24 @@ export default function Devices() {
 
 function Stat({ label, value, tone, hint }: { label: string; value: number; tone: string; hint?: string }) {
   return (
-    <div title={hint} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: '12px 14px' }}>
-      <div style={{ fontSize: 11, color: MUTED, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 800, color: tone }}>{value}</div>
+    <div title={hint} style={{ ...card, padding: '14px 16px' }}>
+      <div style={{ fontSize: 12.5, color: MUTED, fontWeight: 500 }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 700, color: tone, letterSpacing: '-0.02em', marginTop: 2 }}>{value}</div>
     </div>
   );
 }
 
 function Dot({ on }: { on?: boolean }) {
-  return <span style={{ width: 9, height: 9, borderRadius: '50%', display: 'inline-block', background: on ? '#22c55e' : '#94a3b8', boxShadow: on ? '0 0 0 3px #22c55e33' : 'none' }} />;
+  return <span style={{ width: 9, height: 9, borderRadius: '50%', display: 'inline-block', background: on ? 'hsl(152 58% 38%)' : 'hsl(25 8% 62%)', boxShadow: on ? '0 0 0 3px hsl(152 58% 38% / 0.22)' : 'none' }} />;
 }
 
 function Badge({ status }: { status: string }) {
-  const c = TONE[status] || TONE.unknown;
-  return <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 10.5, fontWeight: 800, color: c, border: `1px solid ${c}55`, background: `${c}10`, textTransform: 'uppercase' }}>{status}</span>;
+  const t = TONE[status] || TONE.unknown;
+  return <span style={{ ...pill(t), textTransform: 'capitalize' }}>{status}</span>;
 }
 
-function btn(color: string): React.CSSProperties {
-  return { marginRight: 6, padding: '4px 8px', fontSize: 11, fontWeight: 700, color, background: '#fff', border: `1px solid ${color}33`, borderRadius: 6, cursor: 'pointer' };
+function btn(t: Tone): React.CSSProperties {
+  return { marginRight: 6, marginBottom: 4, padding: '4px 10px', fontSize: 11.5, fontWeight: 600, color: t.fg, background: CARD, border: `1px solid ${t.bd}`, borderRadius: 8, cursor: 'pointer' };
 }
 
 function Detail({ d, device, licence, slots, now, onClose, onDelete, busy }: {
@@ -287,15 +291,15 @@ function Detail({ d, device, licence, slots, now, onClose, onDelete, busy }: {
   );
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div style={{ marginBottom: 14 }}>
-      <h4 style={{ margin: '0 0 6px', color: BRAND, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6 }}>{title}</h4>
+      <h4 style={{ margin: '0 0 6px', color: MUTED, fontSize: 12, fontWeight: 600 }}>{title}</h4>
       {children}
     </div>
   );
   const on = isOnline(d, now);
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 60 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: CARD, borderRadius: 14, padding: 20, width: 'min(600px, 100%)', maxHeight: '85vh', overflowY: 'auto' }}>
-        <h3 style={{ marginTop: 0, color: BRAND }}>{d.business || 'Installation'}</h3>
+    <Modal onClose={onClose} width={600} z={60}>
+      <div>
+        <h3 style={{ marginTop: 0, marginBottom: 14, color: BRAND, fontSize: 'var(--ui-text-section)', fontWeight: 700 }}>{d.business || 'Installation'}</h3>
         <Section title="Connection">
           <Row k="Status" v={on ? 'Online' : 'Offline'} />
           <Row k="Last report" v={`${fmt(d.lastSyncAt)} (${lastSeenLabel(d.lastSyncAt, now)})`} />
@@ -338,10 +342,10 @@ function Detail({ d, device, licence, slots, now, onClose, onDelete, busy }: {
           <Row k="Expiry" v={d.expiryDate ? new Date(d.expiryDate).toLocaleDateString() : 'lifetime'} />
         </Section>
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 8, border: 0, background: BRAND, color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Close</button>
-          <button disabled={busy} onClick={onDelete} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #b91c1c', background: '#fff', color: '#b91c1c', fontWeight: 700, cursor: 'pointer' }}>Delete Device</button>
+          <button onClick={onClose} style={primaryBtn}>Close</button>
+          <button disabled={busy} onClick={onDelete} style={{ ...ghostBtn, minHeight: 40, color: STATUS.expired.fg, borderColor: STATUS.expired.bd }}>Delete Device</button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

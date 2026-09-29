@@ -192,4 +192,14 @@
   --ui-danger-soft: hsl(0 80% 95%);
   --ui-info: hsl(var(--status-info));
   --ui-info-soft: hsl(212 85% 94%);
+  /* readable text + hairline for each status, and the modal scrim */
+  --ui-success-text: hsl(152 58% 26%);
+  --ui-success-border: hsl(152 40% 80%);
+  --ui-warning-text: hsl(28 90% 30%);
+  --ui-warning-border: hsl(38 80% 78%);
+  --ui-danger-text: hsl(0 65% 40%);
+  --ui-danger-border: hsl(0 70% 86%);
+  --ui-info-text: hsl(212 80% 34%);
+  --ui-info-border: hsl(212 70% 84%);
+  --ui-overlay: hsl(24 20% 8% / 0.5);
 }

@@ -5,7 +5,9 @@ import {
   watchMessages, sendMessage, markMessageRead, deleteMessage, type SupportMessage,
 } from './cloud';
 import type { Client } from './registry';
-import { ACCENT, INK_2, MUTED, LINE, STATUS, card, input, label, primaryBtn, ghostBtn } from './theme';
+import { ACCENT, MUTED, LINE, STATUS, TINT, card, input, label, primaryBtn, ghostBtn } from './theme';
+import { Empty } from './ui';
+import { MessageSquare } from 'lucide-react';
 
 export default function Support({ clients }: { clients: Client[] }) {
   const [msgs, setMsgs] = useState<SupportMessage[]>([]);
@@ -37,8 +39,8 @@ export default function Support({ clients }: { clients: Client[] }) {
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
-      <section style={{ ...card, background: INK_2, border: `1px solid ${LINE}`, padding: 18 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 900, margin: '0 0 12px' }}>Send a message</h2>
+      <section style={{ ...card, padding: 18 }}>
+        <h2 style={{ fontSize: 'var(--ui-text-card-title)', fontWeight: 700, margin: '0 0 12px' }}>Send a message</h2>
         <div style={{ display: 'grid', gap: 10, gridTemplateColumns: '260px 1fr auto', alignItems: 'end' }}>
           <div>
             <label style={label}>Client</label>
@@ -57,34 +59,32 @@ export default function Support({ clients }: { clients: Client[] }) {
             {busy ? 'Sending…' : 'Send'}
           </button>
         </div>
-        {err && <div style={{ marginTop: 10, fontSize: 12, color: '#B91C1C' }}>{err}</div>}
+        {err && <div role="alert" style={{ marginTop: 10, fontSize: 12.5, color: STATUS.expired.fg }}>{err}</div>}
       </section>
 
-      <section style={{ ...card, background: INK_2, border: `1px solid ${LINE}`, padding: 18 }}>
+      <section style={{ ...card, padding: 18 }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 900, margin: 0 }}>Inbox</h2>
+          <h2 style={{ fontSize: 'var(--ui-text-card-title)', fontWeight: 700, margin: 0 }}>Inbox</h2>
           <span style={{ fontSize: 11.5, color: MUTED }}>{msgs.length} message(s)</span>
           <input style={{ ...input, marginLeft: 'auto', maxWidth: 240 }} placeholder="Search…"
                  value={filter} onChange={e => setFilter(e.target.value)} />
         </div>
 
-        {shown.length === 0 && (
-          <div style={{ fontSize: 12.5, color: MUTED, padding: '18px 0', textAlign: 'center' }}>No messages yet.</div>
-        )}
+        {shown.length === 0 && <Empty icon={MessageSquare}>No messages yet.</Empty>}
 
         <div style={{ display: 'grid', gap: 8 }}>
           {shown.map(m => (
             <div key={m.id} style={{
-              border: `1px solid ${LINE}`, borderRadius: 12, padding: '10px 12px',
+              border: `1px solid ${LINE}`, borderRadius: 'var(--ui-radius-control)', padding: '12px 14px',
               display: 'flex', gap: 12, alignItems: 'flex-start',
-              background: m.read ? 'transparent' : 'rgba(255,255,255,0.04)',
+              background: m.read ? 'transparent' : 'var(--ui-accent-soft)',
             }}>
               <span style={{
-                fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
+                fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, marginTop: 2,
                 background: m.from === 'admin' ? ACCENT : STATUS.active.fg, color: '#fff',
               }}>{m.from === 'admin' ? 'DT' : 'SHOP'}</span>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>{m.business || 'General'}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 600 }}>{m.business || 'General'}</div>
                 <div style={{ fontSize: 12.5, color: MUTED, whiteSpace: 'pre-wrap' }}>{m.text}</div>
                 <div style={{ fontSize: 10.5, color: MUTED, marginTop: 4 }}>
                   {new Date(m.createdAt).toLocaleString()}

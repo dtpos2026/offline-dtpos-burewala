@@ -36,8 +36,8 @@ export default function Verify({ code }: { code: string }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <img src="./dt-mark.png" alt="" width={44} height={44} style={{ background: BRAND, borderRadius: 12, padding: 6 }} />
           <div>
-            <div style={{ fontWeight: 900, fontSize: 18 }}>Invoice verification</div>
-            <div style={{ fontSize: 12, color: MUTED, fontFamily: 'monospace' }}>Ref {code}</div>
+            <div style={{ fontWeight: 700, fontSize: 18 }}>Invoice verification</div>
+            <div style={{ fontSize: 12, color: MUTED, fontFamily: 'var(--ui-font-mono)' }}>Ref {code}</div>
           </div>
         </div>
         {state === 'loading' && <p style={{ color: MUTED }}>Checking…</p>}
@@ -45,7 +45,7 @@ export default function Verify({ code }: { code: string }) {
         {state === 'missing' && <p style={{ color: STATUS.expired.fg, fontWeight: 700 }}>No invoice was found for this reference. It may have been cancelled, or the code is not genuine.</p>}
         {state === 'found' && rec && (
           <>
-            <p style={{ color: STATUS.active.fg, fontWeight: 800, margin: '0 0 8px' }}>✓ This invoice is on record with {rec.issuer}.</p>
+            <p style={{ color: STATUS.active.fg, fontWeight: 700, margin: '0 0 8px' }}>✓ This invoice is on record with {rec.issuer}.</p>
             <Row k="Invoice" v={rec.invoiceNo} />
             <Row k="Date" v={rec.date} />
             <Row k="Restaurant" v={rec.restaurant} />
@@ -55,7 +55,7 @@ export default function Verify({ code }: { code: string }) {
             <Row k="Valid until" v={rec.expiry} />
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${LINE}`, fontSize: 14 }}>
               <span style={{ color: MUTED }}>License status</span>
-              <span style={{ fontWeight: 800, color: licenceTone.fg, textTransform: 'capitalize' }}>{rec.licenseStatus}</span>
+              <span style={{ fontWeight: 700, color: licenceTone.fg, textTransform: 'capitalize' }}>{rec.licenseStatus}</span>
             </div>
             <Row k="Total" v={money(rec.total, rec.currency)} />
             <Row k="Payment" v={rec.paid ? `Paid${rec.paymentDate ? ' on ' + rec.paymentDate : ''}` : 'Unpaid'} />

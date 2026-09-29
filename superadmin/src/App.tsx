@@ -31,21 +31,27 @@ import {
   watchLicenseStatuses, setLicenseStatus, docIdFor, type StatusDoc, type LicenceAction,
 } from './cloud';
 import {
-  BRAND, BRAND_SOFT, ACCENT, INK, INK_2, TEXT, STRONG, MUTED, LINE, TINT, TINT_2, STATUS,
-  card, input, label, primaryBtn, ghostBtn,
+  ACCENT, INK, INK_2, TEXT, STRONG, MUTED, LINE, LINE_STRONG, TINT, TINT_2, STATUS,
+  RAIL, RAIL_TEXT, RAIL_MUTED, RAIL_LINE,
+  card, input, label, primaryBtn, ghostBtn, pill,
 } from './theme';
+import { Empty, Section, Modal } from './ui';
+import {
+  LayoutDashboard, KeyRound, Users, Monitor, MapPin, Receipt, LifeBuoy, ShieldCheck, LogOut,
+  CheckCircle2, Clock, XCircle, PauseCircle, type LucideIcon,
+} from 'lucide-react';
 
 type Tab = 'dashboard' | 'issue' | 'clients' | 'devices' | 'map' | 'billing' | 'support' | 'verify';
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: '◈' },
-  { id: 'issue',     label: 'Issue License', icon: '✦' },
-  { id: 'clients',   label: 'Clients', icon: '▦' },
-  { id: 'devices',   label: 'Devices', icon: '🖥' },
-  { id: 'map',       label: 'Device Map', icon: '◎' },
-  { id: 'billing',   label: 'Offline Billing', icon: '₨' },
-  { id: 'support',   label: 'Support', icon: '✉' },
-  { id: 'verify',    label: 'Verify Key', icon: '✓' },
+const TABS: { id: Tab; label: string; hint: string; Icon: LucideIcon }[] = [
+  { id: 'dashboard', label: 'Dashboard',       Icon: LayoutDashboard, hint: 'Licences, renewals and activated computers at a glance.' },
+  { id: 'issue',     label: 'Issue License',   Icon: KeyRound,        hint: 'Create a signed key for a shop.' },
+  { id: 'clients',   label: 'Clients',         Icon: Users,           hint: 'Every licence you have issued, with its status and computers.' },
+  { id: 'devices',   label: 'Devices',         Icon: Monitor,         hint: 'Installations reporting to the cloud — activate, suspend or revoke one computer.' },
+  { id: 'map',       label: 'Device Map',      Icon: MapPin,          hint: 'Register an activation code and see where each machine runs.' },
+  { id: 'billing',   label: 'Offline Billing', Icon: Receipt,         hint: 'Invoices, payments and receipts for your clients.' },
+  { id: 'support',   label: 'Support',         Icon: LifeBuoy,        hint: 'Messages from shops and your replies.' },
+  { id: 'verify',    label: 'Verify Key',      Icon: ShieldCheck,     hint: 'Check a key a customer read out to you.' },
 ];
 
 export default function App() {
@@ -114,81 +120,126 @@ export default function App() {
   }
   if (!admin) return <CloudGate />;
 
+  const meta = TABS.find(t => t.id === tab)!;
+
   return (
-    <div style={{
-      minHeight: '100vh', color: TEXT,
-      background: `radial-gradient(1200px 560px at 12% -12%, rgba(224,170,255,0.55) 0%, transparent 60%),
-                   radial-gradient(900px 480px at 108% 8%, rgba(90,24,154,0.14) 0%, transparent 55%), ${INK}`,
-    }}>
-      <Header stats={stats} email={admin?.email} />
+    <div className="sa-shell" style={{ display: 'flex', minHeight: '100vh', color: TEXT, background: INK }}>
+      <Sidebar tab={tab} onTab={setTab} email={admin?.email} />
 
-      {cloudErr && (
-        <div style={{ maxWidth: 1180, margin: '0 auto 10px', padding: '10px 14px', borderRadius: 12,
-                      background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)',
-                      color: '#B91C1C', fontSize: 12 }}>
-          Cloud: {cloudErr}
-        </div>
-      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <PageBar title={meta.label} hint={meta.hint} stats={stats} />
 
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 20,
-        background: 'rgba(255,255,255,0.86)', backdropFilter: 'blur(14px)',
-        borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`,
-      }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '0 22px', display: 'flex', gap: 4, overflowX: 'auto' }}>
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              style={{
-                padding: '13px 16px', border: 'none', background: 'transparent', cursor: 'pointer',
-                color: tab === t.id ? BRAND : MUTED,
-                fontWeight: tab === t.id ? 800 : 600, fontSize: 13, whiteSpace: 'nowrap',
-                borderBottom: `2px solid ${tab === t.id ? ACCENT : 'transparent'}`,
-              }}
-            >
-              <span style={{ marginRight: 7, opacity: 0.85 }}>{t.icon}</span>{t.label}
-            </button>
-          ))}
-        </div>
-      </nav>
+        {cloudErr && (
+          <div role="alert" style={{ maxWidth: 1320, margin: '14px auto 0', width: 'calc(100% - 56px)', padding: '10px 14px', borderRadius: 'var(--ui-radius-control)',
+                        background: STATUS.expired.bg, border: `1px solid ${STATUS.expired.bd}`,
+                        color: STATUS.expired.fg, fontSize: 13 }}>
+            Cloud: {cloudErr}
+          </div>
+        )}
 
-      <main style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 22px 60px' }}>
-        {tab === 'dashboard' && <Dashboard stats={stats} clients={clients} onGo={setTab} />}
-        {tab === 'issue'     && <IssueLicense onIssued={c => setClients(p => upsertClient(p, c))} />}
-        {tab === 'clients'   && <Clients clients={clients} setClients={setClients} />}
-        {tab === 'devices'   && <Devices />}
-        {tab === 'map'       && <MapTab clients={clients} setClients={setClients} />}
-        {tab === 'billing'   && <Billing clients={clients} />}
-        {tab === 'support'   && <Support clients={clients} />}
-        {tab === 'verify'    && <VerifyKey clients={clients} />}
-      </main>
+        <main className="sa-page" style={{ maxWidth: 1320, margin: '0 auto', padding: '20px 28px 60px' }}>
+          {tab === 'dashboard' && <Dashboard stats={stats} clients={clients} onGo={setTab} />}
+          {tab === 'issue'     && <IssueLicense onIssued={c => setClients(p => upsertClient(p, c))} />}
+          {tab === 'clients'   && <Clients clients={clients} setClients={setClients} />}
+          {tab === 'devices'   && <Devices />}
+          {tab === 'map'       && <MapTab clients={clients} setClients={setClients} />}
+          {tab === 'billing'   && <Billing clients={clients} />}
+          {tab === 'support'   && <Support clients={clients} />}
+          {tab === 'verify'    && <VerifyKey clients={clients} />}
+        </main>
+      </div>
     </div>
   );
 }
 
-// ===================== Header =====================
-function Header({ stats, email }: { stats: { total: number; devices: number }; email?: string | null }) {
+// ===================== Shell =====================
+// A dark admin rail on the left (this is the higher-level console, so it is
+// deliberately not the same white sidebar the shop's POS uses), a light page
+// with the same tokens underneath.
+function Sidebar({ tab, onTab, email }: { tab: Tab; onTab: (t: Tab) => void; email?: string | null }) {
   return (
-    <header style={{ maxWidth: 1180, margin: '0 auto', padding: '26px 22px 20px', display: 'flex', alignItems: 'center', gap: 15 }}>
-      <img src="./dt-mark.png" alt="Digital Target" width={48} height={48}
-           style={{ width: 48, height: 48, objectFit: 'contain', borderRadius: 12, background: BRAND, padding: 8 }} />
-      <div style={{ minWidth: 0 }}>
-        <h1 style={{ fontSize: 21, fontWeight: 900, letterSpacing: -0.4, margin: 0 }}>DT POS — Super Admin</h1>
-        <p style={{ fontSize: 11, color: ACCENT, letterSpacing: 1.6, textTransform: 'uppercase', margin: '3px 0 0', fontWeight: 700 }}>
-          Digital Target · cloud console · POS stays offline
-        </p>
-      </div>
-      <div style={{ marginLeft: 'auto', textAlign: 'right', fontSize: 11.5, color: MUTED }}>
-        <div><b style={{ color: STRONG, fontSize: 15 }}>{stats.total}</b> clients</div>
-        <div><b style={{ color: STRONG, fontSize: 15 }}>{stats.devices}</b> devices</div>
-      </div>
-      {email && (
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 11, color: MUTED, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>{email}</div>
-          <button style={{ ...ghostBtn, marginTop: 6 }} onClick={() => adminSignOut()}>Sign out</button>
+    <aside className="sa-sidebar" style={{
+      width: 'var(--ui-sidebar-w)', flex: '0 0 auto', position: 'sticky', top: 0, height: '100vh',
+      display: 'flex', flexDirection: 'column', background: RAIL, color: RAIL_TEXT,
+    }}>
+      <div className="sa-sidebar-brand" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 18px 14px' }}>
+        <img src="./dt-mark.png" alt="Digital Target" width={38} height={38}
+             style={{ width: 38, height: 38, objectFit: 'contain', borderRadius: 10, background: 'hsl(0 0% 100% / 0.10)', padding: 6, flex: 'none' }} />
+        <div className="sa-brand-text" style={{ minWidth: 0 }}>
+          <div style={{ color: '#fff', fontWeight: 700, fontSize: 15, lineHeight: 1.2, letterSpacing: '-0.01em' }}>DT POS</div>
+          <div style={{ fontSize: 12, color: RAIL_MUTED, marginTop: 2 }}>Super Admin</div>
         </div>
-      )}
+      </div>
+
+      <nav className="sa-sidebar-nav" aria-label="Super Admin sections"
+           style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 12px', flex: 1, overflowY: 'auto' }}>
+        {TABS.map(t => {
+          const on = tab === t.id;
+          return (
+            <button
+              key={t.id} type="button" className="sa-nav-item"
+              aria-current={on ? 'page' : undefined}
+              onClick={() => onTab(t.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 11, padding: '9px 12px', minHeight: 40,
+                border: 'none', borderRadius: 'var(--ui-radius-control)', cursor: 'pointer', textAlign: 'left',
+                background: on ? ACCENT : 'transparent', color: on ? 'var(--ui-accent-fg)' : RAIL_TEXT,
+                fontSize: 13.5, fontWeight: on ? 600 : 500, whiteSpace: 'nowrap',
+              }}
+            >
+              <t.Icon size={18} strokeWidth={1.75} aria-hidden style={{ flex: 'none' }} />
+              {t.label}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="sa-sidebar-foot" style={{ padding: '14px 16px 16px', borderTop: `1px solid ${RAIL_LINE}` }}>
+        {email && (
+          <div className="sa-foot-extra" style={{ fontSize: 12, color: RAIL_TEXT, marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={email}>
+            {email}
+          </div>
+        )}
+        {email && (
+          <button
+            type="button" onClick={() => adminSignOut()}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', minHeight: 36,
+              borderRadius: 'var(--ui-radius-control)', border: `1px solid ${RAIL_LINE}`, cursor: 'pointer',
+              background: 'hsl(0 0% 100% / 0.06)', color: '#fff', fontSize: 12.5, fontWeight: 600,
+            }}
+          ><LogOut size={15} strokeWidth={1.75} aria-hidden />Sign out</button>
+        )}
+        <div className="sa-foot-extra" style={{ fontSize: 11.5, color: RAIL_MUTED, marginTop: 12, lineHeight: 1.5 }}>
+          Digital Target · cloud console.<br />The POS itself stays offline.
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function PageBar({ title, hint, stats }: { title: string; hint: string; stats: { total: number; devices: number } }) {
+  const chip = (Icon: LucideIcon, n: number, text: string) => (
+    <span key={text} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 'var(--ui-radius-pill)',
+      background: INK_2, border: `1px solid ${LINE}`, boxShadow: 'var(--ui-shadow-xs)', fontSize: 12.5, color: MUTED,
+    }}>
+      <Icon size={15} strokeWidth={1.75} aria-hidden />
+      <b style={{ color: STRONG, fontSize: 14, fontWeight: 700 }}>{n}</b> {text}
+    </span>
+  );
+  return (
+    <header className="sa-pagebar" style={{
+      maxWidth: 1320, margin: '0 auto', padding: '24px 28px 0', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+    }}>
+      <div style={{ minWidth: 0 }}>
+        <h1 style={{ fontSize: 'var(--ui-text-page)', fontWeight: 700, margin: 0, lineHeight: 1.2 }}>{title}</h1>
+        <p style={{ fontSize: 13, color: MUTED, margin: '4px 0 0' }}>{hint}</p>
+      </div>
+      <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {chip(Users, stats.total, 'clients')}
+        {chip(Monitor, stats.devices, 'devices')}
+      </div>
     </header>
   );
 }
@@ -209,76 +260,84 @@ function Dashboard({ stats, clients, onGo }: {
 
   return (
     <div style={{ display: 'grid', gap: 18 }}>
-      <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))' }}>
-        <Stat label="Active" value={stats.active} tone={STATUS.active.fg} />
-        <Stat label="Expiring ≤14 days" value={stats.soon} tone={STATUS.suspended.fg} />
-        <Stat label="Expired" value={stats.expired} tone={STATUS.expired.fg} />
-        <Stat label="Suspended" value={stats.suspended} tone={MUTED} />
-        <Stat label="Devices activated" value={stats.devices} tone={ACCENT} />
+      <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))' }}>
+        <Stat label="Active" value={stats.active} Icon={CheckCircle2} tone={STATUS.active} />
+        <Stat label="Expiring within 14 days" value={stats.soon} Icon={Clock} tone={STATUS.suspended} />
+        <Stat label="Expired" value={stats.expired} Icon={XCircle} tone={STATUS.expired} />
+        <Stat label="Suspended" value={stats.suspended} Icon={PauseCircle} tone={{ fg: MUTED, bg: TINT, bd: LINE }} />
+        <Stat label="Devices activated" value={stats.devices} Icon={Monitor} tone={{ fg: ACCENT, bg: 'var(--ui-accent-soft)', bd: 'var(--ui-accent-soft-strong)' }} />
       </div>
 
-      <section style={{ ...card, padding: 20 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 4px' }}>Renewals coming up</h2>
-        <p style={{ fontSize: 12, color: MUTED, margin: '0 0 14px' }}>
-          Licences expiring within 30 days. Issue a fresh key before the shop is locked out.
-        </p>
-        {expiring.length === 0 ? (
-          <Empty>Nothing expires in the next 30 days.</Empty>
-        ) : (
-          <div style={{ display: 'grid', gap: 8 }}>
-            {expiring.map(c => {
-              const dl = daysLeft(c) as number;
-              return (
-                <div key={c.key} style={{
-                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
-                  borderRadius: 10, background: TINT, border: `1px solid ${LINE}`,
-                }}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{c.business || '—'}</div>
-                    <div style={{ fontSize: 11, color: MUTED, fontFamily: 'monospace' }}>{c.key}</div>
-                  </div>
-                  <div style={{ fontSize: 11.5, color: MUTED, whiteSpace: 'nowrap' }}>{c.phone}</div>
-                  <div style={{
-                    fontSize: 11.5, fontWeight: 800, whiteSpace: 'nowrap',
-                    color: dl <= 7 ? STATUS.expired.fg : STATUS.suspended.fg,
+      <div style={{ display: 'grid', gap: 18, gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))' }}>
+        <Section title="Renewals coming up" hint="Licences expiring within 30 days. Issue a fresh key before the shop is locked out.">
+          {expiring.length === 0 ? (
+            <Empty icon={CheckCircle2}>Nothing expires in the next 30 days.</Empty>
+          ) : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {expiring.map(c => {
+                const dl = daysLeft(c) as number;
+                return (
+                  <div key={c.key} className="sa-row" style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', flexWrap: 'wrap',
+                    borderRadius: 'var(--ui-radius-control)', border: `1px solid ${LINE}`,
                   }}>
-                    {dl <= 0 ? 'expires today' : `${dl} day${dl === 1 ? '' : 's'} left`}
+                    <div style={{ minWidth: 0, flex: '1 1 180px' }}>
+                      <div style={{ fontWeight: 600, fontSize: 13.5 }}>{c.business || '—'}</div>
+                      <div style={{ fontSize: 11.5, color: MUTED, fontFamily: 'var(--ui-font-mono)' }}>{c.key}</div>
+                    </div>
+                    <div style={{ fontSize: 12, color: MUTED, whiteSpace: 'nowrap' }}>{c.phone}</div>
+                    <span style={pill(dl <= 7 ? STATUS.expired : STATUS.suspended)}>
+                      {dl <= 0 ? 'expires today' : `${dl} day${dl === 1 ? '' : 's'} left`}
+                    </span>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+          )}
+        </Section>
+
+        <Section title="How this works">
+          <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 12, fontSize: 13, lineHeight: 1.6, color: MUTED }}>
+            {[
+              <><b style={{ color: STRONG }}>Issue License</b> — pick a plan, get a key, send it to the shop with the installer.</>,
+              <>The shop activates. <b style={{ color: STRONG }}>No internet is needed</b> — the key proves itself.</>,
+              <>The shop's screen then shows an activation code it can send on WhatsApp.</>,
+              <>Paste that code under <b style={{ color: STRONG }}>Device Map → Register a device</b>: the client is linked and the machine appears on the map.</>,
+            ].map((step, i) => (
+              <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <span style={{
+                  flex: 'none', width: 24, height: 24, borderRadius: '50%', display: 'grid', placeItems: 'center',
+                  background: 'var(--ui-accent-soft)', color: ACCENT, fontSize: 12, fontWeight: 700,
+                }}>{i + 1}</span>
+                <span style={{ paddingTop: 2 }}>{step}</span>
+              </li>
+            ))}
+          </ol>
+          <div style={{ display: 'flex', gap: 9, marginTop: 18, flexWrap: 'wrap' }}>
+            <button style={primaryBtn} onClick={() => onGo('issue')}>Issue a License</button>
+            <button style={ghostBtn} onClick={() => onGo('map')}>Register a device</button>
           </div>
-        )}
-      </section>
-
-      <section style={{ ...card, padding: 20 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 10px' }}>How this works</h2>
-        <ol style={{ margin: 0, paddingLeft: 20, fontSize: 12.5, lineHeight: 1.95, color: MUTED }}>
-          <li><b style={{ color: STRONG }}>Issue License</b> — pick a plan, get a key, send it to the shop with the installer.</li>
-          <li>The shop activates. <b style={{ color: STRONG }}>No internet is needed</b> — the key proves itself.</li>
-          <li>The shop's screen then shows an activation code it can send on WhatsApp.</li>
-          <li>Paste that code under <b style={{ color: STRONG }}>Device Map → Register a device</b>: the client is linked and the machine appears on the map.</li>
-        </ol>
-        <div style={{ display: 'flex', gap: 9, marginTop: 15, flexWrap: 'wrap' }}>
-          <button style={primaryBtn} onClick={() => onGo('issue')}>Issue a License</button>
-          <button style={ghostBtn} onClick={() => onGo('map')}>Register a device</button>
-        </div>
-      </section>
+        </Section>
+      </div>
     </div>
   );
 }
 
-function Stat({ label: l, value, tone }: { label: string; value: number; tone: string }) {
+function Stat({ label: l, value, tone, Icon }: {
+  label: string; value: number; tone: { fg: string; bg: string; bd: string }; Icon: LucideIcon;
+}) {
   return (
-    <div style={{ ...card, padding: '16px 18px' }}>
-      <div style={{ fontSize: 27, fontWeight: 900, color: tone, lineHeight: 1.1 }}>{value}</div>
-      <div style={{ fontSize: 11, color: MUTED, marginTop: 5, fontWeight: 600 }}>{l}</div>
+    <div style={{ ...card, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+      <span style={{
+        flex: 'none', width: 42, height: 42, borderRadius: 12, display: 'grid', placeItems: 'center',
+        background: tone.bg, color: tone.fg, border: `1px solid ${tone.bd}`,
+      }}><Icon size={20} strokeWidth={1.75} aria-hidden /></span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.1, letterSpacing: '-0.02em' }}>{value}</div>
+        <div style={{ fontSize: 12.5, color: MUTED, marginTop: 4 }}>{l}</div>
+      </div>
     </div>
   );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 12.5, color: MUTED, padding: '14px 0' }}>{children}</div>;
 }
 
 // ===================== Issue =====================
@@ -323,7 +382,7 @@ function IssueLicense({ onIssued }: { onIssued: (c: Client) => void }) {
   return (
     <div style={{ display: 'grid', gap: 18, gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))' }}>
       <section style={{ ...card, padding: 22 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 16px' }}>Issue a new license</h2>
+        <h2 style={{ fontSize: 'var(--ui-text-card-title)', fontWeight: 700, margin: '0 0 16px' }}>Issue a new license</h2>
 
         <label style={label}>Plan</label>
         <select style={input} value={plan} onChange={e => setPlan(e.target.value as LicensePlan)}>
@@ -364,7 +423,7 @@ function IssueLicense({ onIssued }: { onIssued: (c: Client) => void }) {
           <input style={input} value={f.notes} onChange={e => setF({ ...f, notes: e.target.value })} />
         </div>
 
-        <p style={{ fontSize: 12, color: ACCENT, margin: '14px 0 0' }}>Expires: {expiryPreview}</p>
+        <p style={{ fontSize: 12.5, color: MUTED, margin: '14px 0 0' }}>Expires: <b style={{ color: STRONG, fontWeight: 600 }}>{expiryPreview}</b></p>
 
         <button onClick={generate} disabled={busy} style={{ ...primaryBtn, width: '100%', marginTop: 14 }}>
           {busy ? 'Generating…' : 'Generate License Key'}
@@ -372,15 +431,15 @@ function IssueLicense({ onIssued }: { onIssued: (c: Client) => void }) {
       </section>
 
       <section style={{ ...card, padding: 22 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 14px' }}>Key to send</h2>
+        <h2 style={{ fontSize: 'var(--ui-text-card-title)', fontWeight: 700, margin: '0 0 14px' }}>Key to send</h2>
         {!issued ? (
-          <Empty>The key appears here once you generate it.</Empty>
+          <Empty icon={KeyRound}>The key appears here once you generate it.</Empty>
         ) : (
           <>
             <div style={{
-              padding: '18px 14px', borderRadius: 12, textAlign: 'center',
-              background: TINT_2, border: `1px solid ${LINE}`,
-              fontFamily: 'monospace', fontSize: 19, fontWeight: 800, letterSpacing: 1.5, wordBreak: 'break-all',
+              padding: '18px 14px', borderRadius: 'var(--ui-radius-control)', textAlign: 'center',
+              background: TINT, border: `1px dashed ${LINE_STRONG}`,
+              fontFamily: 'var(--ui-font-mono)', fontSize: 18, fontWeight: 600, letterSpacing: 1.2, wordBreak: 'break-all',
             }}>{issued.key}</div>
 
             <div style={{ fontSize: 12.5, color: MUTED, marginTop: 14, lineHeight: 1.85 }}>
@@ -393,7 +452,7 @@ function IssueLicense({ onIssued }: { onIssued: (c: Client) => void }) {
             <div style={{ display: 'flex', gap: 9, marginTop: 15, flexWrap: 'wrap' }}>
               <button style={ghostBtn} onClick={() => navigator.clipboard?.writeText(issued.key)}>Copy key</button>
               <button
-                style={{ ...ghostBtn, background: '#25D366', color: '#062', border: 'none' }}
+                style={{ ...ghostBtn, background: '#25D366', color: '#053a1a', border: 'none' }}
                 onClick={() => {
                   const msg = encodeURIComponent(
                     `DT POS Enterprise — License Key\n\n${issued.key}\n\n` +
@@ -464,7 +523,7 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
   return (
     <section style={{ ...card, padding: 20 }}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>Clients ({clients.length})</h2>
+        <h2 style={{ fontSize: 'var(--ui-text-card-title)', fontWeight: 700, margin: 0 }}>All clients <span style={{ color: MUTED, fontWeight: 500 }}>({clients.length})</span></h2>
         <input
           value={q} onChange={e => setQ(e.target.value)}
           placeholder="Search business, owner, phone or key…"
@@ -493,14 +552,18 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
       </div>
 
       {filtered.length === 0 ? (
-        <Empty>{clients.length ? 'No client matches that search.' : 'No licences issued yet.'}</Empty>
+        <Empty icon={Users}>{clients.length ? 'No client matches that search.' : 'No licences issued yet.'}</Empty>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ color: ACCENT, textAlign: 'left' }}>
-                {['Business', 'Key', 'Plan', 'Devices', 'Expiry', 'Status', ''].map(h => (
-                  <th key={h} style={{ padding: '7px 8px', fontWeight: 800, whiteSpace: 'nowrap' }}>{h}</th>
+              <tr style={{ color: MUTED, textAlign: 'left', background: TINT }}>
+                {['Business', 'Key', 'Plan', 'Devices', 'Expiry', 'Status', ''].map((h, i, all) => (
+                  <th key={h || 'actions'} style={{
+                    padding: '9px 10px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
+                    borderTopLeftRadius: i === 0 ? 10 : 0, borderBottomLeftRadius: i === 0 ? 10 : 0,
+                    borderTopRightRadius: i === all.length - 1 ? 10 : 0, borderBottomRightRadius: i === all.length - 1 ? 10 : 0,
+                  }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -512,14 +575,14 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
                 const open = openKey === c.key;
                 return (
                   <Fragment key={c.key}>
-                  <tr style={{ borderTop: `1px solid ${LINE}` }}>
-                    <td style={{ padding: '9px 8px' }}>
-                      <div style={{ fontWeight: 700 }}>{c.business || '—'}</div>
+                  <tr className="sa-row" style={{ borderTop: `1px solid ${LINE}` }}>
+                    <td style={{ padding: '12px 10px', minWidth: 170 }}>
+                      <div style={{ fontWeight: 600 }}>{c.business || '—'}</div>
                       <div style={{ fontSize: 11, color: MUTED }}>{c.owner} {c.phone && `· ${c.phone}`}</div>
                     </td>
-                    <td style={{ padding: '9px 8px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{c.key}</td>
-                    <td style={{ padding: '9px 8px' }}>{PLAN_LABEL[c.plan]}</td>
-                    <td style={{ padding: '9px 8px', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '12px 10px', fontFamily: 'var(--ui-font-mono)', fontSize: 12, whiteSpace: 'nowrap' }}>{c.key}</td>
+                    <td style={{ padding: '12px 10px' }}>{PLAN_LABEL[c.plan]}</td>
+                    <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
                       <button
                         style={{ ...ghostBtn, padding: '4px 9px', fontSize: 11,
                                  color: use.used > use.max ? STATUS.suspended.fg : undefined }}
@@ -527,19 +590,16 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
                         title="Show the machines this key is running on"
                       >{use.used}/{use.max} {open ? '▲' : '▼'}</button>
                     </td>
-                    <td style={{ padding: '9px 8px', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
                       {c.expiryDate ? new Date(c.expiryDate).toLocaleDateString() : 'Lifetime'}
                       {dl !== null && dl <= 30 && dl > 0 && (
                         <div style={{ fontSize: 10.5, color: STATUS.suspended.fg }}>{dl} days left</div>
                       )}
                     </td>
-                    <td style={{ padding: '9px 8px' }}>
-                      <span style={{
-                        padding: '3px 9px', borderRadius: 20, fontSize: 10.5, fontWeight: 800,
-                        color: STATUS[s].fg, background: STATUS[s].bg, border: `1px solid ${STATUS[s].bd}`,
-                      }}>{s}</span>
+                    <td style={{ padding: '12px 10px' }}>
+                      <span style={{ ...pill(STATUS[s]), textTransform: 'capitalize' }}>{s}</span>
                     </td>
-                    <td style={{ padding: '9px 8px', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
                       <button
                         style={{ ...ghostBtn, padding: '5px 10px', fontSize: 11, marginRight: 6 }}
                         onClick={() => setEditing(c)}
@@ -559,7 +619,7 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
                         <option value="pending">Pending payment</option>
                       </select>
                       <button
-                        style={{ ...ghostBtn, padding: '5px 10px', fontSize: 11, marginLeft: 6, color: STATUS.expired.fg }}
+                        style={{ ...ghostBtn, padding: '5px 10px', fontSize: 11, marginLeft: 6, color: STATUS.expired.fg, borderColor: STATUS.expired.bd }}
                         onClick={() => {
                           if (confirm(`Remove ${c.business || c.key} from the registry?\n\nThe shop's installed POS is not affected.`)) {
                             setClients(p => p.filter(x => x.key !== c.key));
@@ -572,16 +632,16 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
                     <tr style={{ background: TINT }}>
                       <td colSpan={7} style={{ padding: '10px 14px' }}>
                         {c.devices.length === 0 ? (
-                          <span style={{ fontSize: 12, color: MUTED }}>No machine has sent an activation code yet.</span>
+                          <span style={{ fontSize: 12.5, color: MUTED }}>No machine has sent an activation code yet.</span>
                         ) : (
                           <div style={{ display: 'grid', gap: 6 }}>
                             {c.devices.map(d => (
                               <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 11.5 }}>
-                                <span style={{ fontFamily: 'monospace' }}>{d.id}</span>
+                                <span style={{ fontFamily: 'var(--ui-font-mono)' }}>{d.id}</span>
                                 <span style={{ color: MUTED }}>activated {new Date(d.activatedAt).toLocaleString()}</span>
                                 {d.appVersion && <span style={{ color: MUTED }}>v{d.appVersion}</span>}
-                                {typeof d.lat === 'number' && <span style={{ color: ACCENT }}>on map</span>}
-                                {d.approved && <span style={{ color: STATUS.active.fg, fontWeight: 800 }}>approved extra</span>}
+                                {typeof d.lat === 'number' && <span style={{ color: ACCENT, fontWeight: 600 }}>on map</span>}
+                                {d.approved && <span style={{ color: STATUS.active.fg, fontWeight: 700 }}>approved extra</span>}
                                 <button
                                   style={{ ...ghostBtn, padding: '4px 9px', fontSize: 10.5, marginLeft: 'auto', color: STATUS.expired.fg }}
                                   onClick={() => {
@@ -694,10 +754,10 @@ function EditClient({
   };
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 70 }}>
-      <div onClick={e => e.stopPropagation()} style={{ ...card, padding: 20, width: 'min(560px, 100%)', maxHeight: '88vh', overflowY: 'auto' }}>
-        <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 900 }}>Edit licence</h3>
-        <p style={{ fontSize: 11.5, color: MUTED, margin: '0 0 14px', fontFamily: 'monospace' }}>{client.key}</p>
+    <Modal onClose={onClose} width={560}>
+      <div>
+        <h3 style={{ margin: '0 0 4px', fontSize: 'var(--ui-text-section)', fontWeight: 700 }}>Edit licence</h3>
+        <p style={{ fontSize: 11.5, color: MUTED, margin: '0 0 14px', fontFamily: 'var(--ui-font-mono)' }}>{client.key}</p>
 
         <div style={{ display: 'grid', gap: 10, gridTemplateColumns: '1fr 1fr' }}>
           <div><label style={label}>Business</label><input style={input} value={f.business} onChange={e => setF({ ...f, business: e.target.value })} /></div>
@@ -743,9 +803,9 @@ function EditClient({
         )}
 
         {newKey && (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: STATUS.active.bg, border: `1px solid ${STATUS.active.bd}` }}>
+          <div style={{ marginTop: 12, padding: 12, borderRadius: 'var(--ui-radius-control)', background: STATUS.active.bg, border: `1px solid ${STATUS.active.bd}` }}>
             <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 4 }}>New key — send this to the shop:</div>
-            <div style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 13.5 }}>{newKey}</div>
+            <div style={{ fontFamily: 'var(--ui-font-mono)', fontWeight: 700, fontSize: 13.5 }}>{newKey}</div>
             <button style={{ ...ghostBtn, marginTop: 8 }} onClick={() => navigator.clipboard.writeText(newKey)}>Copy key</button>
           </div>
         )}
@@ -758,7 +818,7 @@ function EditClient({
           <button style={{ ...ghostBtn, marginLeft: 'auto' }} onClick={onClose}>Close</button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -833,7 +893,7 @@ function MapTab({ clients, setClients }: { clients: Client[]; setClients: (f: (p
   return (
     <div style={{ display: 'grid', gap: 18 }}>
       <section style={{ ...card, padding: 20 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 4px' }}>Register a device</h2>
+        <h2 style={{ fontSize: 'var(--ui-text-card-title)', fontWeight: 700, margin: '0 0 4px' }}>Register a device</h2>
         <p style={{ fontSize: 12, color: MUTED, margin: '0 0 12px', lineHeight: 1.7 }}>
           Paste the activation code the shop sent you. It is signed, so an edited or
           invented code is rejected. If the key is already live on another computer you
@@ -844,7 +904,7 @@ function MapTab({ clients, setClients }: { clients: Client[]; setClients: (f: (p
           onChange={e => { setCode(e.target.value); setMsg(null); setConflict(null); }}
           placeholder="DTR1.xxxxxxxxxxxxxxxx.xxxxxxxx"
           rows={3}
-          style={{ ...input, fontFamily: 'monospace', fontSize: 11.5, resize: 'vertical' }}
+          style={{ ...input, fontFamily: 'var(--ui-font-mono)', fontSize: 11.5, resize: 'vertical' }}
         />
         <div style={{ display: 'flex', gap: 9, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <button style={primaryBtn} onClick={register} disabled={!code.trim()}>Register device</button>
@@ -857,10 +917,10 @@ function MapTab({ clients, setClients }: { clients: Client[]; setClients: (f: (p
 
         {conflict && (
           <div style={{
-            marginTop: 14, padding: 16, borderRadius: 12,
+            marginTop: 14, padding: 16, borderRadius: 'var(--ui-radius-control)',
             background: STATUS.suspended.bg, border: `1px solid ${STATUS.suspended.bd}`,
           }}>
-            <div style={{ fontWeight: 800, fontSize: 13.5, color: STATUS.suspended.fg }}>
+            <div style={{ fontWeight: 700, fontSize: 13.5, color: STATUS.suspended.fg }}>
               ⚠ This licence key is already in use
             </div>
             <div style={{ fontSize: 12.5, color: MUTED, marginTop: 8, lineHeight: 1.9 }}>
@@ -870,7 +930,7 @@ function MapTab({ clients, setClients }: { clients: Client[]; setClients: (f: (p
               <Row k="New machine" v={conflict.rec.device} />
             </div>
             <div style={{ fontSize: 11.5, color: MUTED, marginTop: 10 }}>Already linked:</div>
-            <ul style={{ margin: '5px 0 0', paddingLeft: 18, fontSize: 11.5, color: MUTED, fontFamily: 'monospace' }}>
+            <ul style={{ margin: '5px 0 0', paddingLeft: 18, fontSize: 11.5, color: MUTED, fontFamily: 'var(--ui-font-mono)' }}>
               {conflict.client.devices.map(d => (
                 <li key={d.id}>{d.id} · {new Date(d.activatedAt).toLocaleDateString()}</li>
               ))}
@@ -900,7 +960,7 @@ function MapTab({ clients, setClients }: { clients: Client[]; setClients: (f: (p
 
       <section style={{ ...card, padding: 20 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-          <h2 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>Activation-code map</h2>
+          <h2 style={{ fontSize: 'var(--ui-text-card-title)', fontWeight: 700, margin: 0 }}>Activation-code map</h2>
           <span style={{ fontSize: 12, color: MUTED }}>
             {pins.length} device{pins.length === 1 ? '' : 's'} with a location
           </span>
@@ -947,12 +1007,12 @@ function VerifyKey({ clients }: { clients: Client[] }) {
 
   return (
     <section style={{ ...card, padding: 22, maxWidth: 620 }}>
-      <h2 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 4px' }}>Verify a key</h2>
+      <h2 style={{ fontSize: 'var(--ui-text-card-title)', fontWeight: 700, margin: '0 0 4px' }}>Verify a key</h2>
       <p style={{ fontSize: 12, color: MUTED, margin: '0 0 14px' }}>
         Check a key a customer read out to you — plan, device count and expiry, without touching their PC.
       </p>
       <input
-        style={{ ...input, fontFamily: 'monospace', letterSpacing: 1 }}
+        style={{ ...input, fontFamily: 'var(--ui-font-mono)', letterSpacing: 1 }}
         value={key} placeholder="DTPOS-XXXX-XXXX-XXXX-XXXX"
         onChange={e => { setKey(e.target.value.toUpperCase()); setResult(null); }}
         onKeyDown={e => { if (e.key === 'Enter') void run(); }}
@@ -960,8 +1020,11 @@ function VerifyKey({ clients }: { clients: Client[] }) {
       <button style={{ ...primaryBtn, width: '100%', marginTop: 12 }} onClick={run}>Check</button>
       {result && (
         <pre style={{
-          marginTop: 14, fontSize: 12.5, whiteSpace: 'pre-wrap', fontFamily: 'inherit',
+          marginTop: 14, padding: '12px 14px', fontSize: 13, whiteSpace: 'pre-wrap', fontFamily: 'inherit', lineHeight: 1.7,
+          borderRadius: 'var(--ui-radius-control)', fontWeight: 600,
           color: ok ? STATUS.active.fg : STATUS.expired.fg,
+          background: ok ? STATUS.active.bg : STATUS.expired.bg,
+          border: `1px solid ${ok ? STATUS.active.bd : STATUS.expired.bd}`,
         }}>{result}</pre>
       )}
     </section>
