@@ -42,6 +42,7 @@ import BillingStatusBar from '@/components/BillingStatusBar';
 import { isPrintPreviewEnabled } from '@/lib/printPreferences';
 import { usePosLayout } from '@/hooks/usePosLayout';
 import { saveScreenConfig, RESIZE_HANDLE } from '@/lib/posLayout';
+import { useUiStyle } from '@/lib/uiStyle';
 
 const DEALS_CATEGORY_ID = 'cat-deals';
 
@@ -55,6 +56,9 @@ function buildDealNote(dealId: string, allItems: MenuItem[]): string {
 
 export default function POSScreen() {
   useLang(); // language change par re-render
+  // Presentation only: the Modern interface style adds a few labels (item counts,
+  // unit price under a cart line). Nothing below depends on it for behaviour.
+  const modern = useUiStyle() === 'modern';
   const [categories, setCategories] = useState<Category[]>([]);
   const catRibbonRef = useRef<HTMLDivElement | null>(null);
   const scrollCatRibbon = (dir: 'left' | 'right') => {
@@ -403,6 +407,18 @@ export default function POSScreen() {
   }, []);
 
   // Items inside the currently selected category (used for both flavor grid and items grid)
+  // Item counts for the category pills (Modern shows them, like the reference POS).
+  const catCounts = useMemo(() => {
+    const byCat = new Map<string, number>();
+    let all = 0;
+    for (const it of menuItems) {
+      if (!it.isActive) continue;
+      all++;
+      byCat.set(it.categoryId, (byCat.get(it.categoryId) || 0) + 1);
+    }
+    return { all, byCat };
+  }, [menuItems]);
+
   const categoryItems = useMemo(() => {
     return menuItems.filter(item => {
       if (!item.isActive) return false;
@@ -1527,7 +1543,7 @@ export default function POSScreen() {
       <div className="flex-1 bg-pos-grid flex flex-col min-w-0">
         {/* TOP BAR — compact: Search + Manual only.
             Order-type tabs (Dining/Takeaway/Delivery) live inside the Cart panel header. */}
-        <div className="bg-card border-b shadow-sm px-3 py-1.5 flex items-center gap-2 shrink-0">
+        <div data-pos-topbar className="bg-card border-b shadow-sm px-3 py-1.5 flex items-center gap-2 shrink-0">
           {editingOrderId && (
             <Badge variant="secondary" className="text-[10px] bg-status-warning/20 text-status-warning border-status-warning/30 shrink-0">
               Editing Order
@@ -1535,7 +1551,7 @@ export default function POSScreen() {
           )}
 
           {/* Search */}
-          <div className="relative flex-1 min-w-0">
+          <div data-pos-search className="relative flex-1 min-w-0">
             <Search className="absolute left-2.5 top-1.5 h-4 w-4 text-muted-foreground" />
             <Input
               id="pos-search"
@@ -1577,7 +1593,7 @@ export default function POSScreen() {
               data-active={selectedCat === 'all'}
               className="cat-pill"
             >
-              📋 All
+              📋 All{modern && <span data-cat-count>{catCounts.all}</span>}
             </button>
             {categories.map(cat => {
               const catFont = settings.categoryStyle;
@@ -1601,6 +1617,7 @@ export default function POSScreen() {
                     <span className="text-sm">{cat.icon}</span>
                   )}
                   <span>{cat.name}</span>
+                  {modern && <span data-cat-count>{catCounts.byCat.get(cat.id) || 0}</span>}
                 </button>
               );
             })}
@@ -1625,7 +1642,7 @@ export default function POSScreen() {
                 data-active={selectedCat === 'all'}
                 className="cat-pill w-[calc(100%-12px)] mx-1.5 mb-1.5 justify-start"
               >
-                📋 All
+                📋 All{modern && <span data-cat-count>{catCounts.all}</span>}
               </button>
               {categories.map(cat => {
                 const catFont = settings.categoryStyle;
@@ -1649,6 +1666,7 @@ export default function POSScreen() {
                       <span className="text-sm shrink-0">{cat.icon}</span>
                     )}
                     <span className="truncate text-left">{cat.name}</span>
+                    {modern && <span data-cat-count className="ml-auto">{catCounts.byCat.get(cat.id) || 0}</span>}
                   </button>
                 );
               })}
@@ -1726,35 +1744,37 @@ export default function POSScreen() {
             <button
               key={item.id}
               onClick={() => addToCart(item)}
+              data-pos-card
+              data-in-cart={inCart ? 'true' : 'false'}
               className={`bg-card rounded-xl text-left hover:shadow-xl hover:ring-2 hover:ring-primary/40 hover:-translate-y-0.5 transition-all duration-200 group overflow-hidden border border-border/50 hover:border-primary/30 relative ${
                 inCart ? 'ring-2 ring-primary/30 shadow-md' : 'shadow-sm'
               }`}
             >
               {/* Quantity badge */}
               {inCart && (
-                <div className="absolute top-1.5 right-1.5 z-10 bg-primary text-primary-foreground text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-lg">
+                <div data-pos-card-qty className="absolute top-1.5 right-1.5 z-10 bg-primary text-primary-foreground text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-lg">
                   {inCart.quantity}
                 </div>
               )}
               {/* Item Image */}
               {item.image ? (
-                <div className="w-full overflow-hidden bg-muted" style={{ height: layout.cardImageHeight }}>
+                <div data-pos-card-image className="w-full overflow-hidden bg-muted" style={{ height: layout.cardImageHeight }}>
                   <CachedImage src={item.image} alt={item.name} fallbackLabel={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
                 </div>
               ) : (
-                <div className="w-full bg-gradient-to-br from-primary/8 to-accent/30 flex items-center justify-center" style={{ height: Math.round(layout.cardImageHeight * 0.66) }}>
+                <div data-pos-card-image className="w-full bg-gradient-to-br from-primary/8 to-accent/30 flex items-center justify-center" style={{ height: Math.round(layout.cardImageHeight * 0.66) }}>
                   <span className="text-2xl opacity-40 group-hover:scale-110 transition-transform duration-200">
                     {categories.find(c => c.id === item.categoryId)?.icon || '🍽️'}
                   </span>
                 </div>
               )}
-              <div className={layout.density === 'compact' ? 'p-2' : 'p-2.5'}>
+              <div data-pos-card-body className={layout.density === 'compact' ? 'p-2' : 'p-2.5'}>
                 {/* Item name: one step larger and heavier than before. A cashier
                     scans this grid at arm's length under counter lighting, so
                     readability matters more than density here. A shop that has
                     chosen its own menu font in Settings still wins — that path
                     sets its own size and weight through itemFontStyle. */}
-                <p className="text-sm font-extrabold text-foreground truncate leading-snug" style={itemFontStyle}>{item.name}</p>
+                <p data-pos-card-name className="text-sm font-extrabold text-foreground truncate leading-snug" style={itemFontStyle}>{item.name}</p>
                 {item.categoryId === DEALS_CATEGORY_ID && (() => {
                   const deal = getDeals().find(d => d.id === item.id);
                   if (!deal || !deal.items?.length) return null;
@@ -1768,7 +1788,7 @@ export default function POSScreen() {
                     under the name, so at a glance the two ran together. A
                     tinted, bordered chip separates them without redesigning
                     the card or changing any layout around it. */}
-                <div className="flex items-center justify-between mt-2 gap-1">
+                <div data-pos-card-foot className="flex items-center justify-between mt-2 gap-1">
                   {hasVar && isFinite(minVarPrice) ? (
                     <span className="text-xs font-extrabold text-primary bg-primary/10 border border-primary/25 rounded-md px-1.5 py-0.5 whitespace-nowrap">
                       From Rs.{minVarPrice.toLocaleString()}
@@ -1786,7 +1806,7 @@ export default function POSScreen() {
                       Manual
                     </span>
                   )}
-                  <div className="bg-primary/10 text-primary rounded-full p-1 group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-200">
+                  <div data-pos-card-add className="bg-primary/10 text-primary rounded-full p-1 group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-200">
                     <Plus className="h-3.5 w-3.5" />
                   </div>
                 </div>
@@ -1847,15 +1867,16 @@ export default function POSScreen() {
       <div
         style={cartDrawer ? undefined : cartBottom ? { height: layout.cartHeight } : { width: cartWidth }}
         ref={cartColRef}
+        data-pos-cart
         className={`${cartDrawer
           ? (mobileCartOpen ? 'fixed inset-y-0 right-0 w-[88%] max-w-[340px] z-50 flex' : 'hidden')
           : cartBottom ? 'relative flex w-full border-t-2' : 'relative flex border-l'} bg-pos-cart flex-col shrink-0 shadow-lg min-h-0 overflow-y-auto overflow-x-hidden pos-scrollbar`}
       >
         {/* Cart Header with order type + customer fields — pinned */}
-        <div ref={cartHeadRef} className="sticky top-0 z-30 bg-pos-cart px-3 py-2 border-b space-y-1.5 shrink-0">
-          <h2 className="text-sm font-extrabold flex items-center gap-2">
+        <div ref={cartHeadRef} data-pos-cart-head className="sticky top-0 z-30 bg-pos-cart px-3 py-2 border-b space-y-1.5 shrink-0">
+          <h2 data-pos-cart-title className="text-sm font-extrabold flex items-center gap-2">
             <ShoppingCart className="h-4 w-4 text-primary" />
-            CART
+            {modern ? 'Order' : 'CART'}
             <Badge variant="secondary" className="ml-auto text-[10px] font-bold">{cart.length} items</Badge>
             {/* v1.0.40: the cart-width -/+ buttons used to sit here, right next
                 to the per-line quantity -/+ controls. Staff hit them by
@@ -1868,10 +1889,12 @@ export default function POSScreen() {
             </button>}
           </h2>
           {/* Order type quick switch — branded, matches sidebar across all themes */}
-          <div className="grid grid-cols-3 gap-1">
+          <div data-pos-ordertypes className="grid grid-cols-3 gap-1">
             {orderTypes.map(ot => (
               <button
                 key={ot.value}
+                data-pos-ordertype
+                data-active={orderType === ot.value}
                 onClick={() => { if (!editingOrderId) { setOrderType(ot.value); setOrderTypePicked(true); setShowOrderTypeGate(false); } }}
                 disabled={!!editingOrderId}
                 className={`h-7 rounded-md text-[10px] font-extrabold uppercase tracking-wide transition-all border ${
@@ -1885,7 +1908,7 @@ export default function POSScreen() {
             ))}
           </div>
           <div className="flex gap-1.5">
-            <div className="relative flex-1">
+            <div data-pos-cust className="relative flex-1">
               <User className="absolute left-1.5 top-1.5 h-3 w-3 text-muted-foreground" />
               <Input
                 placeholder="Customer Name"
@@ -1894,7 +1917,7 @@ export default function POSScreen() {
                 className="h-6 text-[10px] pl-5 font-semibold"
               />
             </div>
-            <div className="relative flex-1">
+            <div data-pos-cust className="relative flex-1">
               <Phone className="absolute left-1.5 top-1.5 h-3 w-3 text-muted-foreground" />
               <Input
                 placeholder="Phone"
@@ -1913,9 +1936,9 @@ export default function POSScreen() {
             v1.0.40 (client: "sirf 2 items nazar aati hain"): `basis` se
             item list ko baqi sections par tarjeeh milti hai, aur
             `min-h-[190px]` se kam se kam ~5-6 rows hamesha nazar aati hain. */}
-        <div className="shrink-0">
+        <div data-pos-lines className="shrink-0">
           {/* Table header — matches sidebar color across all themes */}
-          <div className="sticky top-[var(--dt-cart-head-h,0px)] z-20 bg-gradient-sidebar backdrop-blur-sm px-3 py-2 flex items-center text-[9px] font-extrabold text-sidebar-foreground uppercase tracking-[0.14em] shadow-md border-b border-sidebar-border">
+          <div data-pos-lines-head className="sticky top-[var(--dt-cart-head-h,0px)] z-20 bg-gradient-sidebar backdrop-blur-sm px-3 py-2 flex items-center text-[9px] font-extrabold text-sidebar-foreground uppercase tracking-[0.14em] shadow-md border-b border-sidebar-border">
             <span className="w-5 text-center opacity-70">#</span>
             <span className="flex-1 pl-1">Item</span>
             <span className="w-12 text-center">Qty</span>
@@ -1927,19 +1950,22 @@ export default function POSScreen() {
             <div
               key={item.id}
               onClick={() => setSelectedCartItem(item.id)}
+              data-pos-line
+              data-selected={selectedCartItem === item.id ? 'true' : 'false'}
               className={`px-3 py-2 cursor-pointer border-b border-border/30 transition-all duration-150 hover:shadow-sm ${
                 selectedCartItem === item.id
                   ? 'bg-primary/10 ring-1 ring-primary/40 shadow-sm'
                   : idx % 2 === 0 ? 'bg-card' : 'bg-accent/20'
               }`}
             >
-              <div className="flex items-center">
-                <span className="w-5 text-center text-[10px] text-muted-foreground/70 font-bold">{idx + 1}</span>
-                <div className="flex-1 pl-1.5 min-w-0">
+              <div data-pos-line-row className="flex items-center">
+                <span data-pos-line-idx className="w-5 text-center text-[10px] text-muted-foreground/70 font-bold">{idx + 1}</span>
+                <div data-pos-line-name className="flex-1 pl-1.5 min-w-0">
                   <p className="text-[11px] font-extrabold text-foreground truncate leading-tight">{item.name}</p>
+                  {modern && <p data-pos-line-unit>{item.quantity} × {item.price.toLocaleString()}</p>}
                   {item.note && <p className="text-[8px] text-muted-foreground italic mt-0.5">📝 {item.note}</p>}
                 </div>
-                <div className="w-12 flex items-center justify-center gap-0.5">
+                <div data-pos-line-qty className="w-12 flex items-center justify-center gap-0.5">
                   <button onClick={(e) => { e.stopPropagation(); updateQty(item.id, -1); }} className="h-5 w-5 rounded-md bg-muted/80 flex items-center justify-center hover:bg-destructive/20 hover:text-destructive transition-colors">
                     <Minus className="h-2.5 w-2.5" />
                   </button>
@@ -1948,16 +1974,16 @@ export default function POSScreen() {
                     <Plus className="h-2.5 w-2.5" />
                   </button>
                 </div>
-                <span className="w-14 text-right text-[10px] text-muted-foreground font-medium">{item.price.toLocaleString()}</span>
-                <span className="w-16 text-right text-[11px] font-extrabold text-primary">{item.lineTotal.toLocaleString()}</span>
-                <button onClick={(e) => { e.stopPropagation(); removeItem(item.id); }} className="w-5 text-destructive/60 hover:text-destructive ml-0.5 transition-colors">
+                <span data-pos-line-price className="w-14 text-right text-[10px] text-muted-foreground font-medium">{item.price.toLocaleString()}</span>
+                <span data-pos-line-total className="w-16 text-right text-[11px] font-extrabold text-primary">{item.lineTotal.toLocaleString()}</span>
+                <button data-pos-line-del onClick={(e) => { e.stopPropagation(); removeItem(item.id); }} className="w-5 text-destructive/60 hover:text-destructive ml-0.5 transition-colors">
                   <Trash2 className="h-3 w-3" />
                 </button>
               </div>
             </div>
           ))}
           {cart.length === 0 && (
-            <div className="text-center py-10 text-muted-foreground/60">
+            <div data-pos-empty className="text-center py-10 text-muted-foreground/60">
               <ShoppingCart className="h-8 w-8 mx-auto mb-2 opacity-30" />
               <p className="text-[11px] font-medium">Add items to start an order</p>
             </div>
@@ -1981,7 +2007,7 @@ export default function POSScreen() {
 
         {/* Billing Summary - Luxury */}
         {/* Totals / discounts / payment — hamesha nazar aata hai (scroll nahi hota) */}
-        <div className="sticky bottom-[var(--dt-cart-actions-h,0px)] z-20 border-t-2 border-primary/20 bg-card bg-gradient-to-b from-card to-accent/10 px-3 py-2.5 space-y-1 shrink-0">
+        <div data-pos-totals className="sticky bottom-[var(--dt-cart-actions-h,0px)] z-20 border-t-2 border-primary/20 bg-card bg-gradient-to-b from-card to-accent/10 px-3 py-2.5 space-y-1 shrink-0">
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground font-medium">Subtotal</span>
             <span className="font-bold">PKR {subtotal.toLocaleString()}</span>
@@ -2118,14 +2144,14 @@ export default function POSScreen() {
               <span>PKR {serviceCharge.toLocaleString()}</span>
             </div>
           )}
-          <div className="flex justify-between items-center pt-2 border-t-2 border-primary/30">
-            <span className="text-sm font-extrabold tracking-tight">GRAND TOTAL</span>
+          <div data-pos-grand className="flex justify-between items-center pt-2 border-t-2 border-primary/30">
+            <span className="text-sm font-extrabold tracking-tight">{modern ? 'Total' : 'GRAND TOTAL'}</span>
             <span className="text-primary text-xl font-black tracking-tight">PKR {grandTotal.toLocaleString()}</span>
           </div>
 
           {/* Payment area */}
           {cart.length > 0 && !isOrderTaker && (
-            <div className="flex items-center gap-2 pt-1.5">
+            <div data-pos-payrow className="flex items-center gap-2 pt-1.5">
               <div className="flex-1">
                 <label className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider">Payment</label>
                 <Input
@@ -2138,7 +2164,7 @@ export default function POSScreen() {
               </div>
               <div className="flex-1">
                 <label className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider">Change</label>
-                <div className={`h-7 rounded-md border px-2 flex items-center justify-end text-xs font-extrabold ${
+                <div data-pos-change data-empty={paymentReceivedNum > 0 ? 'false' : 'true'} className={`h-7 rounded-md border px-2 flex items-center justify-end text-xs font-extrabold ${
                   changeAmount >= 0 ? 'text-status-success bg-status-success/10 border-status-success/30' : 'text-destructive bg-destructive/10 border-destructive/30'
                 }`}>
                   {paymentReceivedNum > 0 ? `PKR ${Math.abs(changeAmount).toLocaleString()}` : '—'}
@@ -2153,7 +2179,7 @@ export default function POSScreen() {
             window is short. It scrolls inside itself, so shrinking it never
             hides a control — and never pushes the action bar off-screen. */}
         {!keypadHidden && (
-        <div className="border-t-2 border-primary/20 bg-gradient-to-b from-accent/30 to-transparent shrink-0">
+        <div data-pos-keypad className="border-t-2 border-primary/20 bg-gradient-to-b from-accent/30 to-transparent shrink-0">
           <button
             type="button"
             onClick={() => { if (screenConfig.keypad === 'auto') setCartUiSection({ numpad: !cartUi.numpad }); }}
@@ -2304,9 +2330,9 @@ export default function POSScreen() {
             the app to 85% zoom. The bar is now its own `shrink-0` region
             pinned to the bottom of the cart column, so PAY is reachable at
             every window size, item count and keypad state. */}
-        <div ref={cartActionsRef} className="sticky bottom-0 z-30 border-t-2 border-primary/25 bg-card bg-gradient-to-b from-card to-accent/10 px-2 py-1.5 space-y-1 shrink-0 relative">
+        <div ref={cartActionsRef} data-pos-actions className="sticky bottom-0 z-30 border-t-2 border-primary/25 bg-card bg-gradient-to-b from-card to-accent/10 px-2 py-1.5 space-y-1 shrink-0 relative">
           {/* Keyboard shortcut hint — professional POS feel */}
-          <div className="hidden sm:flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-semibold text-muted-foreground">
+          <div data-pos-hints className="hidden sm:flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-semibold text-muted-foreground">
             <span><kbd className="px-1 rounded bg-muted">F1</kbd> Search</span>
             <span><kbd className="px-1 rounded bg-muted">F2</kbd> Hold</span>
             <span><kbd className="px-1 rounded bg-muted">F3</kbd> Running</span>
@@ -2316,8 +2342,9 @@ export default function POSScreen() {
             <span><kbd className="px-1 rounded bg-muted">Enter</kbd> OK</span>
           </div>
           {/* Bottom row: CLR - Hold/Apply - PAY */}
-          <div className="grid grid-cols-3 gap-1.5">
+          <div data-pos-actions-main className="grid grid-cols-3 gap-1.5">
             <button
+              data-pos-clr
               onClick={() => { setNumpadValue(''); cancelNumpad(); }}
               className="h-9 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-xs font-extrabold hover:bg-destructive/20 transition-all duration-150 active:scale-95"
             >
@@ -2341,6 +2368,7 @@ export default function POSScreen() {
             )}
             {isOrderTaker ? (
               <button
+                data-pos-pay
                 onClick={() => { if (cart.length === 0) { toast.error('Cart is empty'); return; } processOrder('running'); }}
                 className="h-9 rounded-lg bg-status-success text-status-success-foreground text-sm font-extrabold hover:bg-status-success/90 transition-all duration-150 active:scale-95 shadow-lg hover:shadow-xl flex items-center justify-center gap-1"
               >
@@ -2348,6 +2376,7 @@ export default function POSScreen() {
               </button>
             ) : (
               <button
+                data-pos-pay
                 onClick={handleDirectPay}
                 className="h-9 rounded-lg bg-status-success text-status-success-foreground text-sm font-extrabold hover:bg-status-success/90 transition-all duration-150 active:scale-95 shadow-lg hover:shadow-xl"
               >
@@ -2358,7 +2387,7 @@ export default function POSScreen() {
 
           {/* Token ON: Token takes Kitchen's fixed slot. Kitchen moves to More.
               Token OFF: the familiar Kitchen + Customer Receipt layout stays unchanged. */}
-          <div className={`grid ${isOrderTaker ? 'grid-cols-1' : 'grid-cols-2'} gap-1.5`}>
+          <div data-pos-actions-secondary className={`grid ${isOrderTaker ? 'grid-cols-1' : 'grid-cols-2'} gap-1.5`}>
             {(settings as any).tokenPrintEnabled ? (
             <button
               onClick={async () => {

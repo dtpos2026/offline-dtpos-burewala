@@ -27,18 +27,23 @@ import Support from './Support';
 import Devices from './Devices';
 import Billing from './Billing';
 import {
-  watchAdmin, adminSignOut, watchClients, pushClient, removeClient,
-  watchLicenseStatuses, setLicenseStatus, docIdFor, type StatusDoc, type LicenceAction,
+  watchAdmin, adminSignOut, watchClients, pushClient, removeClient, watchDevices, watchMessages,
+  watchLicenseStatuses, setLicenseStatus, docIdFor, type StatusDoc, type LicenceAction, type DeviceDoc,
 } from './cloud';
+import { isOnline } from './deviceState';
+import { UI_THEMES, setTheme, useThemeId } from '@pos/lib/uiStyle';
 import {
-  ACCENT, INK, INK_2, TEXT, STRONG, MUTED, LINE, LINE_STRONG, TINT, TINT_2, STATUS,
+  ACCENT, ACCENT_TEXT, INK, INK_2, TEXT, STRONG, MUTED, LINE, LINE_STRONG, TINT, TINT_2, STATUS,
   RAIL, RAIL_TEXT, RAIL_MUTED, RAIL_LINE,
   card, input, label, primaryBtn, ghostBtn, pill,
 } from './theme';
-import { Empty, Section, Modal } from './ui';
 import {
-  LayoutDashboard, KeyRound, Users, Monitor, MapPin, Receipt, LifeBuoy, ShieldCheck, LogOut,
-  CheckCircle2, Clock, XCircle, PauseCircle, type LucideIcon,
+  Empty, Section, Modal, ModalHeader, FeedbackProvider, useConfirm, useToast, RowMenu, Avatar, MiniBar, Chips,
+  CopyButton, relativeDays, type MenuEntry,
+} from './ui';
+import {
+  LayoutDashboard, KeyRound, Users, Monitor, MapPin, Receipt, LifeBuoy, ShieldCheck, LogOut, Plus,
+  CheckCircle2, Clock, XCircle, PauseCircle, Wifi, TriangleAlert, Palette, type LucideIcon,
 } from 'lucide-react';
 
 type Tab = 'dashboard' | 'issue' | 'clients' | 'devices' | 'map' | 'billing' | 'support' | 'verify';
@@ -60,6 +65,7 @@ export default function App() {
   const [admin, setAdmin] = useState<{ email?: string | null } | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [cloudErr, setCloudErr] = useState<string | null>(null);
+  const [unread, setUnread] = useState(0);
   useEffect(() => { saveClients(clients); }, [clients]);
 
   // ---- cloud: who is signed in ----
@@ -74,6 +80,12 @@ export default function App() {
       setClients(list);
       setCloudErr(null);
     }, e => setCloudErr(e.message));
+  }, [admin]);
+
+  // ---- cloud: unread shop messages (the badge on Support) ----
+  useEffect(() => {
+    if (!admin) return;
+    return watchMessages(list => setUnread(list.filter(m => m.from === 'shop' && !m.read).length), () => setUnread(0));
   }, [admin]);
 
   // ---- cloud: push local changes up (issue / suspend / device / delete) ----
@@ -121,34 +133,43 @@ export default function App() {
   if (!admin) return <CloudGate />;
 
   const meta = TABS.find(t => t.id === tab)!;
+  const issueAction = (tab === 'dashboard' || tab === 'clients')
+    ? (
+      <button type="button" style={{ ...primaryBtn, display: 'inline-flex', alignItems: 'center', gap: 8 }} onClick={() => setTab('issue')}>
+        <Plus size={16} strokeWidth={2} aria-hidden />Issue license
+      </button>
+    )
+    : null;
 
   return (
-    <div className="sa-shell" style={{ display: 'flex', minHeight: '100vh', color: TEXT, background: INK }}>
-      <Sidebar tab={tab} onTab={setTab} email={admin?.email} />
+    <FeedbackProvider>
+      <div className="sa-shell" style={{ display: 'flex', minHeight: '100vh', color: TEXT, background: INK }}>
+        <Sidebar tab={tab} onTab={setTab} email={admin?.email} badges={{ clients: stats.total, support: unread }} />
 
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <PageBar title={meta.label} hint={meta.hint} stats={stats} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <PageBar title={meta.label} hint={meta.hint} stats={stats} actions={issueAction} />
 
-        {cloudErr && (
-          <div role="alert" style={{ maxWidth: 1320, margin: '14px auto 0', width: 'calc(100% - 56px)', padding: '10px 14px', borderRadius: 'var(--ui-radius-control)',
-                        background: STATUS.expired.bg, border: `1px solid ${STATUS.expired.bd}`,
-                        color: STATUS.expired.fg, fontSize: 13 }}>
-            Cloud: {cloudErr}
-          </div>
-        )}
+          {cloudErr && (
+            <div role="alert" style={{ maxWidth: 1320, margin: '14px auto 0', width: 'calc(100% - 56px)', padding: '10px 14px', borderRadius: 'var(--ui-radius-control)',
+                          background: STATUS.expired.bg, border: `1px solid ${STATUS.expired.bd}`,
+                          color: STATUS.expired.fg, fontSize: 13 }}>
+              Cloud: {cloudErr}
+            </div>
+          )}
 
-        <main className="sa-page" style={{ maxWidth: 1320, margin: '0 auto', padding: '20px 28px 60px' }}>
-          {tab === 'dashboard' && <Dashboard stats={stats} clients={clients} onGo={setTab} />}
-          {tab === 'issue'     && <IssueLicense onIssued={c => setClients(p => upsertClient(p, c))} />}
-          {tab === 'clients'   && <Clients clients={clients} setClients={setClients} />}
-          {tab === 'devices'   && <Devices />}
-          {tab === 'map'       && <MapTab clients={clients} setClients={setClients} />}
-          {tab === 'billing'   && <Billing clients={clients} />}
-          {tab === 'support'   && <Support clients={clients} />}
-          {tab === 'verify'    && <VerifyKey clients={clients} />}
-        </main>
+          <main className="sa-page" style={{ maxWidth: 1320, margin: '0 auto', padding: '20px 28px 60px' }}>
+            {tab === 'dashboard' && <Dashboard stats={stats} clients={clients} onGo={setTab} />}
+            {tab === 'issue'     && <IssueLicense onIssued={c => setClients(p => upsertClient(p, c))} />}
+            {tab === 'clients'   && <Clients clients={clients} setClients={setClients} />}
+            {tab === 'devices'   && <Devices />}
+            {tab === 'map'       && <MapTab clients={clients} setClients={setClients} />}
+            {tab === 'billing'   && <Billing clients={clients} />}
+            {tab === 'support'   && <Support clients={clients} />}
+            {tab === 'verify'    && <VerifyKey clients={clients} />}
+          </main>
+        </div>
       </div>
-    </div>
+    </FeedbackProvider>
   );
 }
 
@@ -156,7 +177,7 @@ export default function App() {
 // A dark admin rail on the left (this is the higher-level console, so it is
 // deliberately not the same white sidebar the shop's POS uses), a light page
 // with the same tokens underneath.
-function Sidebar({ tab, onTab, email }: { tab: Tab; onTab: (t: Tab) => void; email?: string | null }) {
+function Sidebar({ tab, onTab, email, badges }: { tab: Tab; onTab: (t: Tab) => void; email?: string | null; badges: Partial<Record<Tab, number>> }) {
   return (
     <aside className="sa-sidebar" style={{
       width: 'var(--ui-sidebar-w)', flex: '0 0 auto', position: 'sticky', top: 0, height: '100vh',
@@ -189,6 +210,14 @@ function Sidebar({ tab, onTab, email }: { tab: Tab; onTab: (t: Tab) => void; ema
             >
               <t.Icon size={18} strokeWidth={1.75} aria-hidden style={{ flex: 'none' }} />
               {t.label}
+              {!!badges[t.id] && (
+                <span style={{
+                  marginLeft: 'auto', minWidth: 22, padding: '0 7px', borderRadius: 999, fontSize: 11.5, fontWeight: 600, lineHeight: '20px',
+                  textAlign: 'center',
+                  background: on ? 'hsl(0 0% 100% / 0.22)' : t.id === 'support' ? ACCENT : 'hsl(0 0% 100% / 0.12)',
+                  color: t.id === 'support' && !on ? 'var(--ui-accent-fg)' : 'inherit',
+                }}>{badges[t.id]}</span>
+              )}
             </button>
           );
         })}
@@ -200,6 +229,7 @@ function Sidebar({ tab, onTab, email }: { tab: Tab; onTab: (t: Tab) => void; ema
             {email}
           </div>
         )}
+        <div style={{ marginBottom: 8 }}><ThemeMenu /></div>
         {email && (
           <button
             type="button" onClick={() => adminSignOut()}
@@ -218,7 +248,34 @@ function Sidebar({ tab, onTab, email }: { tab: Tab; onTab: (t: Tab) => void; ema
   );
 }
 
-function PageBar({ title, hint, stats }: { title: string; hint: string; stats: { total: number; devices: number } }) {
+/** Picks one of the twelve themes — the same ones as Settings → Theme in the POS. */
+function ThemeMenu() {
+  const current = useThemeId();
+  return (
+    <RowMenu
+      label="Change theme" anchor="left" minWidth={230}
+      trigger={<><Palette size={15} strokeWidth={1.75} aria-hidden />Theme</>}
+      triggerStyle={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', minHeight: 36,
+        borderRadius: 'var(--ui-radius-control)', border: `1px solid ${RAIL_LINE}`, cursor: 'pointer',
+        background: 'transparent', color: RAIL_TEXT, fontSize: 12.5, fontWeight: 600,
+      }}
+      items={[
+        { heading: 'Theme' },
+        ...UI_THEMES.map(t => ({
+          label: t.name,
+          swatch: `hsl(${t.accent.h} ${t.accent.s}% ${t.accent.l}%)`,
+          checked: t.id === current,
+          onSelect: () => setTheme(t.id),
+        })),
+      ]}
+    />
+  );
+}
+
+function PageBar({ title, hint, stats, actions }: {
+  title: string; hint: string; stats: { total: number; devices: number }; actions?: React.ReactNode;
+}) {
   const chip = (Icon: LucideIcon, n: number, text: string) => (
     <span key={text} style={{
       display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 'var(--ui-radius-pill)',
@@ -233,23 +290,34 @@ function PageBar({ title, hint, stats }: { title: string; hint: string; stats: {
       maxWidth: 1320, margin: '0 auto', padding: '24px 28px 0', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
     }}>
       <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 12, color: MUTED, marginBottom: 4 }}>Super Admin <span aria-hidden>/</span> {title}</div>
         <h1 style={{ fontSize: 'var(--ui-text-page)', fontWeight: 700, margin: 0, lineHeight: 1.2 }}>{title}</h1>
         <p style={{ fontSize: 13, color: MUTED, margin: '4px 0 0' }}>{hint}</p>
       </div>
-      <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {chip(Users, stats.total, 'clients')}
         {chip(Monitor, stats.devices, 'devices')}
+        {actions}
       </div>
     </header>
   );
 }
 
 // ===================== Dashboard =====================
+// Every number here is read from the registry (and, for "online now", from the
+// devices the POS computers report). Nothing is estimated or invented.
+type DashStats = { total: number; active: number; expired: number; suspended: number; soon: number; devices: number };
+
 function Dashboard({ stats, clients, onGo }: {
-  stats: { total: number; active: number; expired: number; suspended: number; soon: number; devices: number };
+  stats: DashStats;
   clients: Client[];
   onGo: (t: Tab) => void;
 }) {
+  // Computers that reported to the cloud in the last few minutes (null = not known).
+  const [live, setLive] = useState<DeviceDoc[] | null>(null);
+  useEffect(() => watchDevices(setLive, () => setLive(null)), []);
+  const online = live ? live.filter(d => isOnline(d)).length : null;
+
   const expiring = useMemo(
     () => clients
       .filter(c => statusOf(c) === 'active' && daysLeft(c) !== null && (daysLeft(c) as number) <= 30)
@@ -258,18 +326,118 @@ function Dashboard({ stats, clients, onGo }: {
     [clients],
   );
 
+  const plans = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of clients) m.set(c.plan, (m.get(c.plan) || 0) + 1);
+    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+  }, [clients]);
+
+  // Active licences that end within the next 90 days, in five windows.
+  const renewals = useMemo(() => {
+    const windows = [
+      { label: 'Within 7 days', from: -Infinity, to: 7, tone: STATUS.expired.fg },
+      { label: '8 – 14 days', from: 7, to: 14, tone: STATUS.suspended.fg },
+      { label: '15 – 30 days', from: 14, to: 30, tone: STATUS.suspended.fg },
+      { label: '31 – 60 days', from: 30, to: 60, tone: ACCENT },
+      { label: '61 – 90 days', from: 60, to: 90, tone: ACCENT },
+    ].map(w => ({ ...w, value: 0 }));
+    for (const c of clients) {
+      if (statusOf(c) !== 'active') continue;
+      const dl = daysLeft(c);
+      if (dl === null || dl > 90) continue;
+      const w = windows.find(x => dl > x.from && dl <= x.to);
+      if (w) w.value++;
+    }
+    return windows;
+  }, [clients]);
+
+  const recent = useMemo(
+    () => clients
+      .flatMap(c => c.devices.map(d => ({ c, d })))
+      .sort((a, b) => b.d.activatedAt - a.d.activatedAt)
+      .slice(0, 6),
+    [clients],
+  );
+
+  const steady = Math.max(0, stats.active - stats.soon);
+  const health = [
+    { label: 'Active', value: steady, color: 'var(--ui-success)' },
+    { label: 'Expiring within 14 days', value: stats.soon, color: 'var(--ui-warning)' },
+    { label: 'Expired', value: stats.expired, color: 'var(--ui-danger)' },
+    { label: 'Suspended', value: stats.suspended, color: 'hsl(var(--muted-foreground) / 0.55)' },
+  ];
+  const healthTotal = health.reduce((n, p) => n + p.value, 0);
+  const renewalMax = Math.max(1, ...renewals.map(r => r.value));
+
   return (
     <div style={{ display: 'grid', gap: 18 }}>
-      <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))' }}>
+      <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit,minmax(168px,1fr))' }}>
         <Stat label="Active" value={stats.active} Icon={CheckCircle2} tone={STATUS.active} />
         <Stat label="Expiring within 14 days" value={stats.soon} Icon={Clock} tone={STATUS.suspended} />
         <Stat label="Expired" value={stats.expired} Icon={XCircle} tone={STATUS.expired} />
         <Stat label="Suspended" value={stats.suspended} Icon={PauseCircle} tone={{ fg: MUTED, bg: TINT, bd: LINE }} />
-        <Stat label="Devices activated" value={stats.devices} Icon={Monitor} tone={{ fg: ACCENT, bg: 'var(--ui-accent-soft)', bd: 'var(--ui-accent-soft-strong)' }} />
+        <Stat label="Devices activated" value={stats.devices} Icon={Monitor} tone={{ fg: ACCENT_TEXT, bg: 'var(--ui-accent-soft)', bd: 'var(--ui-accent-soft-strong)' }} />
+        {online !== null && (
+          <Stat label="Online now" value={online} Icon={Wifi} tone={{ fg: 'var(--ui-info-text)', bg: 'var(--ui-info-soft)', bd: 'var(--ui-info-border)' }} />
+        )}
       </div>
 
       <div style={{ display: 'grid', gap: 18, gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))' }}>
-        <Section title="Renewals coming up" hint="Licences expiring within 30 days. Issue a fresh key before the shop is locked out.">
+        <Section title="Licence health" hint="How every licence you have issued stands today.">
+          {healthTotal === 0 ? (
+            <Empty icon={Users}>No licences issued yet.</Empty>
+          ) : (
+            <>
+              <div
+                role="img" aria-label={health.map(p => `${p.label} ${p.value}`).join(', ')}
+                style={{ display: 'flex', gap: 3, height: 12, borderRadius: 999, overflow: 'hidden', background: TINT }}
+              >
+                {health.filter(p => p.value > 0).map(p => (
+                  <span key={p.label} style={{ width: `${(p.value / healthTotal) * 100}%`, background: p.color }} />
+                ))}
+              </div>
+              <ul style={{ listStyle: 'none', margin: '16px 0 0', padding: 0, display: 'grid', gap: 10 }}>
+                {health.map(p => (
+                  <li key={p.label} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+                    <span aria-hidden style={{ width: 9, height: 9, borderRadius: '50%', background: p.color, flex: 'none' }} />
+                    <span style={{ color: MUTED }}>{p.label}</span>
+                    <b style={{ marginLeft: 'auto', fontWeight: 600 }}>{p.value}</b>
+                    <span style={{ width: 40, textAlign: 'right', color: MUTED, fontSize: 12 }}>{Math.round((p.value / healthTotal) * 100)}%</span>
+                  </li>
+                ))}
+              </ul>
+              {plans.length > 0 && (
+                <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${LINE}` }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: MUTED, marginBottom: 10 }}>By plan</div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {plans.map(([plan, n]) => (
+                      <span key={plan} style={{ ...pill({ fg: TEXT, bg: TINT, bd: LINE }), fontWeight: 600 }}>
+                        {PLAN_LABEL[plan as LicensePlan] || plan}
+                        <span style={{ color: MUTED, fontWeight: 500 }}>{n}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </Section>
+
+        <Section title="Renewals — next 90 days" hint="Active licences by how soon they end.">
+          <div style={{ display: 'grid', gap: 12 }}>
+            {renewals.map(r => (
+              <div key={r.label} style={{ display: 'grid', gridTemplateColumns: '104px 1fr 28px', alignItems: 'center', gap: 12, fontSize: 13 }}>
+                <span style={{ color: MUTED }}>{r.label}</span>
+                <MiniBar value={r.value} max={renewalMax} color={r.tone} height={10} />
+                <b style={{ textAlign: 'right', fontWeight: 600 }}>{r.value}</b>
+              </div>
+            ))}
+          </div>
+        </Section>
+      </div>
+
+      <div style={{ display: 'grid', gap: 18, gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))' }}>
+        <Section title="Renewals coming up" hint="Licences ending within 30 days. Issue a fresh key before the shop is locked out.">
           {expiring.length === 0 ? (
             <Empty icon={CheckCircle2}>Nothing expires in the next 30 days.</Empty>
           ) : (
@@ -281,7 +449,8 @@ function Dashboard({ stats, clients, onGo }: {
                     display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', flexWrap: 'wrap',
                     borderRadius: 'var(--ui-radius-control)', border: `1px solid ${LINE}`,
                   }}>
-                    <div style={{ minWidth: 0, flex: '1 1 180px' }}>
+                    <Avatar name={c.business || c.owner || c.key} size={34} />
+                    <div style={{ minWidth: 0, flex: '1 1 160px' }}>
                       <div style={{ fontWeight: 600, fontSize: 13.5 }}>{c.business || '—'}</div>
                       <div style={{ fontSize: 11.5, color: MUTED, fontFamily: 'var(--ui-font-mono)' }}>{c.key}</div>
                     </div>
@@ -296,29 +465,56 @@ function Dashboard({ stats, clients, onGo }: {
           )}
         </Section>
 
-        <Section title="How this works">
-          <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 12, fontSize: 13, lineHeight: 1.6, color: MUTED }}>
-            {[
-              <><b style={{ color: STRONG }}>Issue License</b> — pick a plan, get a key, send it to the shop with the installer.</>,
-              <>The shop activates. <b style={{ color: STRONG }}>No internet is needed</b> — the key proves itself.</>,
-              <>The shop's screen then shows an activation code it can send on WhatsApp.</>,
-              <>Paste that code under <b style={{ color: STRONG }}>Device Map → Register a device</b>: the client is linked and the machine appears on the map.</>,
-            ].map((step, i) => (
-              <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <span style={{
-                  flex: 'none', width: 24, height: 24, borderRadius: '50%', display: 'grid', placeItems: 'center',
-                  background: 'var(--ui-accent-soft)', color: ACCENT, fontSize: 12, fontWeight: 700,
-                }}>{i + 1}</span>
-                <span style={{ paddingTop: 2 }}>{step}</span>
-              </li>
-            ))}
-          </ol>
-          <div style={{ display: 'flex', gap: 9, marginTop: 18, flexWrap: 'wrap' }}>
-            <button style={primaryBtn} onClick={() => onGo('issue')}>Issue a License</button>
-            <button style={ghostBtn} onClick={() => onGo('map')}>Register a device</button>
-          </div>
+        <Section title="Recent activations" hint="The latest computers a shop has registered.">
+          {recent.length === 0 ? (
+            <Empty icon={Monitor}>No computer has been registered yet. Paste a shop's activation code under Device Map.</Empty>
+          ) : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {recent.map(({ c, d }) => (
+                <div key={`${c.key}-${d.id}`} className="sa-row" style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', flexWrap: 'wrap',
+                  borderRadius: 'var(--ui-radius-control)', border: `1px solid ${LINE}`,
+                }}>
+                  <Avatar name={c.business || c.owner || c.key} size={34} />
+                  <div style={{ minWidth: 0, flex: '1 1 160px' }}>
+                    <div style={{ fontWeight: 600, fontSize: 13.5 }}>{c.business || '—'}</div>
+                    <div style={{ fontSize: 11.5, color: MUTED, fontFamily: 'var(--ui-font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {d.id}{d.appVersion ? ` · v${d.appVersion}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', fontSize: 12, color: MUTED, whiteSpace: 'nowrap' }}>
+                    {relativeDays(d.activatedAt)}
+                    {typeof d.lat === 'number' && <div style={{ color: ACCENT_TEXT, fontWeight: 600 }}>on map</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Section>
       </div>
+
+      <Section title="How this works">
+        <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', fontSize: 13, lineHeight: 1.6, color: MUTED }}>
+          {[
+            <><b style={{ color: STRONG }}>Issue License</b> — pick a plan, get a key, send it to the shop with the installer.</>,
+            <>The shop activates. <b style={{ color: STRONG }}>No internet is needed</b> — the key proves itself.</>,
+            <>The shop's screen then shows an activation code it can send on WhatsApp.</>,
+            <>Paste that code under <b style={{ color: STRONG }}>Device Map → Register a device</b>: the client is linked and the machine appears on the map.</>,
+          ].map((step, i) => (
+            <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <span style={{
+                flex: 'none', width: 24, height: 24, borderRadius: '50%', display: 'grid', placeItems: 'center',
+                background: 'var(--ui-accent-soft)', color: ACCENT_TEXT, fontSize: 12, fontWeight: 700,
+              }}>{i + 1}</span>
+              <span style={{ paddingTop: 2 }}>{step}</span>
+            </li>
+          ))}
+        </ol>
+        <div style={{ display: 'flex', gap: 9, marginTop: 18, flexWrap: 'wrap' }}>
+          <button style={primaryBtn} onClick={() => onGo('issue')}>Issue a License</button>
+          <button style={ghostBtn} onClick={() => onGo('map')}>Register a device</button>
+        </div>
+      </Section>
     </div>
   );
 }
@@ -450,7 +646,7 @@ function IssueLicense({ onIssued }: { onIssued: (c: Client) => void }) {
             </div>
 
             <div style={{ display: 'flex', gap: 9, marginTop: 15, flexWrap: 'wrap' }}>
-              <button style={ghostBtn} onClick={() => navigator.clipboard?.writeText(issued.key)}>Copy key</button>
+              <CopyButton text={issued.key} label="Copy key" />
               <button
                 style={{ ...ghostBtn, background: '#25D366', color: '#053a1a', border: 'none' }}
                 onClick={() => {
@@ -483,8 +679,13 @@ function Row({ k, v }: { k: string; v: string }) {
 }
 
 // ===================== Clients =====================
+type ClientFilter = 'all' | 'active' | 'soon' | 'expired' | 'suspended';
+
 function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (p: Client[]) => Client[]) => void }) {
+  const confirm = useConfirm();
+  const toast = useToast();
   const [q, setQ] = useState('');
+  const [filter, setFilter] = useState<ClientFilter>('all');
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [editing, setEditing] = useState<Client | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -501,7 +702,13 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
       revoked: 'Every computer on this licence shows "Your software license has been revoked."',
       pending: 'Every computer on this licence shows "Your license/payment is pending. Please contact the administrator."',
     };
-    if (!confirm(`Set the licence of ${c.business || c.key} to ${status.toUpperCase()}?\n\n${explain[status]}\n\nIt applies the next time each computer is online (about a minute when connected).`)) return;
+    const yes = await confirm({
+      title: `Set the licence of ${c.business || c.key} to ${status.toUpperCase()}?`,
+      body: `${explain[status]}\n\nIt applies the next time each computer is online (about a minute when connected).`,
+      confirmLabel: status === 'active' ? 'Set to Active' : `Set to ${status.charAt(0).toUpperCase()}${status.slice(1)}`,
+      danger: status !== 'active',
+    });
+    if (!yes) return;
     setStatusBusy(c.key);
     setStatusMsg(null);
     try {
@@ -513,24 +720,64 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
     } finally { setStatusBusy(''); }
   };
 
+  const deleteClient = async (c: Client) => {
+    const yes = await confirm({
+      title: `Remove ${c.business || c.key} from the registry?`,
+      body: "The shop's installed POS is not affected.",
+      confirmLabel: 'Remove',
+      danger: true,
+    });
+    if (yes) setClients(p => p.filter(x => x.key !== c.key));
+  };
+
+  const unlinkDevice = async (c: Client, deviceId: string) => {
+    const yes = await confirm({
+      title: `Unlink ${deviceId}?`,
+      body: 'The slot frees up for another computer.',
+      confirmLabel: 'Unlink',
+      danger: true,
+    });
+    if (yes) setClients(p => upsertClient(p, removeDevice(c, deviceId)));
+  };
+
+  const counts = useMemo(() => {
+    const n = { all: clients.length, active: 0, soon: 0, expired: 0, suspended: 0 };
+    for (const c of clients) {
+      const st = statusOf(c);
+      if (st === 'active') { n.active++; const dl = daysLeft(c); if (dl !== null && dl <= 30) n.soon++; }
+      else if (st === 'expired') n.expired++;
+      else n.suspended++;
+    }
+    return n;
+  }, [clients]);
+
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
-    if (!t) return clients;
-    return clients.filter(c =>
-      [c.business, c.owner, c.phone, c.key, c.notes].some(v => String(v || '').toLowerCase().includes(t)));
-  }, [clients, q]);
+    return clients.filter(c => {
+      const st = statusOf(c);
+      const dl = daysLeft(c);
+      if (filter === 'active' && st !== 'active') return false;
+      if (filter === 'soon' && !(st === 'active' && dl !== null && dl <= 30)) return false;
+      if (filter === 'expired' && st !== 'expired') return false;
+      if (filter === 'suspended' && st !== 'suspended') return false;
+      if (!t) return true;
+      return [c.business, c.owner, c.phone, c.key, c.notes].some(v => String(v || '').toLowerCase().includes(t));
+    });
+  }, [clients, q, filter]);
+
+  const th: React.CSSProperties = { padding: '9px 12px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', textAlign: 'left' };
+  const td: React.CSSProperties = { padding: '13px 12px', verticalAlign: 'middle' };
 
   return (
     <section style={{ ...card, padding: 20 }}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
-        <h2 style={{ fontSize: 'var(--ui-text-card-title)', fontWeight: 700, margin: 0 }}>All clients <span style={{ color: MUTED, fontWeight: 500 }}>({clients.length})</span></h2>
         <input
-          value={q} onChange={e => setQ(e.target.value)}
+          value={q} onChange={e => setQ(e.target.value)} aria-label="Search clients"
           placeholder="Search business, owner, phone or key…"
-          style={{ ...input, marginTop: 0, width: 'auto', flex: '1 1 220px', maxWidth: 340 }}
+          style={{ ...input, marginTop: 0, width: 'auto', flex: '1 1 260px', maxWidth: 380 }}
         />
-        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-          <button style={ghostBtn} onClick={() => exportCsv(clients)} disabled={!clients.length}>CSV</button>
+        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', flexWrap: 'wrap' }}>
+          <button style={ghostBtn} onClick={() => exportCsv(clients)} disabled={!clients.length}>Export CSV</button>
           <button style={ghostBtn} onClick={() => exportBackup(clients)} disabled={!clients.length}>Export backup</button>
           <button style={ghostBtn} onClick={() => fileRef.current?.click()}>Import backup</button>
           <input
@@ -542,25 +789,40 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
               try {
                 const merged = await importBackup(file, clients);
                 setClients(() => merged);
-                alert(`Imported. The registry now holds ${merged.length} client(s).`);
+                toast(`Imported. The registry now holds ${merged.length} client(s).`, 'success');
               } catch {
-                alert('That file could not be read as a DT POS client backup.');
+                toast('That file could not be read as a DT POS client backup.', 'error');
               }
             }}
           />
         </div>
       </div>
 
+      <div style={{ marginBottom: 14 }}>
+        <Chips<ClientFilter>
+          label="Filter clients" value={filter} onChange={setFilter}
+          options={[
+            { id: 'all', label: 'All', count: counts.all },
+            { id: 'active', label: 'Active', count: counts.active },
+            { id: 'soon', label: 'Ending within 30 days', count: counts.soon },
+            { id: 'expired', label: 'Expired', count: counts.expired },
+            { id: 'suspended', label: 'Suspended', count: counts.suspended },
+          ]}
+        />
+      </div>
+
       {filtered.length === 0 ? (
-        <Empty icon={Users}>{clients.length ? 'No client matches that search.' : 'No licences issued yet.'}</Empty>
+        <Empty icon={Users}>
+          {clients.length ? 'No client matches that search or filter.' : 'No licences issued yet. Use Issue license to create the first one.'}
+        </Empty>
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ color: MUTED, textAlign: 'left', background: TINT }}>
-                {['Business', 'Key', 'Plan', 'Devices', 'Expiry', 'Status', ''].map((h, i, all) => (
-                  <th key={h || 'actions'} style={{
-                    padding: '9px 10px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
+              <tr style={{ color: MUTED, background: TINT }}>
+                {['Business', 'Licence key', 'Plan', 'Computers', 'Expires', 'Status', ''].map((h, i, all) => (
+                  <th key={h || 'actions'} scope="col" style={{
+                    ...th,
                     borderTopLeftRadius: i === 0 ? 10 : 0, borderBottomLeftRadius: i === 0 ? 10 : 0,
                     borderTopRightRadius: i === all.length - 1 ? 10 : 0, borderBottomRightRadius: i === all.length - 1 ? 10 : 0,
                   }}>{h}</th>
@@ -569,86 +831,99 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
             </thead>
             <tbody>
               {filtered.map(c => {
-                const s = statusOf(c);
+                const st = statusOf(c);
                 const dl = daysLeft(c);
                 const use = slotUsage(c);
                 const open = openKey === c.key;
+                const current = (serverStatus.get(docIdFor(c.key))?.status as LicenceAction) || 'active';
+                const setTo = (s: LicenceAction, text: string): MenuEntry => ({
+                  label: text, checked: current === s, disabled: statusBusy === c.key,
+                  onSelect: () => { if (current !== s) void changeLicence(c, s); },
+                });
                 return (
                   <Fragment key={c.key}>
                   <tr className="sa-row" style={{ borderTop: `1px solid ${LINE}` }}>
-                    <td style={{ padding: '12px 10px', minWidth: 170 }}>
-                      <div style={{ fontWeight: 600 }}>{c.business || '—'}</div>
-                      <div style={{ fontSize: 11, color: MUTED }}>{c.owner} {c.phone && `· ${c.phone}`}</div>
+                    <td style={{ ...td, minWidth: 220 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <Avatar name={c.business || c.owner || c.key} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 600 }}>{c.business || '—'}</div>
+                          <div style={{ fontSize: 12, color: MUTED }}>{c.owner}{c.phone && ` · ${c.phone}`}</div>
+                        </div>
+                      </div>
                     </td>
-                    <td style={{ padding: '12px 10px', fontFamily: 'var(--ui-font-mono)', fontSize: 12, whiteSpace: 'nowrap' }}>{c.key}</td>
-                    <td style={{ padding: '12px 10px' }}>{PLAN_LABEL[c.plan]}</td>
-                    <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
+                    <td style={{ ...td, whiteSpace: 'nowrap' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontFamily: 'var(--ui-font-mono)', fontSize: 12 }}>{c.key}</span>
+                        <CopyButton text={c.key} label="Copy key" compact />
+                      </span>
+                    </td>
+                    <td style={td}><span style={{ ...pill({ fg: TEXT, bg: TINT, bd: LINE }), fontWeight: 600 }}>{PLAN_LABEL[c.plan]}</span></td>
+                    <td style={{ ...td, whiteSpace: 'nowrap', minWidth: 120 }}>
                       <button
-                        style={{ ...ghostBtn, padding: '4px 9px', fontSize: 11,
-                                 color: use.used > use.max ? STATUS.suspended.fg : undefined }}
+                        type="button"
                         onClick={() => setOpenKey(open ? null : c.key)}
+                        aria-expanded={open}
                         title="Show the machines this key is running on"
-                      >{use.used}/{use.max} {open ? '▲' : '▼'}</button>
+                        style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'inherit', textAlign: 'left', cursor: 'pointer', display: 'block', width: 92 }}
+                      >
+                        <span style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 600, marginBottom: 5,
+                                       color: use.used > use.max ? STATUS.suspended.fg : TEXT }}>
+                          <span>{use.used} of {use.max}</span>
+                          <span aria-hidden style={{ color: MUTED }}>{open ? '▴' : '▾'}</span>
+                        </span>
+                        <MiniBar value={use.used} max={use.max} color={use.used > use.max ? STATUS.suspended.fg : ACCENT} />
+                      </button>
                     </td>
-                    <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
-                      {c.expiryDate ? new Date(c.expiryDate).toLocaleDateString() : 'Lifetime'}
+                    <td style={{ ...td, whiteSpace: 'nowrap' }}>
+                      <div>{c.expiryDate ? new Date(c.expiryDate).toLocaleDateString() : 'Lifetime'}</div>
                       {dl !== null && dl <= 30 && dl > 0 && (
-                        <div style={{ fontSize: 10.5, color: STATUS.suspended.fg }}>{dl} days left</div>
+                        <div style={{ fontSize: 12, color: STATUS.suspended.fg, fontWeight: 600 }}>{dl} day{dl === 1 ? '' : 's'} left</div>
                       )}
                     </td>
-                    <td style={{ padding: '12px 10px' }}>
-                      <span style={{ ...pill(STATUS[s]), textTransform: 'capitalize' }}>{s}</span>
+                    <td style={td}>
+                      <span style={{ ...pill(STATUS[st]), textTransform: 'capitalize' }}>{st}</span>
                     </td>
-                    <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
-                      <button
-                        style={{ ...ghostBtn, padding: '5px 10px', fontSize: 11, marginRight: 6 }}
-                        onClick={() => setEditing(c)}
-                        title="Change devices, expiry or shop details — and re-issue the key if needed"
-                      >Edit</button>
-                      <select
-                        aria-label="Licence status on the server"
-                        value={(serverStatus.get(docIdFor(c.key))?.status as LicenceAction) || 'active'}
-                        disabled={statusBusy === c.key}
-                        onChange={e => { void changeLicence(c, e.target.value as LicenceAction); }}
-                        title="Licence-wide status on the server — every computer on this key obeys it when online"
-                        style={{ ...ghostBtn, padding: '4px 6px', fontSize: 11 }}
-                      >
-                        <option value="active">Active</option>
-                        <option value="suspended">Suspended</option>
-                        <option value="revoked">Revoked</option>
-                        <option value="pending">Pending payment</option>
-                      </select>
-                      <button
-                        style={{ ...ghostBtn, padding: '5px 10px', fontSize: 11, marginLeft: 6, color: STATUS.expired.fg, borderColor: STATUS.expired.bd }}
-                        onClick={() => {
-                          if (confirm(`Remove ${c.business || c.key} from the registry?\n\nThe shop's installed POS is not affected.`)) {
-                            setClients(p => p.filter(x => x.key !== c.key));
-                          }
-                        }}
-                      >Delete</button>
+                    <td style={{ ...td, whiteSpace: 'nowrap', textAlign: 'right' }}>
+                      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                        <button
+                          style={{ ...ghostBtn, minHeight: 32, padding: '4px 12px' }}
+                          onClick={() => setEditing(c)}
+                          title="Change devices, expiry or shop details — and re-issue the key if needed"
+                        >Edit</button>
+                        <RowMenu
+                          label={`More actions for ${c.business || c.key}`}
+                          items={[
+                            { heading: 'Licence status — every computer on this key' },
+                            setTo('active', 'Active'),
+                            setTo('suspended', 'Suspended'),
+                            setTo('revoked', 'Revoked'),
+                            setTo('pending', 'Pending payment'),
+                            'separator',
+                            { label: 'Delete from registry', danger: true, onSelect: () => { void deleteClient(c); } },
+                          ]}
+                        />
+                      </span>
                     </td>
                   </tr>
                   {open && (
                     <tr style={{ background: TINT }}>
-                      <td colSpan={7} style={{ padding: '10px 14px' }}>
+                      <td colSpan={7} style={{ padding: '12px 16px' }}>
                         {c.devices.length === 0 ? (
                           <span style={{ fontSize: 12.5, color: MUTED }}>No machine has sent an activation code yet.</span>
                         ) : (
-                          <div style={{ display: 'grid', gap: 6 }}>
+                          <div style={{ display: 'grid', gap: 8 }}>
                             {c.devices.map(d => (
-                              <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 11.5 }}>
+                              <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 12.5 }}>
+                                <Monitor size={15} strokeWidth={1.75} aria-hidden style={{ color: MUTED, flex: 'none' }} />
                                 <span style={{ fontFamily: 'var(--ui-font-mono)' }}>{d.id}</span>
                                 <span style={{ color: MUTED }}>activated {new Date(d.activatedAt).toLocaleString()}</span>
                                 {d.appVersion && <span style={{ color: MUTED }}>v{d.appVersion}</span>}
-                                {typeof d.lat === 'number' && <span style={{ color: ACCENT, fontWeight: 600 }}>on map</span>}
+                                {typeof d.lat === 'number' && <span style={{ color: ACCENT_TEXT, fontWeight: 600 }}>on map</span>}
                                 {d.approved && <span style={{ color: STATUS.active.fg, fontWeight: 700 }}>approved extra</span>}
                                 <button
-                                  style={{ ...ghostBtn, padding: '4px 9px', fontSize: 10.5, marginLeft: 'auto', color: STATUS.expired.fg }}
-                                  onClick={() => {
-                                    if (confirm(`Unlink ${d.id}? The slot frees up for another computer.`)) {
-                                      setClients(p => upsertClient(p, removeDevice(c, d.id)));
-                                    }
-                                  }}
+                                  style={{ ...ghostBtn, minHeight: 28, padding: '3px 10px', fontSize: 11.5, marginLeft: 'auto', color: STATUS.expired.fg, borderColor: STATUS.expired.bd }}
+                                  onClick={() => { void unlinkDevice(c, d.id); }}
                                 >Unlink</button>
                               </div>
                             ))}
@@ -666,11 +941,16 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
       )}
 
       {statusMsg && (
-        <p role="status" style={{ fontSize: 12.5, fontWeight: 700, marginTop: 12, color: statusMsg.ok ? STATUS.active.fg : STATUS.expired.fg }}>
+        <p role="status" style={{
+          fontSize: 13, fontWeight: 600, marginTop: 14, padding: '10px 14px', borderRadius: 'var(--ui-radius-control)',
+          color: statusMsg.ok ? STATUS.active.fg : STATUS.expired.fg,
+          background: statusMsg.ok ? STATUS.active.bg : STATUS.expired.bg,
+          border: `1px solid ${statusMsg.ok ? STATUS.active.bd : STATUS.expired.bd}`,
+        }}>
           {statusMsg.ok ? '✓' : '✗'} {statusMsg.text}
         </p>
       )}
-      <p style={{ fontSize: 11.5, color: MUTED, marginTop: 16, lineHeight: 1.7 }}>
+      <p style={{ fontSize: 12, color: MUTED, marginTop: 16, lineHeight: 1.7, maxWidth: 900 }}>
         <b style={{ color: STRONG }}>Note:</b> The licence status is stored on the server. Each computer applies it the
         next time it is online (about once a minute while connected) and keeps it when it goes offline again.
         A computer that never connects is governed only by the expiry date inside its key.
@@ -711,11 +991,14 @@ function EditClient({
   const [plan, setPlan] = useState<LicensePlan>(client.plan);
   const [busy, setBusy] = useState(false);
   const [newKey, setNewKey] = useState('');
+  const toast = useToast();
 
   const expiryMs = expiry ? new Date(`${expiry}T23:59:59`).getTime() : null;
+  // The date picker only knows days, so "same day" means unchanged.
+  const originalDay = client.expiryDate ? new Date(client.expiryDate).toISOString().slice(0, 10) : '';
   const limitsChanged = maxDevices !== client.maxDevices
     || plan !== client.plan
-    || (expiryMs || 0) !== (client.expiryDate || 0);
+    || expiry !== originalDay;
 
   const addDays = (n: number) => {
     const base = expiryMs && expiryMs > Date.now() ? expiryMs : Date.now();
@@ -749,74 +1032,78 @@ function EditClient({
         devices: client.devices,
       });
     } catch {
-      alert('The new key could not be generated. Please try again.');
+      toast('The new key could not be generated. Please try again.', 'error');
     } finally { setBusy(false); }
   };
 
   return (
-    <Modal onClose={onClose} width={560}>
-      <div>
-        <h3 style={{ margin: '0 0 4px', fontSize: 'var(--ui-text-section)', fontWeight: 700 }}>Edit licence</h3>
-        <p style={{ fontSize: 11.5, color: MUTED, margin: '0 0 14px', fontFamily: 'var(--ui-font-mono)' }}>{client.key}</p>
+    <Modal onClose={onClose} width={580} label="Edit licence">
+      <ModalHeader
+        title="Edit licence"
+        sub={<span style={{ fontFamily: 'var(--ui-font-mono)' }}>{client.key}</span>}
+        onClose={onClose}
+      />
 
-        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: '1fr 1fr' }}>
-          <div><label style={label}>Business</label><input style={input} value={f.business} onChange={e => setF({ ...f, business: e.target.value })} /></div>
-          <div><label style={label}>Owner</label><input style={input} value={f.owner} onChange={e => setF({ ...f, owner: e.target.value })} /></div>
-          <div><label style={label}>Phone</label><input style={input} value={f.phone} onChange={e => setF({ ...f, phone: e.target.value })} /></div>
-          <div>
-            <label style={label}>Plan</label>
-            <select style={input as React.CSSProperties} value={plan} onChange={e => setPlan(e.target.value as LicensePlan)}>
-              {(Object.keys(PLAN_LABEL) as LicensePlan[]).map(p => <option key={p} value={p}>{PLAN_LABEL[p]}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={label}>Allowed computers</label>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <input style={input} type="number" min={1} max={63} value={maxDevices}
-                     onChange={e => setMaxDevices(Math.max(1, Math.min(63, Number(e.target.value) || 1)))} />
-              <button style={ghostBtn} onClick={() => setMaxDevices(d => Math.min(63, d + 1))}>+1</button>
-            </div>
-          </div>
-          <div>
-            <label style={label}>Expiry {plan === 'lifetime' ? '(lifetime)' : ''}</label>
-            <input style={input} type="date" value={expiry} onChange={e => setExpiry(e.target.value)} />
+      <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))' }}>
+        <div><label style={label} htmlFor="ec-business">Business</label><input id="ec-business" style={input} value={f.business} onChange={e => setF({ ...f, business: e.target.value })} /></div>
+        <div><label style={label} htmlFor="ec-owner">Owner</label><input id="ec-owner" style={input} value={f.owner} onChange={e => setF({ ...f, owner: e.target.value })} /></div>
+        <div><label style={label} htmlFor="ec-phone">Phone</label><input id="ec-phone" style={input} value={f.phone} onChange={e => setF({ ...f, phone: e.target.value })} /></div>
+        <div>
+          <label style={label} htmlFor="ec-plan">Plan</label>
+          <select id="ec-plan" style={input as React.CSSProperties} value={plan} onChange={e => setPlan(e.target.value as LicensePlan)}>
+            {(Object.keys(PLAN_LABEL) as LicensePlan[]).map(p => <option key={p} value={p}>{PLAN_LABEL[p]}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={label} htmlFor="ec-devices">Allowed computers</label>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <input id="ec-devices" style={input} type="number" min={1} max={63} value={maxDevices}
+                   onChange={e => setMaxDevices(Math.max(1, Math.min(63, Number(e.target.value) || 1)))} />
+            <button style={{ ...ghostBtn, marginTop: 6, minHeight: 40 }} onClick={() => setMaxDevices(d => Math.min(63, d + 1))}>+1</button>
           </div>
         </div>
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-          <button style={ghostBtn} onClick={() => addDays(30)}>+30 days</button>
-          <button style={ghostBtn} onClick={() => addDays(90)}>+3 months</button>
-          <button style={ghostBtn} onClick={() => addDays(365)}>+1 year</button>
-          <button style={ghostBtn} onClick={() => setExpiry('')}>Lifetime</button>
+        <div>
+          <label style={label} htmlFor="ec-expiry">Expiry {plan === 'lifetime' ? '(lifetime)' : ''}</label>
+          <input id="ec-expiry" style={input} type="date" value={expiry} onChange={e => setExpiry(e.target.value)} />
         </div>
+      </div>
 
-        <div style={{ marginTop: 12 }}>
-          <label style={label}>Notes</label>
-          <input style={input} value={f.notes} onChange={e => setF({ ...f, notes: e.target.value })} />
+      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+        <button style={ghostBtn} onClick={() => addDays(30)}>+30 days</button>
+        <button style={ghostBtn} onClick={() => addDays(90)}>+3 months</button>
+        <button style={ghostBtn} onClick={() => addDays(365)}>+1 year</button>
+        <button style={ghostBtn} onClick={() => setExpiry('')}>Lifetime</button>
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <label style={label} htmlFor="ec-notes">Notes</label>
+        <input id="ec-notes" style={input} value={f.notes} onChange={e => setF({ ...f, notes: e.target.value })} />
+      </div>
+
+      {limitsChanged && (
+        <p style={{
+          fontSize: 12.5, color: STATUS.suspended.fg, marginTop: 14, lineHeight: 1.65, padding: '10px 14px',
+          borderRadius: 'var(--ui-radius-control)', background: STATUS.suspended.bg, border: `1px solid ${STATUS.suspended.bd}`,
+        }}>
+          Devices, plan or expiry changed. The shop's software reads these limits from the key
+          itself, so send them a re-issued key for the change to take effect on their computer.
+        </p>
+      )}
+
+      {newKey && (
+        <div style={{ marginTop: 14, padding: 14, borderRadius: 'var(--ui-radius-control)', background: STATUS.active.bg, border: `1px solid ${STATUS.active.bd}` }}>
+          <div style={{ fontSize: 12, color: MUTED, marginBottom: 6 }}>New key — send this to the shop:</div>
+          <div style={{ fontFamily: 'var(--ui-font-mono)', fontWeight: 600, fontSize: 14, wordBreak: 'break-all' }}>{newKey}</div>
+          <div style={{ marginTop: 10 }}><CopyButton text={newKey} label="Copy key" /></div>
         </div>
+      )}
 
-        {limitsChanged && (
-          <p style={{ fontSize: 11.5, color: STATUS.suspended.fg, marginTop: 12, lineHeight: 1.7 }}>
-            Devices, plan or expiry changed. The shop's software reads these limits from the key
-            itself, so send them a re-issued key for the change to take effect on their computer.
-          </p>
-        )}
-
-        {newKey && (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 'var(--ui-radius-control)', background: STATUS.active.bg, border: `1px solid ${STATUS.active.bd}` }}>
-            <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 4 }}>New key — send this to the shop:</div>
-            <div style={{ fontFamily: 'var(--ui-font-mono)', fontWeight: 700, fontSize: 13.5 }}>{newKey}</div>
-            <button style={{ ...ghostBtn, marginTop: 8 }} onClick={() => navigator.clipboard.writeText(newKey)}>Copy key</button>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 9, marginTop: 18, flexWrap: 'wrap' }}>
-          <button style={primaryBtn} onClick={saveDetails}>Save changes</button>
-          <button style={ghostBtn} disabled={busy} onClick={reissue}>
-            {busy ? 'Generating…' : 'Re-issue key with these limits'}
-          </button>
-          <button style={{ ...ghostBtn, marginLeft: 'auto' }} onClick={onClose}>Close</button>
-        </div>
+      <div style={{ display: 'flex', gap: 9, marginTop: 22, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button style={primaryBtn} onClick={saveDetails}>Save changes</button>
+        <button style={ghostBtn} disabled={busy} onClick={reissue}>
+          {busy ? 'Generating…' : 'Re-issue key with these limits'}
+        </button>
+        <button style={{ ...ghostBtn, marginLeft: 'auto' }} onClick={onClose}>Close</button>
       </div>
     </Modal>
   );
@@ -825,6 +1112,7 @@ function EditClient({
 
 // ===================== Map =====================
 function MapTab({ clients, setClients }: { clients: Client[]; setClients: (f: (p: Client[]) => Client[]) => void }) {
+  const confirm = useConfirm();
   const [code, setCode] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   /** A code whose key already has all device slots full — waits for a decision. */
@@ -909,7 +1197,12 @@ function MapTab({ clients, setClients }: { clients: Client[]; setClients: (f: (p
         <div style={{ display: 'flex', gap: 9, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <button style={primaryBtn} onClick={register} disabled={!code.trim()}>Register device</button>
           {msg && (
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: msg.ok ? STATUS.active.fg : STATUS.expired.fg }}>
+            <span role="status" style={{
+              fontSize: 12.5, fontWeight: 600, padding: '7px 12px', borderRadius: 'var(--ui-radius-control)',
+              color: msg.ok ? STATUS.active.fg : STATUS.expired.fg,
+              background: msg.ok ? STATUS.active.bg : STATUS.expired.bg,
+              border: `1px solid ${msg.ok ? STATUS.active.bd : STATUS.expired.bd}`,
+            }}>
               {msg.ok ? '✓' : '✗'} {msg.text}
             </span>
           )}
@@ -920,8 +1213,8 @@ function MapTab({ clients, setClients }: { clients: Client[]; setClients: (f: (p
             marginTop: 14, padding: 16, borderRadius: 'var(--ui-radius-control)',
             background: STATUS.suspended.bg, border: `1px solid ${STATUS.suspended.bd}`,
           }}>
-            <div style={{ fontWeight: 700, fontSize: 13.5, color: STATUS.suspended.fg }}>
-              ⚠ This licence key is already in use
+            <div style={{ fontWeight: 700, fontSize: 13.5, color: STATUS.suspended.fg, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <TriangleAlert size={17} strokeWidth={1.9} aria-hidden /> This licence key is already in use
             </div>
             <div style={{ fontSize: 12.5, color: MUTED, marginTop: 8, lineHeight: 1.9 }}>
               <Row k="Business" v={conflict.client.business || conflict.rec.business || '—'} />
@@ -941,12 +1234,16 @@ function MapTab({ clients, setClients }: { clients: Client[]; setClients: (f: (p
               </button>
               <button
                 style={ghostBtn}
-                onClick={() => {
+                onClick={async () => {
                   const oldest = [...conflict.client.devices].sort((a, b) => a.activatedAt - b.activatedAt)[0];
                   if (!oldest) return;
-                  if (confirm(`Move the licence to the new computer and unlink ${oldest.id}?`)) {
-                    link(conflict.rec, conflict.client, false, oldest.id);
-                  }
+                  const yes = await confirm({
+                    title: `Move the licence to the new computer and unlink ${oldest.id}?`,
+                    body: 'The old computer loses its slot; the new one takes it.',
+                    confirmLabel: 'Move licence',
+                    danger: true,
+                  });
+                  if (yes) link(conflict.rec, conflict.client, false, oldest.id);
                 }}
               >Move licence to this computer</button>
               <button style={{ ...ghostBtn, color: STATUS.expired.fg }} onClick={() => { setConflict(null); setMsg({ ok: false, text: 'Not registered — the shop keeps using the old computer.' }); }}>

@@ -6,10 +6,11 @@ import {
 } from './cloud';
 import type { Client } from './registry';
 import { ACCENT, MUTED, LINE, STATUS, TINT, card, input, label, primaryBtn, ghostBtn } from './theme';
-import { Empty } from './ui';
+import { Empty, useConfirm } from './ui';
 import { MessageSquare } from 'lucide-react';
 
 export default function Support({ clients }: { clients: Client[] }) {
+  const confirm = useConfirm();
   const [msgs, setMsgs] = useState<SupportMessage[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [clientKey, setClientKey] = useState('');
@@ -81,7 +82,7 @@ export default function Support({ clients }: { clients: Client[] }) {
             }}>
               <span style={{
                 fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, marginTop: 2,
-                background: m.from === 'admin' ? ACCENT : STATUS.active.fg, color: '#fff',
+                background: m.from === 'admin' ? ACCENT : STATUS.active.fg, color: m.from === 'admin' ? 'var(--ui-accent-fg)' : '#fff',
               }}>{m.from === 'admin' ? 'DT' : 'SHOP'}</span>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600 }}>{m.business || 'General'}</div>
@@ -91,7 +92,12 @@ export default function Support({ clients }: { clients: Client[] }) {
                 </div>
               </div>
               {!m.read && <button style={ghostBtn} onClick={() => markMessageRead(m.id)}>Mark read</button>}
-              <button style={ghostBtn} onClick={() => { if (confirm('Delete this message?')) deleteMessage(m.id); }}>Delete</button>
+              <button
+                style={{ ...ghostBtn, color: STATUS.expired.fg, borderColor: STATUS.expired.bd }}
+                onClick={async () => {
+                  if (await confirm({ title: 'Delete this message?', confirmLabel: 'Delete', danger: true })) deleteMessage(m.id);
+                }}
+              >Delete</button>
             </div>
           ))}
         </div>

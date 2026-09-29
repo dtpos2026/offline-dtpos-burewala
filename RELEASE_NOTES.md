@@ -1,5 +1,72 @@
 # DT POS Enterprise — Release Notes
 
+## v1.16.0 — Twelve Modern themes, a roomier POS order screen, and a more professional Super Admin
+
+- **Reported:** "Add the red one from the PDF, orange, white, green, yellow — the
+  food colours — and other nice themes." And: "Look at the POS screen picture, and
+  make the Super Admin professional too."
+- **Twelve themes** (Settings → Theme, with Modern selected). Each is a whole
+  look, not just a button colour: page tint, panels, borders, accent, and a light
+  or dark sidebar.
+  - **Ember Orange** (the default), **Tomato Red** (the pizza-menu red of the
+    reference), **Fresh Green**, **Sunny Yellow**, **Clean White**, **Ocean Blue**,
+    **Coffee Brown**, **Rose Pink**, **Royal Purple**, **Mint Teal**, and two with a
+    dark sidebar: **Charcoal Orange** and **Navy Night**.
+  - Sunny Yellow puts dark text on yellow buttons and uses a deep amber where the
+    accent is text (prices, links), so yellow stays readable.
+  - "Use my own accent colour" still works on top of any theme. Picking a theme
+    resets it.
+  - The choice is saved on that computer only and applies at once. Classic is
+    untouched and keeps its own colour themes.
+- **The POS order screen** (Modern only), after the reference pictures:
+  - Product tiles show the full name (two lines, no more "Chicken Chee…"), the
+    price as plain bold text, a larger add button, and the category tabs show how
+    many items each holds.
+  - The panel is titled **Order**, with a segmented Dining / Takeaway / Delivery
+    control, card-like lines with a round − + stepper, a quieter totals block, and
+    one dominant **Pay** button. The empty "Change" box is no longer red.
+  - On a 1080p screen with up to four lines, a line is two rows (name and total,
+    then unit price and stepper) like the reference. With more lines, or on a
+    shorter screen, it is one row so more of the bill stays visible. Below 820 px
+    of height the header, totals and buttons tighten, and the F-key hint strip
+    shows only on tall screens.
+  - Nothing behind it changed: shortcuts, printing, totals, payment and the
+    keypad work as before.
+- **The Super Admin**, second pass:
+  - The dashboard reads only real data: a licence-health bar, plan chips,
+    renewals grouped into 7 / 14 / 30 / 60 / 90 days, the latest activations, and
+    "Online now" from the computers that report in.
+  - Clients: filter chips with counts, an avatar and copy button on each row, a
+    computers bar, and a "⋯" menu for the licence status and for removing a
+    client. Devices and Billing use the same menu.
+  - Confirmations and messages are now styled dialogs and toasts instead of the
+    browser's pop-ups. Escape closes the top-most one. A declined confirmation
+    changes nothing.
+  - A sign-in screen with a brand panel; a page bar with a breadcrumb and an
+    "Issue license" button; unread messages on the Support tab.
+  - A **Theme** menu in the sidebar: the same twelve themes.
+  - The Edit-licence dialog no longer says "limits changed" the moment it opens.
+- **Safety** is as in v1.15.0: presentation only; every new rule is scoped to the
+  Modern attribute; the print window never carries it; a test proves the theme
+  choice writes only its own key.
+- **Verified:**
+  - Type-check clean for the POS and the Super Admin; the full test suite passes
+    (959 tests; new: 38 theme tests, including a contrast check of all twelve
+    themes, 9 Super Admin interface tests, and theme-gallery tests); both builds
+    pass.
+  - Every POS route was swept at four window sizes with no sideways overflow;
+    each theme was viewed on the POS, Dashboard, Tables, Reports and Menu screens,
+    and the Super Admin was viewed in four themes.
+- **Known limits, said plainly:**
+  - Checked in a browser with demo data, not on a Windows counter with a
+    physical printer or on a phone.
+  - There is still no full dark mode. Charcoal Orange and Navy Night darken the
+    sidebar only.
+  - The order panel is roomier than before, so on a 900 px-tall screen the keypad
+    needs a scroll to show its keys (on a 768 px screen it already did). Collapse
+    it, or set it per screen in Settings → Screen & Layout.
+  - The green Pay button stays green in every theme, on purpose.
+
 ## v1.15.0 — Modern interface, Module Management and a matching Super Admin
 
 - **What changed:** how the software looks and how you move around it. Nothing

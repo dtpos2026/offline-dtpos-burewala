@@ -195,4 +195,31 @@ describe('Settings → Appearance', () => {
   });
 });
 
+describe('Settings → Theme gallery', () => {
+  const reset = () => ['data-ui', 'data-ui-theme', 'data-sidebar', 'data-on-accent'].forEach(a => document.documentElement.removeAttribute(a));
+
+  it('offers twelve themes; choosing one applies it and drops any accent override', () => {
+    localStorage.setItem('dtpos-ui-accent', 'emerald');
+    render(<InterfaceStyleCard />);
+    const group = screen.getByRole('radiogroup', { name: 'Theme' });
+    expect(within(group).getAllByRole('radio')).toHaveLength(12);
+    for (const name of ['Ember Orange', 'Tomato Red', 'Fresh Green', 'Sunny Yellow', 'Clean White']) {
+      expect(within(group).getByRole('radio', { name: new RegExp(name) })).toBeInTheDocument();
+    }
+    fireEvent.click(within(group).getByRole('radio', { name: /Tomato Red/ }));
+    expect(localStorage.getItem('dtpos-ui-theme')).toBe('tomato');
+    expect(localStorage.getItem('dtpos-ui-accent')).toBeNull();
+    expect(document.documentElement.getAttribute('data-ui-theme')).toBe('tomato');
+    expect(within(group).getByRole('radio', { name: /Tomato Red/ })).toHaveAttribute('aria-checked', 'true');
+    reset();
+  });
+
+  it('the theme gallery is a Modern feature: Classic hides it and keeps its own colour themes', () => {
+    localStorage.setItem('dtpos-ui-style', 'classic');
+    render(<InterfaceStyleCard />);
+    expect(screen.queryByRole('radiogroup', { name: 'Theme' })).toBeNull();
+    reset();
+  });
+});
+
 vi.stubGlobal('confirm', () => true);

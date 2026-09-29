@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { BRAND, ACCENT, ACCENT_HEX, MUTED, LINE } from './theme';
+import { BRAND, ACCENT_TEXT, ACCENT_HEX, MUTED, LINE } from './theme';
 import { MapPin as MapPinIcon } from 'lucide-react';
 import { statusOf } from './registry';
 import type { MapPin } from './pins';
@@ -104,7 +104,7 @@ export default function DeviceMap({ pins, markers, height = 420, emptyTitle, emp
           textAlign: 'center', padding: 24,
         }}>
           <div>
-            <span style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--ui-accent-soft)', color: ACCENT, display: 'inline-grid', placeItems: 'center', marginBottom: 10 }}>
+            <span style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--ui-accent-soft)', color: ACCENT_TEXT, display: 'inline-grid', placeItems: 'center', marginBottom: 10 }}>
               <MapPinIcon size={22} strokeWidth={1.75} aria-hidden />
             </span>
             <div style={{ fontWeight: 600, fontSize: 14 }}>{emptyTitle || 'No device locations yet'}</div>

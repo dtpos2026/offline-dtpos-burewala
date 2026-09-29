@@ -23,6 +23,16 @@
   --ui-accent-h: 16;
   --ui-accent-s: 88%;
   --ui-accent-l: 44%;
+  /* The accent used as TEXT on a light surface (prices, links, active labels).
+     Equal to the accent, except for a light accent such as yellow. */
+  --ui-text-h: var(--ui-accent-h);
+  --ui-text-s: var(--ui-accent-s);
+  --ui-text-l: var(--ui-accent-l);
+  /* Text and icons that sit ON the accent: white, or near-black for yellow. */
+  --ui-on-accent: 0 0% 100%;
+  /* How tinted the soft accent wash is (low for a grey accent). */
+  --ui-soft-s: 80%;
+  --ui-gold-on-dark: var(--ui-accent-h) 90% 82%;
 
   /* ---------- palette: HSL triplets, the names Tailwind reads ---------- */
   --background: 40 18% 96%;
@@ -34,10 +44,11 @@
   --popover-foreground: 24 15% 11%;
 
   --primary: var(--ui-accent-h) var(--ui-accent-s) var(--ui-accent-l);
-  --primary-foreground: 0 0% 100%;
+  --primary-foreground: var(--ui-on-accent);
+  --primary-text: var(--ui-text-h) var(--ui-text-s) var(--ui-text-l);
   --primary-glow: var(--ui-accent-h) var(--ui-accent-s) calc(var(--ui-accent-l) + 8%);
-  --primary-soft: var(--ui-accent-h) 80% 95%;
-  --primary-soft-strong: var(--ui-accent-h) 78% 90%;
+  --primary-soft: var(--ui-accent-h) var(--ui-soft-s) 95%;
+  --primary-soft-strong: var(--ui-accent-h) var(--ui-soft-s) 90%;
 
   --secondary: 36 14% 93%;
   --secondary-foreground: 24 15% 16%;
@@ -52,14 +63,14 @@
 
   --border: 35 14% 89%;
   --input: 35 12% 84%;
-  --ring: var(--ui-accent-h) var(--ui-accent-s) var(--ui-accent-l);
+  --ring: var(--primary-text);
 
   /* The old brand highlight ("gold"): the accent, so text-gold reads on light surfaces */
-  --gold: var(--ui-accent-h) var(--ui-accent-s) var(--ui-accent-l);
-  --gold-foreground: 0 0% 100%;
-  --gold-soft: var(--ui-accent-h) 80% 95%;
+  --gold: var(--primary-text);
+  --gold-foreground: var(--ui-on-accent);
+  --gold-soft: var(--primary-soft);
   /* …and its light twin, used on dark surfaces (see ui-modern.css) */
-  --gold-on-dark: var(--ui-accent-h) 90% 82%;
+  --gold-on-dark: var(--ui-gold-on-dark);
 
   --radius: 0.75rem;
 
@@ -105,11 +116,11 @@
   --sidebar-background: 0 0% 100%;
   --sidebar-foreground: 24 10% 32%;
   --sidebar-primary: var(--ui-accent-h) var(--ui-accent-s) var(--ui-accent-l);
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: var(--ui-accent-h) 80% 95%;
-  --sidebar-accent-foreground: var(--ui-accent-h) var(--ui-accent-s) var(--ui-accent-l);
+  --sidebar-primary-foreground: var(--ui-on-accent);
+  --sidebar-accent: var(--primary-soft);
+  --sidebar-accent-foreground: var(--primary-text);
   --sidebar-border: 35 14% 90%;
-  --sidebar-ring: var(--ui-accent-h) var(--ui-accent-s) var(--ui-accent-l);
+  --sidebar-ring: var(--primary-text);
 
   /* ---------- flat surfaces (no decorative gradients) ---------- */
   --gradient-primary: linear-gradient(hsl(var(--primary)), hsl(var(--primary)));
@@ -181,6 +192,7 @@
   --ui-text: hsl(var(--foreground));
   --ui-text-muted: hsl(var(--muted-foreground));
   --ui-accent: hsl(var(--primary));
+  --ui-accent-text: hsl(var(--primary-text));   /* the accent where it is text on a light surface */
   --ui-accent-fg: hsl(var(--primary-foreground));
   --ui-accent-soft: hsl(var(--primary-soft));
   --ui-accent-soft-strong: hsl(var(--primary-soft-strong));
@@ -202,4 +214,265 @@
   --ui-info-text: hsl(212 80% 34%);
   --ui-info-border: hsl(212 70% 84%);
   --ui-overlay: hsl(24 20% 8% / 0.5);
+}
+
+/* ============================================================
+ * THEMES — the surface tint of each Modern theme (src/lib/uiThemes.ts).
+ * The accent itself is set from JS (--ui-accent-*); these blocks only choose
+ * the page, text, muted, border and input colours. The five values that the
+ * theme list repeats (background, foreground, muted-foreground, muted, border)
+ * are checked against uiThemes.ts by src/test/ui-themes.test.ts.
+ * ============================================================ */
+
+:root[data-ui="modern"][data-ui-theme="ember"] {
+  --background: 40 18% 96%;
+  --foreground: 24 15% 11%;
+  --card-foreground: 24 15% 11%;
+  --popover-foreground: 24 15% 11%;
+  --secondary: 36 14% 94%;
+  --secondary-foreground: 24 15% 11%;
+  --muted: 36 14% 94%;
+  --muted-foreground: 25 8% 40%;
+  --accent: 36 16% 92%;
+  --accent-foreground: 24 15% 11%;
+  --border: 35 14% 89%;
+  --input: 35 11% 84%;
+  --pos-grid-bg: 40 18% 96%;
+  --pos-sidebar-foreground: 24 15% 11%;
+  --sidebar-foreground: 25 8% 40%;
+  --sidebar-border: 35 14% 89%;
+}
+:root[data-ui="modern"][data-ui-theme="tomato"] {
+  --background: 24 12% 96%;
+  --foreground: 12 14% 10%;
+  --card-foreground: 12 14% 10%;
+  --popover-foreground: 12 14% 10%;
+  --secondary: 20 9% 93%;
+  --secondary-foreground: 12 14% 10%;
+  --muted: 20 9% 93%;
+  --muted-foreground: 14 7% 40%;
+  --accent: 20 11% 91%;
+  --accent-foreground: 12 14% 10%;
+  --border: 20 9% 88%;
+  --input: 20 6% 83%;
+  --pos-grid-bg: 24 12% 96%;
+  --pos-sidebar-foreground: 12 14% 10%;
+  --sidebar-foreground: 14 7% 40%;
+  --sidebar-border: 20 9% 88%;
+}
+:root[data-ui="modern"][data-ui-theme="fresh"] {
+  --background: 148 24% 96%;
+  --foreground: 160 22% 9%;
+  --card-foreground: 160 22% 9%;
+  --popover-foreground: 160 22% 9%;
+  --secondary: 148 15% 93%;
+  --secondary-foreground: 160 22% 9%;
+  --muted: 148 15% 93%;
+  --muted-foreground: 158 8% 38%;
+  --accent: 148 17% 91%;
+  --accent-foreground: 160 22% 9%;
+  --border: 148 13% 86%;
+  --input: 148 10% 81%;
+  --pos-grid-bg: 148 24% 96%;
+  --pos-sidebar-foreground: 160 22% 9%;
+  --sidebar-foreground: 158 8% 38%;
+  --sidebar-border: 148 13% 86%;
+}
+:root[data-ui="modern"][data-ui-theme="sunny"] {
+  --background: 48 46% 95%;
+  --foreground: 30 40% 9%;
+  --card-foreground: 30 40% 9%;
+  --popover-foreground: 30 40% 9%;
+  --secondary: 46 32% 91%;
+  --secondary-foreground: 30 40% 9%;
+  --muted: 46 32% 91%;
+  --muted-foreground: 32 12% 36%;
+  --accent: 46 34% 89%;
+  --accent-foreground: 30 40% 9%;
+  --border: 44 26% 83%;
+  --input: 44 23% 78%;
+  --pos-grid-bg: 48 46% 95%;
+  --pos-sidebar-foreground: 30 40% 9%;
+  --sidebar-foreground: 32 12% 36%;
+  --sidebar-border: 44 26% 83%;
+}
+:root[data-ui="modern"][data-ui-theme="white"] {
+  --background: 220 20% 98%;
+  --foreground: 222 24% 9%;
+  --card-foreground: 222 24% 9%;
+  --popover-foreground: 222 24% 9%;
+  --secondary: 220 14% 95%;
+  --secondary-foreground: 222 24% 9%;
+  --muted: 220 14% 95%;
+  --muted-foreground: 220 9% 40%;
+  --accent: 220 16% 93%;
+  --accent-foreground: 222 24% 9%;
+  --border: 220 13% 90%;
+  --input: 220 10% 85%;
+  --pos-grid-bg: 220 20% 98%;
+  --pos-sidebar-foreground: 222 24% 9%;
+  --sidebar-foreground: 220 9% 40%;
+  --sidebar-border: 220 13% 90%;
+}
+:root[data-ui="modern"][data-ui-theme="ocean"] {
+  --background: 214 34% 96%;
+  --foreground: 218 34% 10%;
+  --card-foreground: 218 34% 10%;
+  --popover-foreground: 218 34% 10%;
+  --secondary: 214 22% 93%;
+  --secondary-foreground: 218 34% 10%;
+  --muted: 214 22% 93%;
+  --muted-foreground: 216 11% 38%;
+  --accent: 214 24% 91%;
+  --accent-foreground: 218 34% 10%;
+  --border: 214 20% 87%;
+  --input: 214 17% 82%;
+  --pos-grid-bg: 214 34% 96%;
+  --pos-sidebar-foreground: 218 34% 10%;
+  --sidebar-foreground: 216 11% 38%;
+  --sidebar-border: 214 20% 87%;
+}
+:root[data-ui="modern"][data-ui-theme="coffee"] {
+  --background: 32 30% 95%;
+  --foreground: 24 32% 10%;
+  --card-foreground: 24 32% 10%;
+  --popover-foreground: 24 32% 10%;
+  --secondary: 30 22% 91%;
+  --secondary-foreground: 24 32% 10%;
+  --muted: 30 22% 91%;
+  --muted-foreground: 26 11% 36%;
+  --accent: 30 24% 89%;
+  --accent-foreground: 24 32% 10%;
+  --border: 30 18% 83%;
+  --input: 30 15% 78%;
+  --pos-grid-bg: 32 30% 95%;
+  --pos-sidebar-foreground: 24 32% 10%;
+  --sidebar-foreground: 26 11% 36%;
+  --sidebar-border: 30 18% 83%;
+}
+:root[data-ui="modern"][data-ui-theme="rose"] {
+  --background: 340 32% 97%;
+  --foreground: 336 22% 10%;
+  --card-foreground: 336 22% 10%;
+  --popover-foreground: 336 22% 10%;
+  --secondary: 340 18% 94%;
+  --secondary-foreground: 336 22% 10%;
+  --muted: 340 18% 94%;
+  --muted-foreground: 336 8% 40%;
+  --accent: 340 20% 92%;
+  --accent-foreground: 336 22% 10%;
+  --border: 340 15% 89%;
+  --input: 340 12% 84%;
+  --pos-grid-bg: 340 32% 97%;
+  --pos-sidebar-foreground: 336 22% 10%;
+  --sidebar-foreground: 336 8% 40%;
+  --sidebar-border: 340 15% 89%;
+}
+:root[data-ui="modern"][data-ui-theme="violet"] {
+  --background: 266 32% 97%;
+  --foreground: 268 28% 10%;
+  --card-foreground: 268 28% 10%;
+  --popover-foreground: 268 28% 10%;
+  --secondary: 266 18% 94%;
+  --secondary-foreground: 268 28% 10%;
+  --muted: 266 18% 94%;
+  --muted-foreground: 266 9% 40%;
+  --accent: 266 20% 92%;
+  --accent-foreground: 268 28% 10%;
+  --border: 266 15% 89%;
+  --input: 266 12% 84%;
+  --pos-grid-bg: 266 32% 97%;
+  --pos-sidebar-foreground: 268 28% 10%;
+  --sidebar-foreground: 266 9% 40%;
+  --sidebar-border: 266 15% 89%;
+}
+:root[data-ui="modern"][data-ui-theme="teal"] {
+  --background: 176 28% 96%;
+  --foreground: 180 28% 9%;
+  --card-foreground: 180 28% 9%;
+  --popover-foreground: 180 28% 9%;
+  --secondary: 176 15% 93%;
+  --secondary-foreground: 180 28% 9%;
+  --muted: 176 15% 93%;
+  --muted-foreground: 180 8% 38%;
+  --accent: 176 17% 91%;
+  --accent-foreground: 180 28% 9%;
+  --border: 176 13% 86%;
+  --input: 176 10% 81%;
+  --pos-grid-bg: 176 28% 96%;
+  --pos-sidebar-foreground: 180 28% 9%;
+  --sidebar-foreground: 180 8% 38%;
+  --sidebar-border: 176 13% 86%;
+}
+:root[data-ui="modern"][data-ui-theme="charcoal"] {
+  --background: 40 18% 96%;
+  --foreground: 24 15% 11%;
+  --card-foreground: 24 15% 11%;
+  --popover-foreground: 24 15% 11%;
+  --secondary: 36 14% 94%;
+  --secondary-foreground: 24 15% 11%;
+  --muted: 36 14% 94%;
+  --muted-foreground: 25 8% 40%;
+  --accent: 36 16% 92%;
+  --accent-foreground: 24 15% 11%;
+  --border: 35 14% 89%;
+  --input: 35 11% 84%;
+  --pos-grid-bg: 40 18% 96%;
+  --pos-sidebar-foreground: 24 15% 11%;
+  --sidebar-foreground: 25 8% 40%;
+  --sidebar-border: 35 14% 89%;
+}
+:root[data-ui="modern"][data-ui-theme="navy"] {
+  --background: 214 34% 96%;
+  --foreground: 218 34% 10%;
+  --card-foreground: 218 34% 10%;
+  --popover-foreground: 218 34% 10%;
+  --secondary: 214 22% 93%;
+  --secondary-foreground: 218 34% 10%;
+  --muted: 214 22% 93%;
+  --muted-foreground: 216 11% 38%;
+  --accent: 214 24% 91%;
+  --accent-foreground: 218 34% 10%;
+  --border: 214 20% 87%;
+  --input: 214 17% 82%;
+  --pos-grid-bg: 214 34% 96%;
+  --pos-sidebar-foreground: 218 34% 10%;
+  --sidebar-foreground: 216 11% 38%;
+  --sidebar-border: 214 20% 87%;
+}
+
+/* ---------- dark sidebar (Charcoal, Navy) ----------
+ * The sidebar re-maps the palette tokens inside itself, so every existing
+ * text-foreground / text-muted-foreground / hover:bg-accent class in it turns
+ * light-on-dark without touching the component. */
+:root[data-ui="modern"][data-sidebar="dark"] {
+  --sidebar-background: var(--ui-sb-bg);
+  --sidebar-foreground: var(--ui-sb-fg);
+  --sidebar-border: var(--ui-sb-border);
+  --sidebar-accent: var(--primary);
+  --sidebar-accent-foreground: var(--ui-on-accent);
+}
+:root[data-ui="modern"][data-ui-theme="charcoal"] {
+  --ui-sb-bg: 24 15% 11%;
+  --ui-sb-fg: 30 12% 80%;
+  --ui-sb-border: 24 10% 20%;
+  --ui-sb-hover: 24 12% 19%;
+  --ui-sb-muted-fg: 30 8% 66%;
+}
+:root[data-ui="modern"][data-ui-theme="navy"] {
+  --ui-sb-bg: 222 40% 12%;
+  --ui-sb-fg: 216 22% 82%;
+  --ui-sb-border: 222 26% 21%;
+  --ui-sb-hover: 222 30% 20%;
+  --ui-sb-muted-fg: 218 14% 66%;
+}
+:root[data-ui="modern"][data-sidebar="dark"] [data-ui-shell="sidebar"] {
+  --foreground: 0 0% 98%;
+  --card-foreground: 0 0% 98%;
+  --muted-foreground: var(--ui-sb-muted-fg);
+  --muted: var(--ui-sb-hover);
+  --accent: var(--ui-sb-hover);
+  --accent-foreground: 0 0% 100%;
+  --border: var(--ui-sb-border);
+  --primary-text: var(--ui-accent-h) 92% 74%;
 }

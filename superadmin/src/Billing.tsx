@@ -15,7 +15,9 @@ import {
 } from './billingModel';
 import { cachedInvoices, cachedProfile, deleteInvoice, saveInvoice, saveProfile, watchInvoices, watchProfile } from './billingCloud';
 import { canvasMeasure, layoutInvoice, paintInvoice, type Images, type InvoiceFormat } from './invoiceRender';
-import { ACCENT, BRAND, INK_2, LINE, MUTED, OVERLAY, STATUS, STRONG, TEXT, TINT, TINT_2, card, ghostBtn, input, label, pill, primaryBtn } from './theme';
+import { ACCENT, ACCENT_TEXT, BRAND, INK_2, LINE, MUTED, OVERLAY, STATUS, STRONG, TEXT, TINT, TINT_2, card, ghostBtn, input, label, pill, primaryBtn } from './theme';
+import { RowMenu, Empty, Avatar, useConfirm } from './ui';
+import { Receipt } from 'lucide-react';
 
 type Filter = 'all' | 'paid' | 'unpaid';
 
@@ -44,6 +46,7 @@ function blankInvoice(existing: OfflineInvoice[], profile: BillingProfile): Offl
 }
 
 export default function Billing({ clients }: { clients: Client[] }) {
+  const confirm = useConfirm();
   const [invoices, setInvoices] = useState<OfflineInvoice[]>(cachedInvoices);
   const [profile, setProfile] = useState<BillingProfile>(cachedProfile);
   const [err, setErr] = useState('');
@@ -90,7 +93,13 @@ export default function Billing({ clients }: { clients: Client[] }) {
   };
 
   const remove = async (inv: OfflineInvoice) => {
-    if (!window.confirm(`Delete invoice ${inv.invoiceNo} for ${inv.customer.restaurant}?\n\nIts QR verification link stops working.`)) return;
+    const yes = await confirm({
+      title: `Delete invoice ${inv.invoiceNo} for ${inv.customer.restaurant}?`,
+      body: 'Its QR verification link stops working.',
+      confirmLabel: 'Delete invoice',
+      danger: true,
+    });
+    if (!yes) return;
     try { await deleteInvoice(inv); flash(`Invoice ${inv.invoiceNo} deleted.`); }
     catch (e) { setErr(`Not deleted: ${(e as Error).message}`); }
   };
@@ -134,7 +143,15 @@ export default function Billing({ clients }: { clients: Client[] }) {
                 <tr key={i.id} className="sa-row">
                   <td style={{ ...td, fontFamily: 'var(--ui-font-mono)', fontWeight: 600 }}>{i.invoiceNo}</td>
                   <td style={td}>{i.date}</td>
-                  <td style={td}><div style={{ fontWeight: 700 }}>{i.customer.restaurant}</div><div style={{ fontSize: 11, color: MUTED }}>{i.customer.owner}{i.customer.phone ? ` · ${i.customer.phone}` : ''}</div></td>
+                  <td style={{ ...td, minWidth: 200 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <Avatar name={i.customer.restaurant || i.customer.owner} size={32} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600 }}>{i.customer.restaurant}</div>
+                        <div style={{ fontSize: 11.5, color: MUTED }}>{i.customer.owner}{i.customer.phone ? ` · ${i.customer.phone}` : ''}</div>
+                      </div>
+                    </div>
+                  </td>
                   <td style={{ ...td, fontFamily: 'var(--ui-font-mono)', fontSize: 11 }}>{maskLicenseKey(i.customer.licenseKey) || '—'}</td>
                   <td style={td}>{i.pkg}</td>
                   <td style={{ ...td, fontWeight: 700 }}>{money(invoiceTotal(i), profile.currency)}</td>
@@ -144,15 +161,23 @@ export default function Billing({ clients }: { clients: Client[] }) {
                     </span>
                     {i.paid && i.paymentDate && <div style={{ fontSize: 10.5, color: MUTED }}>{i.paymentDate}</div>}
                   </td>
-                  <td style={td}>
-                    <button style={{ ...ghostBtn, padding: '5px 9px', fontSize: 11, marginRight: 6 }} onClick={() => setViewing(i)}>View / Print</button>
-                    <button style={{ ...ghostBtn, padding: '5px 9px', fontSize: 11, marginRight: 6 }} onClick={() => setEditing(i)}>Edit</button>
-                    {!i.paid && <button style={{ ...ghostBtn, padding: '5px 9px', fontSize: 11, marginRight: 6, color: STATUS.active.fg }} onClick={() => markPaid(i)}>Mark paid</button>}
-                    <button style={{ ...ghostBtn, padding: '5px 9px', fontSize: 11, color: STATUS.expired.fg }} onClick={() => remove(i)}>Delete</button>
+                  <td style={{ ...td, textAlign: 'right' }}>
+                    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                      <button style={{ ...ghostBtn, minHeight: 32, padding: '4px 12px' }} onClick={() => setViewing(i)}>View / Print</button>
+                      <button style={{ ...ghostBtn, minHeight: 32, padding: '4px 12px' }} onClick={() => setEditing(i)}>Edit</button>
+                      <RowMenu
+                        label={`More actions for invoice ${i.invoiceNo}`}
+                        items={[
+                          ...(i.paid ? [] : [{ label: 'Mark as paid', onSelect: () => { void markPaid(i); } }]),
+                          ...(i.paid ? [] : ['separator' as const]),
+                          { label: 'Delete invoice', danger: true, onSelect: () => { void remove(i); } },
+                        ]}
+                      />
+                    </span>
                   </td>
                 </tr>
               ))}
-              {!rows.length && <tr><td colSpan={8} style={{ ...td, color: MUTED }}>{invoices.length ? 'No invoice matches.' : 'No invoices yet. Use “New invoice”.'}</td></tr>}
+              {!rows.length && <tr><td colSpan={8} style={td}><Empty icon={Receipt}>{invoices.length ? 'No invoice matches.' : 'No invoices yet. Use “New invoice”.'}</Empty></td></tr>}
             </tbody>
           </table>
         </div>
@@ -366,7 +391,7 @@ function Preview({ inv, profile, onClose }: { inv: OfflineInvoice; profile: Bill
         <canvas ref={shown} style={{ width: format === 'a4' ? 'min(640px, 100%)' : 302, height: 'auto', boxShadow: 'var(--ui-shadow-pop)', background: '#fff', display: images ? 'block' : 'none' }} />
       </div>
       <p style={{ fontSize: 11.5, color: MUTED, marginTop: 10, wordBreak: 'break-all' }}>
-        QR opens: <a href={link} target="_blank" rel="noreferrer" style={{ color: ACCENT }}>{link}</a> — it carries only this random reference; the page shows the invoice number, restaurant, owner, masked license and its status.
+        QR opens: <a href={link} target="_blank" rel="noreferrer" style={{ color: ACCENT_TEXT }}>{link}</a> — it carries only this random reference; the page shows the invoice number, restaurant, owner, masked license and its status.
       </p>
     </Modal>
   );

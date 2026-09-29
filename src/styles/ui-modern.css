@@ -77,6 +77,15 @@ html[data-ui="modern"] :is(.bg-gradient-hero, .bg-gradient-primary, .bg-gradient
   border-color: hsl(var(--gold-on-dark) / 0.6);
 }
 
+/* ---------- the accent used as text ----------
+ * Prices, links and active labels use text-primary. --primary-text is the accent
+ * itself for every theme except a light one (Sunny Yellow), where it is a deep
+ * amber so the text stays readable on white. Placed before the rules that put
+ * primary-foreground on accent surfaces, so those still win. */
+html[data-ui="modern"] .text-primary,
+html[data-ui="modern"] .hover\:text-primary:hover,
+html[data-ui="modern"] .group:hover .group-hover\:text-primary { color: hsl(var(--primary-text)); }
+
 /* ---------- buttons ---------- */
 html[data-ui="modern"] [data-slot="button"] {
   font-weight: 600;
@@ -93,7 +102,7 @@ html[data-ui="modern"] [data-slot="button"]:disabled { box-shadow: none; }
 html[data-ui="modern"] [data-slot="badge"] { font-weight: 600; }
 html[data-ui="modern"] [data-slot="badge"][data-variant="default"][class*="bg-primary"] {
   background: hsl(var(--primary-soft));
-  color: hsl(var(--primary));
+  color: hsl(var(--primary-text));
 }
 html[data-ui="modern"] [data-slot="badge"][data-variant="destructive"][class*="bg-destructive"] {
   background: hsl(0 80% 95%);
@@ -203,7 +212,7 @@ html[data-ui="modern"] .pos-settings-pro [data-radix-tabs-list] {
 }
 html[data-ui="modern"] .pos-settings-pro [data-radix-tabs-trigger][data-state="active"] {
   background: hsl(var(--primary-soft));
-  color: hsl(var(--primary));
+  color: hsl(var(--primary-text));
   box-shadow: none;
 }
 

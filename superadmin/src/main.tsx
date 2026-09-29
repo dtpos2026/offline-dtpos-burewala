@@ -10,8 +10,13 @@ import '@fontsource/jetbrains-mono/600.css';
 // ONE set of design tokens for the POS and this panel.
 import '@pos/styles/ui-tokens.css';
 import './index.css';
+import { applyUiStyle } from '@pos/lib/uiStyle';
 import App from './App';
 import Verify from './Verify';
+
+// The panel is always the Modern look; the theme (Settings → Theme in the POS, the
+// Theme menu in the sidebar here) is remembered on this browser.
+applyUiStyle('modern');
 
 // An invoice QR opens this panel with ?verify=<code>: show the public
 // verification view, which needs no sign-in.

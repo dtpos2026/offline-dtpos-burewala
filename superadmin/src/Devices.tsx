@@ -16,8 +16,9 @@ import {
   type DeviceDoc, type StatusDoc,
 } from './cloud';
 import { isOnline, lastSeenLabel, locationLabel, serverDecision, ONLINE_WINDOW_MS } from './deviceState';
-import { BRAND, ACCENT, MUTED, INK_2 as CARD, LINE as BORDER, LINE_STRONG, TINT, STATUS, card, input, primaryBtn, ghostBtn, pill } from './theme';
-import { Modal } from './ui';
+import { BRAND, ACCENT, ACCENT_TEXT, MUTED, INK_2 as CARD, LINE as BORDER, LINE_STRONG, TINT, STATUS, card, input, primaryBtn, ghostBtn, pill } from './theme';
+import { Modal, ModalHeader, RowMenu, Empty, Avatar, useConfirm, type MenuEntry } from './ui';
+import { Monitor, Wifi, WifiOff, ShieldAlert } from 'lucide-react';
 
 const fmt = (ms?: number) => (ms ? new Date(ms).toLocaleString() : '—');
 
@@ -32,6 +33,7 @@ const TONE: Record<string, Tone> = {
 type Filter = 'all' | 'online' | 'offline' | 'blocked';
 
 export default function Devices() {
+  const confirm = useConfirm();
   const [devices, setDevices] = useState<DeviceDoc[]>([]);
   const [deviceStatus, setDeviceStatusMap] = useState<Map<string, StatusDoc>>(new Map());
   const [licenceStatus, setLicenceStatusMap] = useState<Map<string, StatusDoc>>(new Map());
@@ -86,7 +88,13 @@ export default function Devices() {
       : status === 'suspended'
         ? 'The computer is blocked until you activate it again. Other computers on this licence keep working.'
         : 'Lifts a suspend or revoke on this computer. A licence-wide status (Clients tab) still applies.';
-    if (!window.confirm(`${what[0].toUpperCase() + what.slice(1)} “${label}”?\n\n${detail}`)) return;
+    const yes = await confirm({
+      title: `${what[0].toUpperCase() + what.slice(1)} “${label}”?`,
+      body: detail,
+      confirmLabel: what[0].toUpperCase() + what.slice(1),
+      danger: status !== 'active',
+    });
+    if (!yes) return;
     setBusy(d.deviceId);
     setErr('');
     try {
@@ -98,13 +106,16 @@ export default function Devices() {
 
   async function remove(d: DeviceDoc) {
     const label = d.business || d.deviceId.slice(0, 12);
-    if (!window.confirm(
-      `Delete device “${label}”?\n\n`
-      + '• Its device slot is freed for another computer.\n'
-      + '• That computer is blocked and asked to enter the licence key again.\n'
-      + '• Other computers on this licence are not affected.\n\n'
-      + 'To block the computer permanently, use Revoke instead.',
-    )) return;
+    const yes = await confirm({
+      title: `Delete device “${label}”?`,
+      body: '• Its device slot is freed for another computer.\n'
+        + '• That computer is blocked and asked to enter the licence key again.\n'
+        + '• Other computers on this licence are not affected.\n\n'
+        + 'To block the computer permanently, use Revoke instead.',
+      confirmLabel: 'Delete device',
+      danger: true,
+    });
+    if (!yes) return;
     setBusy(d.deviceId);
     setErr('');
     try {
@@ -116,7 +127,12 @@ export default function Devices() {
   }
 
   async function allowAgain(s: StatusDoc) {
-    if (!window.confirm('Clear this removal record?\n\nThe computer can report again without re-entering the key. It still needs a free device slot.')) return;
+    const yes = await confirm({
+      title: 'Clear this removal record?',
+      body: 'The computer can report again without re-entering the key. It still needs a free device slot.',
+      confirmLabel: 'Clear record',
+    });
+    if (!yes) return;
     setBusy(s.id);
     try { await clearDeviceRemoval(s.deviceId || s.id); flash('Removal record cleared.'); }
     catch (e) { setErr(`Not cleared: ${(e as Error).message}`); }
@@ -186,11 +202,16 @@ export default function Devices() {
                 const slots = d.licenseKey ? ledgers.get(docIdFor(d.licenseKey)) : undefined;
                 return (
                   <tr key={d.deviceId} className="sa-row">
-                    <td style={td}>
-                      <button onClick={() => setOpen(d)} style={{ background: 'none', border: 0, color: ACCENT, fontWeight: 600, cursor: 'pointer', padding: 0, fontSize: 13 }}>
-                        {d.business || '—'}
-                      </button>
-                      <div style={{ fontSize: 11, color: MUTED }}>{d.hostname || ''}</div>
+                    <td style={{ ...td, minWidth: 190 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <Avatar name={d.business || d.hostname || d.deviceId} size={32} />
+                        <div style={{ minWidth: 0 }}>
+                          <button onClick={() => setOpen(d)} style={{ background: 'none', border: 0, color: 'inherit', fontWeight: 600, cursor: 'pointer', padding: 0, fontSize: 13, textAlign: 'left' }}>
+                            {d.business || '—'}
+                          </button>
+                          <div style={{ fontSize: 11.5, color: MUTED }}>{d.hostname || ''}</div>
+                        </div>
+                      </div>
                     </td>
                     <td style={{ ...td, fontFamily: 'var(--ui-font-mono)', fontSize: 11 }} title={d.deviceId}>{d.deviceId.slice(0, 18)}…</td>
                     <td style={td}>
@@ -207,11 +228,22 @@ export default function Devices() {
                     <td style={td}>{slots ? `${slots.length} used${slots.includes(d.deviceId) ? '' : ' · not in list'}` : '—'}</td>
                     <td style={td}>{d.appVersion || '—'}</td>
                     <td style={{ ...td, whiteSpace: 'normal', minWidth: 180, fontSize: 12 }}>{locationLabel(d)}</td>
-                    <td style={{ ...td, whiteSpace: 'normal', minWidth: 172 }}>
-                      <button disabled={busy === d.deviceId} onClick={() => change(d, 'active')} style={btn(STATUS.active)}>Activate</button>
-                      <button disabled={busy === d.deviceId} onClick={() => change(d, 'suspended')} style={btn(STATUS.suspended)}>Suspend</button>
-                      <button disabled={busy === d.deviceId} onClick={() => change(d, 'revoked')} style={btn(STATUS.expired)}>Revoke</button>
-                      <button disabled={busy === d.deviceId} onClick={() => remove(d)} style={btn(STATUS.expired)}>Delete</button>
+                    <td style={{ ...td, textAlign: 'right' }}>
+                      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                        <button onClick={() => setOpen(d)} style={{ ...ghostBtn, minHeight: 32, padding: '4px 12px' }}>Details</button>
+                        <RowMenu
+                          label={`Actions for ${d.business || d.deviceId.slice(0, 12)}`}
+                          disabled={busy === d.deviceId}
+                          items={[
+                            { heading: 'This computer only' },
+                            { label: 'Activate', onSelect: () => { void change(d, 'active'); } },
+                            { label: 'Suspend', onSelect: () => { void change(d, 'suspended'); } },
+                            { label: 'Revoke', danger: true, onSelect: () => { void change(d, 'revoked'); } },
+                            'separator',
+                            { label: 'Delete device', danger: true, onSelect: () => { void remove(d); } },
+                          ]}
+                        />
+                      </span>
                     </td>
                   </tr>
                 );
@@ -236,7 +268,7 @@ export default function Devices() {
             <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: `1px solid ${BORDER}`, fontSize: 12 }}>
               <span style={{ fontFamily: 'var(--ui-font-mono)' }}>{s.deviceId || s.id}</span>
               <span style={{ color: MUTED }}>removed {fmt(s.updatedAt)}{s.by ? ` by ${s.by}` : ''}</span>
-              <button disabled={busy === s.id} onClick={() => allowAgain(s)} style={{ ...btn({ fg: ACCENT, bg: CARD, bd: LINE_STRONG }), marginLeft: 'auto' }}>Clear record</button>
+              <button disabled={busy === s.id} onClick={() => allowAgain(s)} style={{ ...btn({ fg: ACCENT_TEXT, bg: CARD, bd: LINE_STRONG }), marginLeft: 'auto' }}>Clear record</button>
             </div>
           ))}
         </div>

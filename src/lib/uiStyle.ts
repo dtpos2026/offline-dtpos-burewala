@@ -10,14 +10,21 @@
 // names, so no existing storage key is renamed or migrated.
 //
 //   dtpos-ui-style   'modern' | 'classic'        (absent → modern)
-//   dtpos-ui-accent  a preset id, or '#rrggbb'   (absent → the default preset)
+//   dtpos-ui-theme   a theme id (uiThemes.ts)    (absent → ember, the orange default)
+//   dtpos-ui-accent  a preset id, or '#rrggbb'   (absent → the theme's own accent)
+//
+// Modern is a set of twelve themes (surface tint, accent, sidebar style). The
+// accent key is an optional override for shops that want their own colour on
+// top of a theme; choosing a theme clears it.
 // ============================================================
 import { useSyncExternalStore } from 'react';
+import { DEFAULT_THEME_ID, INK_ON_ACCENT, UI_THEMES, WHITE, findTheme, isThemeId, type UiTheme } from './uiThemes';
 
 export type UiStyle = 'modern' | 'classic';
 
 export const UI_STYLE_KEY = 'dtpos-ui-style';
 export const UI_ACCENT_KEY = 'dtpos-ui-accent';
+export const UI_THEME_KEY = 'dtpos-ui-theme';
 export const UI_STYLE_EVENT = 'dtpos-ui-style-changed';
 
 export interface AccentPreset {
@@ -130,28 +137,94 @@ export function getAccentChoice(): string {
   return DEFAULT_ACCENT_ID;
 }
 
+/** The stored theme id; anything unknown falls back to the default theme. */
+export function getThemeId(): string {
+  const v = read(UI_THEME_KEY);
+  return isThemeId(v) ? v : DEFAULT_THEME_ID;
+}
+
+export function getTheme(): UiTheme {
+  return findTheme(getThemeId());
+}
+
+/** A shop's own accent on top of the theme, or null when the theme's colour is in use. */
+export function getAccentOverride(): string | null {
+  const v = read(UI_ACCENT_KEY);
+  if (v && (ACCENT_PRESETS.some(p => p.id === v) || /^#[0-9a-f]{6}$/i.test(v))) return v;
+  return null;
+}
+
 export function resolveAccent(choice: string = getAccentChoice()): Hsl {
   const preset = ACCENT_PRESETS.find(p => p.id === choice);
   const base = preset ? { h: preset.h, s: preset.s, l: preset.l } : (hexToHsl(choice) || ACCENT_PRESETS[0]);
   return safeAccent({ h: base.h, s: base.s, l: base.l });
 }
 
-/** Sets the attribute and the accent variables. Safe to call any number of times. */
+/** Everything the Modern look sets inline on <html>, so Classic can remove it all. */
+const MODERN_VARS = [
+  '--ui-accent-h', '--ui-accent-s', '--ui-accent-l',
+  '--ui-text-h', '--ui-text-s', '--ui-text-l',
+  '--ui-on-accent', '--ui-soft-s', '--ui-gold-on-dark',
+];
+const MODERN_ATTRS = ['data-ui', 'data-ui-theme', 'data-sidebar', 'data-on-accent'];
+
+const softSaturation = (c: Hsl) => Math.max(6, Math.min(85, Math.round(c.s * 0.9)));
+
+export interface ModernLook {
+  theme: UiTheme;
+  accent: Hsl;
+  /** Triplet of the colour used for text and icons sitting on the accent. */
+  onAccent: string;
+  /** True when that colour is dark (a light accent such as yellow). */
+  darkOnAccent: boolean;
+  /** The accent when it is used as text on a light surface. */
+  text: Hsl;
+  overridden: boolean;
+}
+
+/** What the Modern look is, given the stored theme and any accent override. Pure. */
+export function resolveLook(themeId: string = getThemeId(), override: string | null = getAccentOverride()): ModernLook {
+  const theme = findTheme(themeId);
+  if (override) {
+    // A shop's own colour: darkened until white text on it is readable.
+    const accent = resolveAccent(override);
+    return { theme, accent, onAccent: WHITE, darkOnAccent: false, text: accent, overridden: true };
+  }
+  const dark = theme.onAccent === 'dark';
+  return {
+    theme,
+    accent: theme.accent,
+    onAccent: dark ? INK_ON_ACCENT : WHITE,
+    darkOnAccent: dark,
+    text: theme.accentText || theme.accent,
+    overridden: false,
+  };
+}
+
+/** Sets the attributes and variables of the Modern look, or removes them all for Classic. Safe to call any number of times. */
 export function applyUiStyle(style: UiStyle = getUiStyle()): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   try {
     if (style === 'modern') {
-      const a = resolveAccent();
+      const look = resolveLook();
       root.setAttribute('data-ui', 'modern');
-      root.style.setProperty('--ui-accent-h', String(a.h));
-      root.style.setProperty('--ui-accent-s', `${a.s}%`);
-      root.style.setProperty('--ui-accent-l', `${a.l}%`);
+      root.setAttribute('data-ui-theme', look.theme.id);
+      root.setAttribute('data-sidebar', look.theme.sidebar);
+      root.setAttribute('data-on-accent', look.darkOnAccent ? 'dark' : 'light');
+      const set = (k: string, v: string) => root.style.setProperty(k, v);
+      set('--ui-accent-h', String(look.accent.h));
+      set('--ui-accent-s', `${look.accent.s}%`);
+      set('--ui-accent-l', `${look.accent.l}%`);
+      set('--ui-text-h', String(look.text.h));
+      set('--ui-text-s', `${look.text.s}%`);
+      set('--ui-text-l', `${look.text.l}%`);
+      set('--ui-on-accent', look.onAccent);
+      set('--ui-soft-s', `${softSaturation(look.accent)}%`);
+      set('--ui-gold-on-dark', look.darkOnAccent ? INK_ON_ACCENT : `${look.accent.h} 90% 82%`);
     } else {
-      root.removeAttribute('data-ui');
-      root.style.removeProperty('--ui-accent-h');
-      root.style.removeProperty('--ui-accent-s');
-      root.style.removeProperty('--ui-accent-l');
+      MODERN_ATTRS.forEach(a => root.removeAttribute(a));
+      MODERN_VARS.forEach(v => root.style.removeProperty(v));
     }
   } catch { /* a locked-down webview must never stop the app from starting */ }
 }
@@ -168,6 +241,24 @@ export function setUiStyle(style: UiStyle): void {
 
 export function setAccent(choice: string): void {
   try { localStorage.setItem(UI_ACCENT_KEY, choice); } catch { /* session only */ }
+  applyUiStyle();
+  announce();
+}
+
+/** Back to the colour the theme was designed with. */
+export function clearAccent(): void {
+  try { localStorage.removeItem(UI_ACCENT_KEY); } catch { /* session only */ }
+  applyUiStyle();
+  announce();
+}
+
+/** Picks a theme. A theme is a whole look, so any accent override is dropped with it. */
+export function setTheme(id: string): void {
+  if (!isThemeId(id)) return;
+  try {
+    localStorage.setItem(UI_THEME_KEY, id);
+    localStorage.removeItem(UI_ACCENT_KEY);
+  } catch { /* session only */ }
   applyUiStyle();
   announce();
 }
@@ -189,6 +280,16 @@ export function useUiStyle(): UiStyle {
 export function useAccentChoice(): string {
   return useSyncExternalStore(subscribe, getAccentChoice, () => DEFAULT_ACCENT_ID);
 }
+
+export function useThemeId(): string {
+  return useSyncExternalStore(subscribe, getThemeId, () => DEFAULT_THEME_ID);
+}
+
+export function useAccentOverride(): string | null {
+  return useSyncExternalStore(subscribe, getAccentOverride, () => null);
+}
+
+export { UI_THEMES };
 
 export function isModernUi(): boolean {
   return getUiStyle() === 'modern';

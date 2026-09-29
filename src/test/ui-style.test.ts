@@ -188,7 +188,7 @@ describe('the new stylesheets cannot leak', () => {
     return out;
   }
 
-  it.each([['ui-tokens.css', 1], ['ui-modern.css', 20]] as const)('%s: every selector starts with the Modern attribute', (file, min) => {
+  it.each([['ui-tokens.css', 1], ['ui-modern.css', 20], ['ui-pos.css', 20]] as const)('%s: every selector starts with the Modern attribute', (file, min) => {
     const sels = selectors(css(file));
     expect(sels.length).toBeGreaterThanOrEqual(min);
     const stray = sels.filter(s => !/^(html|:root)\[data-ui="modern"\]/.test(s));
@@ -204,7 +204,7 @@ describe('the new stylesheets cannot leak', () => {
   });
 
   it('nothing in the new files touches the print rules', () => {
-    for (const f of ['ui-tokens.css', 'ui-modern.css']) {
+    for (const f of ['ui-tokens.css', 'ui-modern.css', 'ui-pos.css']) {
       const c = css(f);
       expect(c).not.toMatch(/@media\s+print/);
       expect(c).not.toMatch(/\.print-receipt|\.receipt-print|@page|thermal-/);

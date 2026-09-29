@@ -10,6 +10,7 @@
 export const BRAND = 'var(--ui-text)';            // headings / dark surfaces
 export const BRAND_SOFT = 'var(--ui-text)';
 export const ACCENT = 'var(--ui-accent)';
+export const ACCENT_TEXT = 'var(--ui-accent-text)';   // the accent as text on a light surface (deeper for a yellow theme)
 export const ACCENT_HEX = '#d3420d';              // = the default accent, for SVG attributes
 export const ACCENT_SOFT = 'var(--ui-accent-soft)';
 export const INK = 'var(--ui-bg)';                // page background

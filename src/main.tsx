@@ -25,6 +25,7 @@ applyPremiumPolish();
 // on <html> before the first paint so there is no flash of the other look.
 import "./styles/ui-tokens.css";
 import "./styles/ui-modern.css";
+import "./styles/ui-pos.css";
 import { applyUiStyle } from "./lib/uiStyle";
 applyUiStyle();
 

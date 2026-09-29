@@ -10,16 +10,57 @@ spacing and which navigation buttons are shown. It never touches business
 logic, calculations, the database, the licence, users and permissions, or the
 printer / receipt / KOT / token code.
 
-## Two styles
+## Two styles, twelve Modern themes
 
 | Style | What it is | How it is selected |
 | --- | --- | --- |
-| **Modern** (default) | Light, warm, flat surfaces; one accent colour | `<html data-ui="modern">` |
+| **Modern** (default) | Light, flat surfaces; a theme decides the colours | `<html data-ui="modern">` |
 | **Classic** | The interface exactly as it was before v1.15 | attribute absent |
 
 Settings → Theme → **Interface style** switches between them. The choice is
-stored per device (`dtpos-ui-style`, `dtpos-ui-accent`) and applies at once,
-with no restart. Nothing else is read or written.
+stored per device and applies at once, with no restart. Nothing else is read or
+written.
+
+### Themes (Modern)
+
+A theme is a whole look: page tint, panels, borders, the accent, the colour of
+the text that sits on the accent, and whether the sidebar is light or dark.
+`src/lib/uiThemes.ts` lists them; `src/styles/ui-tokens.css` holds the surface
+colours of each (`:root[data-ui="modern"][data-ui-theme="…"]`).
+
+| Id | Name | Accent | Sidebar |
+| --- | --- | --- | --- |
+| `ember` | Ember Orange (default) | orange | light |
+| `tomato` | Tomato Red | pizza red | light |
+| `fresh` | Fresh Green | salad green | light |
+| `sunny` | Sunny Yellow | lemon yellow, **dark text on it** | light |
+| `white` | Clean White | graphite | light |
+| `ocean` | Ocean Blue | blue | light |
+| `coffee` | Coffee Brown | espresso | light |
+| `rose` | Rose Pink | pink | light |
+| `violet` | Royal Purple | purple | light |
+| `teal` | Mint Teal | teal | light |
+| `charcoal` | Charcoal Orange | orange | **dark** |
+| `navy` | Navy Night | blue | **dark** |
+
+Storage: `dtpos-ui-style`, `dtpos-ui-theme` (theme id) and `dtpos-ui-accent`
+(optional own colour on top of a theme; choosing a theme clears it).
+
+What JS sets on `<html>`: `data-ui`, `data-ui-theme`, `data-sidebar`,
+`data-on-accent`, and `--ui-accent-h/s/l`, `--ui-text-h/s/l`, `--ui-on-accent`,
+`--ui-soft-s`, `--ui-gold-on-dark`. All of it is removed for Classic.
+
+Two ideas make light accents (yellow) work without special-casing screens:
+
+- `--ui-on-accent` is the colour of text on the accent (white, or near-black).
+  Buttons, chips and badges use `text-primary-foreground`, so they follow.
+- `--primary-text` is the accent **as text on a light surface**. It equals the
+  accent except for yellow, where it is a deep amber. `.text-primary` reads it
+  (see the top of `ui-modern.css`), so prices and links stay readable.
+
+`src/test/ui-themes.test.ts` checks every theme: contrast of text on the accent,
+the accent as text, body and muted text, the dark sidebar's text; that the
+stylesheet and the theme list agree; and that Classic removes every trace.
 
 ## Files
 
@@ -27,11 +68,14 @@ with no restart. Nothing else is read or written.
 | --- | --- |
 | `src/styles/ui-tokens.css` | The tokens. Every value lives here: palette, accent, status colours, radii, shadows, control heights, spacing and type scales, and the resolved `--ui-*` aliases for inline styles. |
 | `src/styles/ui-modern.css` | What a token cannot say: focus, table and dialog finish, flat replacements for the old gradients, badge tints. Every selector starts with `html[data-ui="modern"]`. |
+| `src/styles/ui-pos.css` | The POS order screen: product tiles, the Order panel, lines, totals, the Pay bar. It hooks onto `data-pos-*` attributes that `POSScreen.tsx` carries in both styles, so Classic never matches it. |
+| `src/lib/uiThemes.ts` | The twelve themes. |
 | `src/lib/uiStyle.ts` | Applies the style and the accent, keeps the accent readable (`safeAccent` darkens a pale colour until white text on it reaches contrast 4.6). |
 | `src/lib/navPrefs.ts` | Module visibility (Settings → Modules): what is in the sidebar, under **More**, or hidden. Navigation only. |
 | `src/components/ui-kit/*` | `PageHeader`, `StatCard`, `StatusBadge`, `EmptyState`, `LoadingState`, `SectionCard`, `SearchField`, `SegmentedControl`. |
 | `src/components/shell/*` | The Modern sidebar, header, clock and the **More** launcher. |
 | `superadmin/src/theme.ts` | Maps the Super Admin's style constants onto the same `--ui-*` variables. |
+| `superadmin/src/ui.tsx` | The Super Admin's shared parts: `Section`, `Modal`, `RowMenu`, styled confirmations and toasts (`FeedbackProvider`), `Avatar`, `Chips`, `MiniBar`. |
 
 ## Using the tokens
 
