@@ -1,0 +1,198 @@
+// ============================================================
+// THE MODERN SHELL — sidebar, "More" launcher, Settings → Modules.
+//
+// Rendered with the real permission rules and the real module list. What is
+// pinned: the sidebar stays short, every module is still reachable, a hidden
+// module leaves the menu but its route and data are untouched, and switching
+// back to Classic restores the full menu.
+// ============================================================
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent, within, cleanup } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import ModernSidebar from '@/components/shell/ModernSidebar';
+import ModuleLauncher from '@/components/shell/ModuleLauncher';
+import ModuleManagementCard from '@/components/settings/ModuleManagementCard';
+import InterfaceStyleCard from '@/components/settings/InterfaceStyleCard';
+import { PAGES } from '@/lib/permissions';
+import { NAV_PREFS_KEY } from '@/lib/navPrefs';
+import { UI_STYLE_KEY } from '@/lib/uiStyle';
+
+globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as any;
+Element.prototype.scrollIntoView ??= () => {};
+
+const STORE_KEY = 'desi-pos-data';
+
+function seed(role: 'admin' | 'cashier' = 'admin') {
+  localStorage.setItem(STORE_KEY, JSON.stringify({
+    settings: { name: 'Chai Corner', currencySymbol: 'Rs ', costTrackingEnabled: true },
+    users: [
+      { id: 'admin-default', name: 'Administrator', username: 'admin', password: 'x', role: 'admin', isActive: true },
+      { id: 'u-cashier', name: 'Bilal', username: 'bilal', password: 'x', role: 'cashier', isActive: true },
+    ],
+    categories: [], menuItems: [], orders: [], tables: [], floors: [], kitchens: [], waiters: [], riders: [], inventory: [],
+    orderCounter: 1000,
+  }));
+  localStorage.setItem('pos-user-id', role === 'admin' ? 'admin-default' : 'u-cashier');
+  localStorage.setItem('pos-user-role', role);
+}
+
+const Where = () => <div data-testid="where">{useLocation().pathname}{useLocation().search}</div>;
+
+function shell(opts: { launcher?: boolean; collapsed?: boolean } = {}) {
+  const Sidebar = () => {
+    const [open, setOpen] = (require('react') as typeof import('react')).useState(!!opts.launcher);
+    return (
+      <>
+        <ModernSidebar userRole="admin" onLogout={() => {}} mobileOpen={false} setMobileOpen={() => {}} collapsed={!!opts.collapsed} onOpenLauncher={() => setOpen(true)} />
+        <ModuleLauncher open={open} onOpenChange={setOpen} />
+      </>
+    );
+  };
+  return render(
+    <TooltipProvider>
+      <MemoryRouter initialEntries={['/']}>
+        <Sidebar />
+        <Routes><Route path="*" element={<Where />} /></Routes>
+      </MemoryRouter>
+    </TooltipProvider>,
+  );
+}
+
+beforeEach(() => { cleanup(); localStorage.clear(); seed(); });
+
+describe('the sidebar', () => {
+  it('is short by default: the everyday modules, More with a count, Settings and the user at the foot', () => {
+    shell();
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const labels = within(nav).getAllByRole('button').map(b => b.textContent?.replace(/\d+$/, '').trim());
+    expect(labels.slice(0, 3)).toEqual(['POS', 'Tables', 'Retrieve']);
+    expect(labels).toContain('Dashboard');
+    expect(labels).toContain('More');
+    expect(labels.length).toBeLessThan(15); // was 35+ before
+    expect(screen.getByText('Settings')).toBeInTheDocument();
+    expect(screen.getByText('Administrator')).toBeInTheDocument();
+    expect(screen.getByText('Chai Corner')).toBeInTheDocument(); // the restaurant leads
+    expect(screen.getByText(/Powered by/)).toBeInTheDocument(); // …the credit is small
+  });
+
+  it('marks the current page and navigates on click', () => {
+    shell();
+    fireEvent.click(screen.getByRole('button', { name: /^Tables$/ }));
+    expect(screen.getByTestId('where').textContent).toBe('/tables');
+    expect(screen.getByRole('button', { name: /^Tables$/ })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('collapsed: icons only, still labelled for screen readers', () => {
+    shell({ collapsed: true });
+    expect(screen.getByRole('button', { name: 'POS' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More modules' })).toBeInTheDocument();
+    expect(screen.queryByText('Point of Sale')).toBeNull();
+  });
+
+  it('a cashier sees only what the permission system allows', () => {
+    cleanup(); localStorage.clear(); seed('cashier');
+    render(
+      <TooltipProvider><MemoryRouter>
+        <ModernSidebar userRole="cashier" onLogout={() => {}} mobileOpen={false} setMobileOpen={() => {}} collapsed={false} onOpenLauncher={() => {}} />
+      </MemoryRouter></TooltipProvider>,
+    );
+    expect(screen.queryByRole('button', { name: /^Dashboard$/ })).toBeNull();
+    expect(screen.queryByText('Settings')).toBeNull();
+    expect(screen.getByRole('button', { name: /^POS$/ })).toBeInTheDocument();
+  });
+});
+
+describe('More — the module launcher', () => {
+  it('lists every module the user may open, grouped, and searches them', () => {
+    shell({ launcher: true });
+    const dlg = screen.getByRole('dialog');
+    for (const g of ['Operations', 'Marketing', 'Inventory', 'Accounts', 'Staff', 'Reports', 'Admin']) {
+      expect(within(dlg).getByRole('region', { name: g })).toBeInTheDocument();
+    }
+    const total = PAGES.filter(p => !['rider-app', 'riders', 'live-riders', 'online-portal', 'online-approval', 'blocked-customers', 'blocked-locations', 'customer-map', 'live-map', 'branches-map', 'branches', 'devices', 'version'].includes(p.key)).length;
+    expect(within(dlg).getAllByRole('button').filter(b => b.hasAttribute('data-module')).length).toBe(total);
+
+    fireEvent.change(within(dlg).getByLabelText('Search modules'), { target: { value: 'stock' } });
+    expect(within(dlg).queryByText('Menu')).toBeNull();
+    fireEvent.change(within(dlg).getByLabelText('Search modules'), { target: { value: 'zzzz' } });
+    expect(within(dlg).getByText(/No module matches/)).toBeInTheDocument();
+  });
+
+  it('opens the chosen module and closes', () => {
+    shell({ launcher: true });
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Wastage' }));
+    expect(screen.getByTestId('where').textContent).toBe('/wastage');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('a starred module appears under Favorites in the sidebar', () => {
+    shell({ launcher: true });
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add Wastage to favorites' }));
+    expect(JSON.parse(localStorage.getItem(NAV_PREFS_KEY)!).favorites).toEqual(['wastage']);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(screen.getByText('Favorites')).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: /Wastage/ })).toBeInTheDocument();
+  });
+});
+
+describe('Settings → Modules', () => {
+  const renderCard = () => render(
+    <TooltipProvider><MemoryRouter><ModuleManagementCard /></MemoryRouter></TooltipProvider>,
+  );
+
+  it('hiding a module removes it from the sidebar and More but it stays in the list to bring back', () => {
+    renderCard();
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Kitchen placement' })).getByRole('radio', { name: 'Hidden' }));
+    expect(JSON.parse(localStorage.getItem(NAV_PREFS_KEY)!).placement.kitchen).toBe('hidden');
+    expect(screen.getByRole('radiogroup', { name: 'Kitchen placement' })).toBeInTheDocument(); // still listed
+    cleanup();
+    shell({ launcher: true });
+    // (the open dialog marks the sidebar aria-hidden, hence hidden: true)
+    const nav = screen.getByRole('navigation', { name: 'Main', hidden: true });
+    expect(within(nav).queryByRole('button', { name: /^Kitchen$/, hidden: true })).toBeNull();
+    expect(within(nav).getByRole('button', { name: /^POS$/, hidden: true })).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).queryByRole('button', { name: 'Kitchen' })).toBeNull();
+  });
+
+  it('Settings itself cannot be moved or hidden', () => {
+    renderCard();
+    const row = document.querySelector('[data-module-row="settings"]')!;
+    expect(row.textContent).toMatch(/Always in the menu/);
+    expect(within(row as HTMLElement).queryByRole('radio')).toBeNull();
+  });
+
+  it('Restore default puts everything back', () => {
+    localStorage.setItem(NAV_PREFS_KEY, JSON.stringify({ v: 1, placement: { pos: 'hidden', tables: 'hidden' }, order: [], favorites: ['menu'] }));
+    renderCard();
+    fireEvent.click(screen.getByRole('button', { name: /Restore default/ }));
+    expect(localStorage.getItem(NAV_PREFS_KEY)).toBeNull();
+    expect(screen.getByText('0 hidden')).toBeInTheDocument();
+  });
+
+  it('nothing else in storage is touched', () => {
+    localStorage.setItem('desi-pos-data-probe', 'keep');
+    const before = localStorage.getItem(STORE_KEY);
+    renderCard();
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Reports placement' })).getByRole('radio', { name: 'Hidden' }));
+    expect(localStorage.getItem(STORE_KEY)).toBe(before);
+    expect(localStorage.getItem('desi-pos-data-probe')).toBe('keep');
+  });
+});
+
+describe('Settings → Appearance', () => {
+  it('switches Modern ⇄ Classic and picks an accent, with a plain-language safety note', () => {
+    render(<InterfaceStyleCard />);
+    expect(screen.getByText(/never touched/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: /Classic/ }));
+    expect(localStorage.getItem(UI_STYLE_KEY)).toBe('classic');
+    expect(document.documentElement.hasAttribute('data-ui')).toBe(false);
+    fireEvent.click(screen.getByRole('radio', { name: /Modern/ }));
+    expect(document.documentElement.getAttribute('data-ui')).toBe('modern');
+    fireEvent.click(screen.getByRole('radio', { name: 'Emerald' }));
+    expect(localStorage.getItem('dtpos-ui-accent')).toBe('emerald');
+    document.documentElement.removeAttribute('data-ui');
+  });
+});
+
+vi.stubGlobal('confirm', () => true);

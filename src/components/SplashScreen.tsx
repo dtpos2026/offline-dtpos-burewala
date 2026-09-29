@@ -3,6 +3,7 @@ import { Sparkles, MessageCircle, Mail, Facebook, Instagram } from 'lucide-react
 import { getSettings } from '@/lib/store';
 import { APP_NAME, APP_VERSION, getInstalledVersion } from '@/lib/version';
 import dtLogo from '@/assets/dt-mark.png';
+import { useUiStyle } from '@/lib/uiStyle';
 
 interface Props {
   onDone: () => void;
@@ -14,12 +15,40 @@ export default function SplashScreen({ onDone, duration = 2800 }: Props) {
   const [appVer, setAppVer] = useState(APP_VERSION);
   useEffect(() => { getInstalledVersion().then(setAppVer).catch(() => {}); }, []);
   const settings = getSettings();
+  const modern = useUiStyle() === 'modern';
 
   useEffect(() => {
     const t1 = setTimeout(() => setFade(true), duration - 400);
     const t2 = setTimeout(onDone, duration);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [duration, onDone]);
+
+  if (modern) {
+    const logo = settings.appLogo || settings.logo;
+    return (
+      <div className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background transition-opacity duration-500 ${fade ? 'opacity-0' : 'opacity-100'}`}>
+        <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+          {logo ? (
+            <img src={logo} alt="" className="h-24 w-24 rounded-3xl object-contain shadow-[var(--ui-shadow-card)]" />
+          ) : (
+            <div className="grid h-24 w-24 place-items-center rounded-3xl bg-primary p-4 shadow-[var(--ui-shadow-card)]">
+              <img src={dtLogo} alt="" className="h-full w-full object-contain" />
+            </div>
+          )}
+          <h1 className="mt-6 text-3xl font-extrabold tracking-tight text-foreground md:text-4xl">{settings.name || 'DT POS Enterprise'}</h1>
+          <p className="mt-1.5 text-sm font-medium text-muted-foreground">Point of Sale</p>
+          <div className="mt-8 h-1 w-56 overflow-hidden rounded-full bg-muted">
+            <div className="h-full w-1/3 rounded-full bg-primary" style={{ animation: 'dtSplashSlide 1.3s ease-in-out infinite' }} />
+          </div>
+        </div>
+        <div className="pb-8 text-center text-[12px] text-muted-foreground">
+          <div>Powered by <span className="font-bold text-foreground">Digital Target</span> · +92 345 1873354 · digitaltarget.digital@gmail.com</div>
+          <div className="mt-1 text-[11px]">{APP_NAME} v{appVer}</div>
+        </div>
+        <style>{`@keyframes dtSplashSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div

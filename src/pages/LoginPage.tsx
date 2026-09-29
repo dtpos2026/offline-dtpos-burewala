@@ -10,6 +10,7 @@ import dtLogo from '@/assets/dt-mark.png';
 import LoginMarketingPanel, { LoginVersionBadge } from '@/components/LoginMarketingPanel';
 import ContactDigitalTargetDialog from '@/components/ContactDigitalTargetDialog';
 import { APP_VERSION } from '@/lib/version';
+import { useUiStyle } from '@/lib/uiStyle';
 
 interface Props {
   onLogin: (userId: string, role: string) => void;
@@ -34,6 +35,7 @@ export default function LoginPage({ onLogin }: Props) {
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [recoveryPassword, setRecoveryPassword] = useState('');
   const settings = getSettings();
+  const modern = useUiStyle() === 'modern';
 
   // Hidden maintenance shortcut for administrators (Ctrl+Alt+Shift+R).
   useEffect(() => {
@@ -138,8 +140,8 @@ export default function LoginPage({ onLogin }: Props) {
               <div className="h-16 w-16 rounded-xl bg-primary p-2 ring-1 ring-primary/20 shadow-elegant">
                 <img src={brandLogo} alt="Logo" className="h-full w-full object-contain" />
               </div>
-              <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">Welcome Back</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Sign in to your restaurant account</p>
+              <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">{modern && settings.name ? settings.name : 'Welcome Back'}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{modern && settings.name ? 'Sign in to continue' : 'Sign in to your restaurant account'}</p>
               <div className="mt-3 h-[1px] w-20 bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
             </div>
 

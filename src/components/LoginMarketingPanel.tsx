@@ -7,6 +7,8 @@ import {
 import dtLogo from '@/assets/dt-mark.png';
 import { APP_NAME, APP_VERSION, getInstalledVersion } from '@/lib/version';
 import { useEffect, useState } from 'react';
+import { useUiStyle } from '@/lib/uiStyle';
+import { getSettings } from '@/lib/store';
 
 const FEATURES = [
   { icon: Calculator, title: 'Powerful POS Billing', desc: 'Fast, simple & accurate billing' },
@@ -27,8 +29,11 @@ const STATS = [
 ];
 
 export default function LoginMarketingPanel() {
+  const modern = useUiStyle() === 'modern';
+  // Modern puts the restaurant first: its own name leads, the product is the small print.
+  const shopName = modern ? (getSettings().name || '').trim() : '';
   return (
-    <div className="relative hidden lg:flex flex-col justify-between p-10 xl:p-12 text-white overflow-hidden">
+    <div data-on-accent className="relative hidden lg:flex flex-col justify-between p-10 xl:p-12 text-white overflow-hidden">
       {/* Brand header */}
       <div className="relative z-10 flex items-center gap-3">
         <img src={dtLogo} alt="Digital Target" className="h-12 w-12 object-contain rounded-xl ring-1 ring-gold/40 bg-white/5 p-1" />
@@ -40,12 +45,22 @@ export default function LoginMarketingPanel() {
 
       {/* Hero */}
       <div className="relative z-10 mt-8">
-        <h1 className="text-5xl xl:text-6xl font-extrabold tracking-tight leading-none">
-          DT POS
-        </h1>
-        <h2 className="text-5xl xl:text-6xl font-extrabold tracking-tight leading-none mt-1 bg-gradient-to-r from-gold via-white to-gold bg-clip-text text-transparent">
-          ENTERPRISE
-        </h2>
+        {shopName ? (
+          <>
+            <div className="text-[11px] font-bold uppercase tracking-[0.3em] text-white/70">Welcome to</div>
+            <h1 className="mt-2 text-4xl xl:text-5xl font-extrabold tracking-tight leading-[1.05]">{shopName}</h1>
+            <h2 className="mt-2 text-lg font-semibold text-white/80">Powered by DT POS Enterprise</h2>
+          </>
+        ) : (
+          <>
+            <h1 className="text-5xl xl:text-6xl font-extrabold tracking-tight leading-none">
+              DT POS
+            </h1>
+            <h2 className={`text-5xl xl:text-6xl font-extrabold tracking-tight leading-none mt-1 ${modern ? 'text-white/85' : 'bg-gradient-to-r from-gold via-white to-gold bg-clip-text text-transparent'}`}>
+              ENTERPRISE
+            </h2>
+          </>
+        )}
         <div className="mt-3 text-[11px] uppercase tracking-[0.35em] text-white/70 font-semibold">
           Smart Restaurant Management Platform
         </div>
@@ -105,11 +120,12 @@ export default function LoginMarketingPanel() {
 }
 
 export function LoginVersionBadge() {
+  const modern = useUiStyle() === 'modern';
   const [v, setV] = useState(APP_VERSION);
   useEffect(() => { getInstalledVersion().then(setV).catch(() => {}); }, []);
   return (
-    <div className="absolute top-4 right-4 z-20 rounded-full border border-gold/30 bg-white/5 backdrop-blur px-3 py-1.5 flex items-center gap-2 text-[11px] text-white/85">
-      <WifiOff className="h-3.5 w-3.5 text-gold" />
+    <div className={`absolute top-4 right-4 z-20 rounded-full border px-3 py-1.5 flex items-center gap-2 text-[11px] ${modern ? 'border-border bg-card text-muted-foreground' : 'border-gold/30 bg-white/5 backdrop-blur text-white/85'}`}>
+      <WifiOff className={`h-3.5 w-3.5 ${modern ? 'text-muted-foreground' : 'text-gold'}`} />
       <span className="font-semibold tracking-wide">{APP_NAME} v{v}</span>
     </div>
   );

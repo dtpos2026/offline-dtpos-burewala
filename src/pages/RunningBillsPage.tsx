@@ -13,6 +13,12 @@ import { useNavigate } from 'react-router-dom';
 import ReceivePaymentButton from '@/components/ReceivePaymentButton';
 import { balanceDue } from '@/lib/sales';
 import { scopeOrders, getCurrentScope } from '@/lib/cashierScope';
+import { useUiStyle } from '@/lib/uiStyle';
+import ModernBillCard from '@/components/orders/ModernBillCard';
+import { EmptyState, PageHeader, SearchField, SegmentedControl, StatusBadge } from '@/components/ui-kit';
+import { ClipboardList } from 'lucide-react';
+
+type BillFilter = 'all' | 'running' | 'hold' | 'partial';
 
 export default function RunningBillsPage() {
   const scope = getCurrentScope();
@@ -23,6 +29,9 @@ export default function RunningBillsPage() {
   const [historyOrder, setHistoryOrder] = useState<Order | null>(null);
   const navigate = useNavigate();
   const isOrderTaker = scope.role === 'order_taker';
+  const modern = useUiStyle() === 'modern';
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<BillFilter>('all');
 
 
 
@@ -125,6 +134,87 @@ export default function RunningBillsPage() {
     if (status === 'pending_approval') return 'bg-violet-500/15 text-violet-700 border-violet-500/30';
     return 'bg-muted text-muted-foreground';
   };
+
+  if (modern) {
+    const q = query.trim().toLowerCase();
+    const counts = {
+      all: orders.length,
+      running: orders.filter(o => o.status === 'running').length,
+      hold: orders.filter(o => o.status === 'hold').length,
+      partial: orders.filter(o => o.status === 'partial' || (o.amountPaid || 0) > 0 && o.status !== 'running' && o.status !== 'hold').length,
+    };
+    const shown = orders.filter(o => {
+      if (statusFilter === 'running' && o.status !== 'running') return false;
+      if (statusFilter === 'hold' && o.status !== 'hold') return false;
+      if (statusFilter === 'partial' && o.status !== 'partial') return false;
+      if (!q) return true;
+      const table = o.tableId ? getTables().find(t => t.id === o.tableId)?.name || '' : '';
+      return [String(o.orderNumber), table, o.tableName, o.customer?.name, o.customer?.phone, o.waiterName, o.riderName, o.cashierName]
+        .some(v => String(v || '').toLowerCase().includes(q));
+    });
+    return (
+      <div className="mx-auto w-full max-w-[var(--ui-page-max)] p-4 lg:p-6">
+        <PageHeader
+          description={
+            <span className="inline-flex flex-wrap items-center gap-2">
+              Open bills waiting to be paid, edited or resumed.
+              <StatusBadge tone="accent" dot={false}>{scope.restrict ? `${scope.name} — your bills` : 'All cashiers'}</StatusBadge>
+            </span>
+          }
+          actions={
+            <>
+              <SearchField value={query} onChange={setQuery} placeholder="Search bill, table, customer…" className="w-full sm:w-72" />
+              <SegmentedControl<BillFilter>
+                aria-label="Bill status"
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[
+                  { value: 'all', label: 'All', count: counts.all },
+                  { value: 'running', label: 'Running', count: counts.running },
+                  { value: 'hold', label: 'On hold', count: counts.hold },
+                  ...(counts.partial ? [{ value: 'partial' as const, label: 'Part paid', count: counts.partial }] : []),
+                ]}
+              />
+            </>
+          }
+        />
+        {orders.length === 0 ? (
+          <EmptyState icon={ClipboardList} title="No running or hold bills" description="Bills you save from the POS without paying will appear here." />
+        ) : shown.length === 0 ? (
+          <EmptyState title="No bill matches" description="Clear the search or pick another status." />
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {shown.map(order => (
+              <ModernBillCard
+                key={order.id}
+                order={order}
+                tableName={order.tableId ? getTables().find(t => t.id === order.tableId)?.name : order.tableName}
+                canTakePayment={!isOrderTaker}
+                onView={setViewOrder}
+                onHistory={setHistoryOrder}
+                onKot={reprintKot}
+                onToken={tokenPrint}
+                onEdit={retrieveInPOS}
+                onPay={payOrder}
+                onHold={o => markStatus(o, 'hold')}
+                onResume={o => markStatus(o, 'running')}
+                onCancel={o => markStatus(o, 'cancelled')}
+                receivePayment={!isOrderTaker && balanceDue(order) > 0 && (order.status === 'partial' || (order.amountPaid || 0) > 0)
+                  ? <ReceivePaymentButton order={order} onUpdated={refresh} /> : undefined}
+              />
+            ))}
+          </div>
+        )}
+        <Dialog open={!!viewOrder} onOpenChange={() => setViewOrder(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader><DialogTitle>Order #{viewOrder?.orderNumber}</DialogTitle></DialogHeader>
+            {viewOrder && <ReceiptPreview order={viewOrder} settings={settings} />}
+          </DialogContent>
+        </Dialog>
+        <OrderDetailDialog order={historyOrder} onClose={() => setHistoryOrder(null)} />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 lg:p-6">

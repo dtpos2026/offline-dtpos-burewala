@@ -219,6 +219,34 @@ html[data-ui="modern"] .cat-pill[data-active="true"] {
   box-shadow: 0 4px 12px -6px hsl(var(--primary) / 0.7);
 }
 
+/* ---------- status tints sit on white, not on the warm page grey (a 5% green over grey reads as mud) ---------- */
+html[data-ui="modern"] .bg-status-free\/5 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-free) / 0.05), hsl(var(--status-free) / 0.05)); }
+html[data-ui="modern"] .bg-status-free\/10 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-free) / 0.1), hsl(var(--status-free) / 0.1)); }
+html[data-ui="modern"] .bg-status-running\/5 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-running) / 0.05), hsl(var(--status-running) / 0.05)); }
+html[data-ui="modern"] .bg-status-running\/10 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-running) / 0.1), hsl(var(--status-running) / 0.1)); }
+html[data-ui="modern"] .bg-status-pending-payment\/5 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-pending-payment) / 0.05), hsl(var(--status-pending-payment) / 0.05)); }
+html[data-ui="modern"] .bg-status-pending-payment\/10 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-pending-payment) / 0.1), hsl(var(--status-pending-payment) / 0.1)); }
+html[data-ui="modern"] .bg-status-closed\/5 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-closed) / 0.05), hsl(var(--status-closed) / 0.05)); }
+html[data-ui="modern"] .bg-status-closed\/10 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-closed) / 0.1), hsl(var(--status-closed) / 0.1)); }
+html[data-ui="modern"] .bg-status-success\/5 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-success) / 0.05), hsl(var(--status-success) / 0.05)); }
+html[data-ui="modern"] .bg-status-success\/10 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-success) / 0.1), hsl(var(--status-success) / 0.1)); }
+html[data-ui="modern"] .bg-status-warning\/5 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-warning) / 0.05), hsl(var(--status-warning) / 0.05)); }
+html[data-ui="modern"] .bg-status-warning\/10 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-warning) / 0.1), hsl(var(--status-warning) / 0.1)); }
+html[data-ui="modern"] .bg-status-danger\/5 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-danger) / 0.05), hsl(var(--status-danger) / 0.05)); }
+html[data-ui="modern"] .bg-status-danger\/10 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-danger) / 0.1), hsl(var(--status-danger) / 0.1)); }
+html[data-ui="modern"] .bg-status-info\/5 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-info) / 0.05), hsl(var(--status-info) / 0.05)); }
+html[data-ui="modern"] .bg-status-info\/10 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-info) / 0.1), hsl(var(--status-info) / 0.1)); }
+html[data-ui="modern"] .bg-status-pending\/5 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-pending) / 0.05), hsl(var(--status-pending) / 0.05)); }
+html[data-ui="modern"] .bg-status-pending\/10 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-pending) / 0.1), hsl(var(--status-pending) / 0.1)); }
+html[data-ui="modern"] .bg-status-cooking\/5 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-cooking) / 0.05), hsl(var(--status-cooking) / 0.05)); }
+html[data-ui="modern"] .bg-status-cooking\/10 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-cooking) / 0.1), hsl(var(--status-cooking) / 0.1)); }
+html[data-ui="modern"] .bg-status-delivered\/5 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-delivered) / 0.05), hsl(var(--status-delivered) / 0.05)); }
+html[data-ui="modern"] .bg-status-delivered\/10 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-delivered) / 0.1), hsl(var(--status-delivered) / 0.1)); }
+html[data-ui="modern"] .bg-status-cancelled\/5 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-cancelled) / 0.05), hsl(var(--status-cancelled) / 0.05)); }
+html[data-ui="modern"] .bg-status-cancelled\/10 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-cancelled) / 0.1), hsl(var(--status-cancelled) / 0.1)); }
+html[data-ui="modern"] .bg-status-onway\/5 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-onway) / 0.05), hsl(var(--status-onway) / 0.05)); }
+html[data-ui="modern"] .bg-status-onway\/10 { background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--status-onway) / 0.1), hsl(var(--status-onway) / 0.1)); }
+
 /* ---------- reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   html[data-ui="modern"] * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
