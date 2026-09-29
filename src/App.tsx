@@ -2,6 +2,7 @@ import LicenseGate from '@/licensing/LicenseGate';
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { applyTheme, getActiveTheme } from '@/lib/themes';
+import { UI_STYLE_EVENT } from '@/lib/uiStyle';
 import { enforcePremiumThemeGate } from '@/lib/premiumTheme';
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -128,6 +129,13 @@ const App = () => {
     const onHash = () => setHashTick(t => t + 1);
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  // Switching the interface style (Settings → Theme) re-applies the colour theme.
+  useEffect(() => {
+    const again = () => applyTheme(getActiveTheme());
+    window.addEventListener(UI_STYLE_EVENT, again);
+    return () => window.removeEventListener(UI_STYLE_EVENT, again);
   }, []);
 
   useEffect(() => {

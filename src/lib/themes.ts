@@ -1,3 +1,5 @@
+import { getUiStyle } from './uiStyle';
+
 export type ThemeId = 'blink-style' | 'dt-pos-purple' | 'emerald-prestige' | 'maroon-classic' | 'dark-modern' | 'light-clean' | 'touch-pos' | 'luxury-gold' | 'teal-restaurant' | 'vince-premium';
 
 export interface ThemeConfig {
@@ -395,10 +397,32 @@ export function setActiveTheme(id: ThemeId) {
   applyTheme(id);
 }
 
+/** Every custom property applyTheme can set inline on <html>. */
+const DERIVED_TOKENS = [
+  '--gold', '--gold-foreground', '--gold-soft',
+  '--gradient-primary', '--gradient-gold', '--gradient-sidebar',
+  '--shadow-elegant', '--shadow-gold', '--shadow-soft', '--shadow-card',
+];
+
+/** Removes what a colour theme set inline, so the stylesheet's own values apply. */
+function clearThemeOverrides(root: HTMLElement) {
+  const keys = new Set<string>(DERIVED_TOKENS);
+  themes.forEach(t => Object.keys(t.variables).forEach(k => keys.add(k)));
+  keys.forEach(k => root.style.removeProperty(k));
+}
+
 export function applyTheme(id: ThemeId) {
   const theme = themes.find(t => t.id === id);
   if (!theme) return;
   const root = document.documentElement;
+  // The Modern interface style owns the palette (src/styles/ui-tokens.css), so
+  // the colour themes below apply to the Classic style only. The choice of
+  // colour theme itself is kept untouched and applies again on switching back.
+  if (getUiStyle() === 'modern') {
+    clearThemeOverrides(root);
+    try { root.setAttribute('data-theme', 'modern'); } catch { /* no DOM access */ }
+    return;
+  }
   // Expose the active theme id so CSS can scope premium polish, etc.
   try { root.setAttribute('data-theme', id); } catch {}
   Object.entries(theme.variables).forEach(([key, value]) => {

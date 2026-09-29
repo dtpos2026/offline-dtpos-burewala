@@ -1,4 +1,10 @@
-import { t as tr, useLang as useAppLang } from '@/lib/i18n';
+import { useLang as useAppLang } from '@/lib/i18n';
+import { navTitle } from '@/components/shell/navLabels';
+import HeaderClock from '@/components/shell/HeaderClock';
+import ModernSidebar from '@/components/shell/ModernSidebar';
+import ModernHeader from '@/components/shell/ModernHeader';
+import ModuleLauncher from '@/components/shell/ModuleLauncher';
+import { useUiStyle } from '@/lib/uiStyle';
 import { useScreenConfig } from '@/hooks/usePosLayout';
 import { shouldCollapseMenu } from '@/lib/posLayout';
 import { ReactNode, useState, useEffect } from 'react';
@@ -31,17 +37,6 @@ import UpdateAvailableBanner from '@/components/UpdateAvailableBanner';
 import { toast } from 'sonner';
 import { prefetchHeavyRoutes } from '@/lib/routePrefetch';
 
-const NAV_I18N: Record<string, string> = {
-  'reports': 'reports', 'reports-center': 'reports', 'settings': 'settings',
-  'token-module': 'tokenModule', 'printer-settings': 'printingCenter', 'tables': 'tables',
-  'running-bills': 'runningBills', 'retray': 'retrieve', 'menu-manager': 'menu',
-};
-function navTitle(key: string, fallback: string): string {
-  const k = NAV_I18N[key];
-  if (!k) return fallback;
-  const v = tr(k);
-  return v === k ? fallback : v;
-}
 
 
 
@@ -327,34 +322,12 @@ function BranchSelector() {
  */
 const DISPLAY_SURFACES = ['/customer-display', '/kds-tv'];
 
-/**
- * The header's live clock. Its own component, so the once-a-second tick
- * re-renders this pill only — it used to re-render the whole layout, the
- * print host and the slip being printed with it, every second.
- */
-function HeaderClock() {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <div className="hidden md:flex items-center gap-2 bg-sidebar-foreground/10 border border-sidebar-foreground/20 rounded-md px-2.5 py-1 shadow-inner">
-      <span className="text-[11px] font-bold font-mono text-sidebar-foreground tabular-nums tracking-wider">
-        {now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-      </span>
-      <span className="h-3 w-px bg-sidebar-foreground/30" />
-      <span className="text-[10px] font-semibold text-sidebar-foreground/85 tracking-wide">
-        {now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-      </span>
-    </div>
-  );
-}
-
 export default function AppLayout({ children, userRole, onLogout }: Props) {
   useAppLang(); // language switch par sidebar refresh
   const location = useLocation();
   const isDisplaySurface = DISPLAY_SURFACES.some(r => location.pathname.startsWith(r));
+  const modern = useUiStyle() === 'modern';
+  const [launcherOpen, setLauncherOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('pos-sidebar-collapsed') === '1');
   // On the POS screen the menu gives its width to the products when the
@@ -487,7 +460,9 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar userRole={userRole} onLogout={onLogout} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={menuCollapsed} />
+      {modern
+        ? <ModernSidebar userRole={userRole} onLogout={onLogout} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={menuCollapsed} onOpenLauncher={() => setLauncherOpen(true)} />
+        : <Sidebar userRole={userRole} onLogout={onLogout} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={menuCollapsed} />}
 
       {mobileOpen && (
         <div className="fixed inset-0 bg-foreground/40 backdrop-blur-sm z-40 lg:hidden" onClick={() => setMobileOpen(false)} />
@@ -496,6 +471,20 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
       <div className="flex-1 flex flex-col min-w-0">
         <UpdateAvailableBanner />
         {/* Top header */}
+        {modern ? (
+          <ModernHeader
+            title={currentTitle}
+            collapsed={menuCollapsed}
+            onToggleCollapse={() => (isPosScreen ? setPosMenuOverride(!menuCollapsed) : setCollapsed(c => !c))}
+            onOpenMobileMenu={() => setMobileOpen(true)}
+            onOpenLauncher={() => setLauncherOpen(true)}
+            zoom={zoom}
+            onZoom={d => setZoom(z => Math.max(70, Math.min(130, z + d)))}
+            onResetZoom={() => setZoom(100)}
+          >
+            <BranchSelector />
+          </ModernHeader>
+        ) : (
         <header className="h-12 flex items-center gap-3 px-4 border-b-2 border-sidebar-border bg-gradient-sidebar backdrop-blur-md shrink-0 shadow-md text-sidebar-foreground">
           <button className="lg:hidden text-sidebar-foreground" onClick={() => setMobileOpen(true)}>
             <Menu className="h-5 w-5" />
@@ -534,6 +523,7 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
             </div>
           </div>
         </header>
+        )}
 
         <main className="flex-1 overflow-auto bg-background relative">
           {children}
@@ -595,12 +585,14 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
         </main>
       </div>
 
+      {modern && <ModuleLauncher open={launcherOpen} onOpenChange={setLauncherOpen} />}
+
       {/* Location permission modal — friendly explain before native prompt */}
       {showLocationPrompt && (
         <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card border-2 border-primary/40 rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
             <div className="text-center space-y-2">
-              <div className="mx-auto h-16 w-16 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg text-primary-foreground">
+              <div className={cn('mx-auto h-16 w-16 rounded-2xl flex items-center justify-center shadow-lg text-primary-foreground', modern ? 'bg-primary' : 'bg-gradient-to-br from-primary to-accent')}>
                 <MapPin className="h-8 w-8" />
               </div>
               <h3 className="text-lg font-extrabold">📍 Allow Location</h3>
@@ -623,7 +615,7 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
               </button>
               <button
                 onClick={handleLocationAllow}
-                className="flex-1 h-11 rounded-lg bg-gradient-to-r from-primary to-accent text-primary-foreground text-xs font-extrabold shadow-md hover:opacity-90"
+                className={cn('flex-1 h-11 rounded-lg text-primary-foreground text-xs font-extrabold shadow-md hover:opacity-90', modern ? 'bg-primary' : 'bg-gradient-to-r from-primary to-accent')}
               >
                 ✓ Allow Location
               </button>

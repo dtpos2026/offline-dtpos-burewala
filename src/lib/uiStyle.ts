@@ -1,0 +1,195 @@
+// ============================================================
+// INTERFACE STYLE — "Modern" (the new look) or "Classic" (the look every
+// earlier version had). PRESENTATION ONLY.
+//
+// This module reads and writes two device-local preferences and sets one
+// attribute plus three CSS variables on <html>. It never touches the
+// database, the licence, users, permissions, orders, inventory, reports or
+// any printer setting — switching back and forth changes how the screen
+// looks and nothing else. Both keys live in localStorage under their own
+// names, so no existing storage key is renamed or migrated.
+//
+//   dtpos-ui-style   'modern' | 'classic'        (absent → modern)
+//   dtpos-ui-accent  a preset id, or '#rrggbb'   (absent → the default preset)
+// ============================================================
+import { useSyncExternalStore } from 'react';
+
+export type UiStyle = 'modern' | 'classic';
+
+export const UI_STYLE_KEY = 'dtpos-ui-style';
+export const UI_ACCENT_KEY = 'dtpos-ui-accent';
+export const UI_STYLE_EVENT = 'dtpos-ui-style-changed';
+
+export interface AccentPreset {
+  id: string;
+  name: string;
+  /** Hue 0-360, saturation and lightness in percent. Lightness is a starting point:
+   *  applyUiStyle darkens it until white text on it is readable (see safeAccent). */
+  h: number;
+  s: number;
+  l: number;
+}
+
+/** The restaurant's colour. Digital Target purple stays available as a preset. */
+export const ACCENT_PRESETS: AccentPreset[] = [
+  { id: 'ember', name: 'Ember', h: 16, s: 88, l: 46 },
+  { id: 'tomato', name: 'Tomato', h: 4, s: 76, l: 47 },
+  { id: 'saffron', name: 'Saffron', h: 30, s: 90, l: 40 },
+  { id: 'emerald', name: 'Emerald', h: 152, s: 62, l: 30 },
+  { id: 'teal', name: 'Teal', h: 176, s: 70, l: 29 },
+  { id: 'ocean', name: 'Ocean', h: 217, s: 80, l: 46 },
+  { id: 'violet', name: 'Violet', h: 271, s: 70, l: 38 },
+  { id: 'brand', name: 'Digital Target', h: 271, s: 84, l: 23 },
+  { id: 'graphite', name: 'Graphite', h: 222, s: 18, l: 16 },
+];
+export const DEFAULT_ACCENT_ID = 'ember';
+
+/** Minimum contrast of white text on the accent (WCAG AA for normal text is 4.5). */
+export const MIN_ACCENT_CONTRAST = 4.6;
+
+// ------------------------------------------------------------ colour maths
+export interface Hsl { h: number; s: number; l: number }
+
+export function hslToRgb({ h, s, l }: Hsl): [number, number, number] {
+  const S = s / 100;
+  const L = l / 100;
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = S * Math.min(L, 1 - L);
+  const f = (n: number) => L - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+}
+
+export function rgbToHsl(r: number, g: number, b: number): Hsl {
+  const R = r / 255, G = g / 255, B = b / 255;
+  const max = Math.max(R, G, B), min = Math.min(R, G, B);
+  const l = (max + min) / 2;
+  const d = max - min;
+  let h = 0, s = 0;
+  if (d !== 0) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    if (max === R) h = ((G - B) / d) % 6;
+    else if (max === G) h = (B - R) / d + 2;
+    else h = (R - G) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
+export function hexToHsl(hex: string): Hsl | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return rgbToHsl((n >> 16) & 255, (n >> 8) & 255, n & 255);
+}
+
+export function hslToHex(c: Hsl): string {
+  return '#' + hslToRgb(c).map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+function luminance([r, g, b]: [number, number, number]): number {
+  const ch = [r, g, b].map(v => {
+    const x = v / 255;
+    return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+}
+
+/** Contrast ratio of white text on this colour. */
+export function contrastWithWhite(c: Hsl): number {
+  return 1.05 / (luminance(hslToRgb(c)) + 0.05);
+}
+
+/**
+ * The accent, darkened just enough that white text on it reads. A shop picking
+ * a pale colour gets the nearest readable version instead of a button nobody
+ * can read. Saturation is capped so a very dark result does not turn muddy.
+ */
+export function safeAccent(c: Hsl): Hsl {
+  let { h, s, l } = c;
+  h = ((Math.round(h) % 360) + 360) % 360;
+  s = Math.max(0, Math.min(100, Math.round(s)));
+  l = Math.max(8, Math.min(90, Math.round(l)));
+  while (l > 14 && contrastWithWhite({ h, s, l }) < MIN_ACCENT_CONTRAST) l -= 1;
+  return { h, s, l };
+}
+
+// ------------------------------------------------------------ preferences
+function read(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+
+export function getUiStyle(): UiStyle {
+  return read(UI_STYLE_KEY) === 'classic' ? 'classic' : 'modern';
+}
+
+/** A preset id, or a '#rrggbb' custom colour. Anything else falls back to the default. */
+export function getAccentChoice(): string {
+  const v = read(UI_ACCENT_KEY);
+  if (v && (ACCENT_PRESETS.some(p => p.id === v) || /^#[0-9a-f]{6}$/i.test(v))) return v;
+  return DEFAULT_ACCENT_ID;
+}
+
+export function resolveAccent(choice: string = getAccentChoice()): Hsl {
+  const preset = ACCENT_PRESETS.find(p => p.id === choice);
+  const base = preset ? { h: preset.h, s: preset.s, l: preset.l } : (hexToHsl(choice) || ACCENT_PRESETS[0]);
+  return safeAccent({ h: base.h, s: base.s, l: base.l });
+}
+
+/** Sets the attribute and the accent variables. Safe to call any number of times. */
+export function applyUiStyle(style: UiStyle = getUiStyle()): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  try {
+    if (style === 'modern') {
+      const a = resolveAccent();
+      root.setAttribute('data-ui', 'modern');
+      root.style.setProperty('--ui-accent-h', String(a.h));
+      root.style.setProperty('--ui-accent-s', `${a.s}%`);
+      root.style.setProperty('--ui-accent-l', `${a.l}%`);
+    } else {
+      root.removeAttribute('data-ui');
+      root.style.removeProperty('--ui-accent-h');
+      root.style.removeProperty('--ui-accent-s');
+      root.style.removeProperty('--ui-accent-l');
+    }
+  } catch { /* a locked-down webview must never stop the app from starting */ }
+}
+
+function announce(): void {
+  try { window.dispatchEvent(new CustomEvent(UI_STYLE_EVENT)); } catch { /* no window */ }
+}
+
+export function setUiStyle(style: UiStyle): void {
+  try { localStorage.setItem(UI_STYLE_KEY, style); } catch { /* private mode: applies for this session only */ }
+  applyUiStyle(style);
+  announce();
+}
+
+export function setAccent(choice: string): void {
+  try { localStorage.setItem(UI_ACCENT_KEY, choice); } catch { /* session only */ }
+  applyUiStyle();
+  announce();
+}
+
+// ------------------------------------------------------------ React
+function subscribe(cb: () => void): () => void {
+  window.addEventListener(UI_STYLE_EVENT, cb);
+  window.addEventListener('storage', cb);
+  return () => {
+    window.removeEventListener(UI_STYLE_EVENT, cb);
+    window.removeEventListener('storage', cb);
+  };
+}
+
+export function useUiStyle(): UiStyle {
+  return useSyncExternalStore(subscribe, getUiStyle, () => 'modern' as UiStyle);
+}
+
+export function useAccentChoice(): string {
+  return useSyncExternalStore(subscribe, getAccentChoice, () => DEFAULT_ACCENT_ID);
+}
+
+export function isModernUi(): boolean {
+  return getUiStyle() === 'modern';
+}

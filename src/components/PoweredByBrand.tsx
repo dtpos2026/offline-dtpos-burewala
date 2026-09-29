@@ -1,5 +1,6 @@
 import { MessageCircle, Mail, Facebook, Instagram } from 'lucide-react';
 import logo from '@/assets/dt-mark.png';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 const BRAND_BG = '#3c096c';
 
@@ -19,7 +20,52 @@ function openExternal(href: string) {
   window.open(href, '_blank', 'noopener,noreferrer');
 }
 
-export default function PoweredByBrand({ collapsed = false }: { collapsed?: boolean }) {
+/**
+ * The small credit used by the Modern sidebar: the restaurant's own name and
+ * logo lead, and this is one quiet line at the bottom. The contact links are
+ * the same ones as the full panel, one click away.
+ */
+function PoweredByCredit({ collapsed }: { collapsed: boolean }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          title="Software by Digital Target"
+          aria-label="Powered by Digital Target"
+          className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground ${collapsed ? 'justify-center' : ''}`}
+        >
+          <img src={logo} alt="" className="h-5 w-5 shrink-0 rounded object-contain" />
+          {!collapsed && (
+            <span className="truncate text-[11px] font-medium">
+              Powered by <span className="font-bold text-foreground">Digital Target</span>
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="right" align="end" className="w-64 p-2">
+        <div className="px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Digital Target — support</div>
+        {LINKS.map((l, i) => {
+          const Icon = l.icon;
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => openExternal(l.href)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[12.5px] font-medium hover:bg-accent"
+            >
+              <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="truncate">{l.label}</span>
+            </button>
+          );
+        })}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+export default function PoweredByBrand({ collapsed = false, variant = 'panel' }: { collapsed?: boolean; variant?: 'panel' | 'credit' }) {
+  if (variant === 'credit') return <PoweredByCredit collapsed={collapsed} />;
   return (
     <div
       className="rounded-lg p-2 text-white shadow-md"

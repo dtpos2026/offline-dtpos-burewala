@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   // App version (read from package.json baked into the installer)
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  // Restart the app (Settings → Theme → "Restart application"). Clears nothing.
+  restartApp: () => ipcRenderer.invoke('restart-app'),
   // Printing
   getPrinters: () => ipcRenderer.invoke('get-printers'),
   getPrinterDetails: () => ipcRenderer.invoke('get-printer-details'),

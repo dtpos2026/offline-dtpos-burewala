@@ -21,6 +21,12 @@ import { applyPrintMargins } from "./lib/printMargins";
 applyPrintMargins();
 import { applyPremiumPolish } from "./lib/premiumPolish";
 applyPremiumPolish();
+// Interface style (Modern / Classic) and the restaurant's accent colour — set
+// on <html> before the first paint so there is no flash of the other look.
+import "./styles/ui-tokens.css";
+import "./styles/ui-modern.css";
+import { applyUiStyle } from "./lib/uiStyle";
+applyUiStyle();
 
 // ============================================================
 // Stale-chunk auto-recovery.

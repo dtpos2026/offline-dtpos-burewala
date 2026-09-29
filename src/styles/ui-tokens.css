@@ -1,0 +1,195 @@
+/* ============================================================
+ * DT POS — DESIGN TOKENS  ("Modern" interface style)
+ *
+ * ONE set of tokens for the whole product: the POS reads them through the
+ * shadcn colour names Tailwind already uses (bg-card, text-muted-foreground,
+ * bg-primary …), and the Super Admin panel reads the resolved --ui-* aliases
+ * from its inline styles. Nothing here is scoped to a page.
+ *
+ * Presentation only. The block applies when <html data-ui="modern"> is set
+ * (Settings → Theme → Interface style). With "classic" the attribute is
+ * absent, none of this matches, and the app looks exactly as it did before.
+ *
+ * The accent colour is the only thing a restaurant is meant to change. It is
+ * set from JS (src/lib/uiStyle.ts) as --ui-accent-h / -s / -l, already
+ * darkened where needed so white text on it stays readable.
+ *
+ * Nothing in this file reaches the print window: the receipt / KOT / token
+ * worker builds its own document without the data-ui attribute.
+ * ============================================================ */
+
+:root[data-ui="modern"] {
+  /* ---------- accent (JS overrides these three) ---------- */
+  --ui-accent-h: 16;
+  --ui-accent-s: 88%;
+  --ui-accent-l: 44%;
+
+  /* ---------- palette: HSL triplets, the names Tailwind reads ---------- */
+  --background: 40 18% 96%;
+  --foreground: 24 15% 11%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 24 15% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 24 15% 11%;
+
+  --primary: var(--ui-accent-h) var(--ui-accent-s) var(--ui-accent-l);
+  --primary-foreground: 0 0% 100%;
+  --primary-glow: var(--ui-accent-h) var(--ui-accent-s) calc(var(--ui-accent-l) + 8%);
+  --primary-soft: var(--ui-accent-h) 80% 95%;
+  --primary-soft-strong: var(--ui-accent-h) 78% 90%;
+
+  --secondary: 36 14% 93%;
+  --secondary-foreground: 24 15% 16%;
+  --muted: 36 14% 94%;
+  --muted-foreground: 25 8% 40%;
+  /* "accent" is the neutral hover / selected surface; the brand colour is --primary */
+  --accent: 36 16% 92%;
+  --accent-foreground: 24 15% 11%;
+
+  --destructive: 0 70% 47%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 35 14% 89%;
+  --input: 35 12% 84%;
+  --ring: var(--ui-accent-h) var(--ui-accent-s) var(--ui-accent-l);
+
+  /* The old brand highlight ("gold"): the accent, so text-gold reads on light surfaces */
+  --gold: var(--ui-accent-h) var(--ui-accent-s) var(--ui-accent-l);
+  --gold-foreground: 0 0% 100%;
+  --gold-soft: var(--ui-accent-h) 80% 95%;
+  /* …and its light twin, used on dark surfaces (see ui-modern.css) */
+  --gold-on-dark: var(--ui-accent-h) 90% 82%;
+
+  --radius: 0.75rem;
+
+  /* ---------- status colours ---------- */
+  --status-success: 152 58% 31%;
+  --status-success-foreground: 0 0% 100%;
+  --status-warning: 36 94% 45%;
+  --status-warning-foreground: 26 40% 9%;
+  --status-danger: 0 70% 47%;
+  --status-danger-foreground: 0 0% 100%;
+  --status-info: 212 80% 45%;
+  --status-info-foreground: 0 0% 100%;
+  --status-pending: 33 92% 42%;
+  --status-pending-foreground: 0 0% 100%;
+  --status-cooking: 22 90% 48%;
+  --status-cooking-foreground: 0 0% 100%;
+  --status-onway: 212 80% 45%;
+  --status-onway-foreground: 0 0% 100%;
+  --status-delivered: 152 58% 31%;
+  --status-delivered-foreground: 0 0% 100%;
+  --status-cancelled: 25 6% 44%;
+  --status-cancelled-foreground: 0 0% 100%;
+  --status-teal: 175 68% 28%;
+  --status-teal-foreground: 0 0% 100%;
+  --status-purple: 262 52% 46%;
+  --status-purple-foreground: 0 0% 100%;
+  --status-free: 152 58% 31%;
+  --status-free-foreground: 0 0% 100%;
+  --status-running: 36 94% 45%;
+  --status-running-foreground: 26 40% 9%;
+  --status-pending-payment: 0 70% 47%;
+  --status-pending-payment-foreground: 0 0% 100%;
+  --status-closed: 25 8% 30%;
+  --status-closed-foreground: 0 0% 100%;
+
+  /* ---------- POS surfaces ---------- */
+  --pos-sidebar: 0 0% 100%;
+  --pos-sidebar-foreground: 24 15% 20%;
+  --pos-cart: 0 0% 100%;
+  --pos-grid-bg: 40 18% 96%;
+
+  /* ---------- sidebar: light, quiet ---------- */
+  --sidebar-background: 0 0% 100%;
+  --sidebar-foreground: 24 10% 32%;
+  --sidebar-primary: var(--ui-accent-h) var(--ui-accent-s) var(--ui-accent-l);
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: var(--ui-accent-h) 80% 95%;
+  --sidebar-accent-foreground: var(--ui-accent-h) var(--ui-accent-s) var(--ui-accent-l);
+  --sidebar-border: 35 14% 90%;
+  --sidebar-ring: var(--ui-accent-h) var(--ui-accent-s) var(--ui-accent-l);
+
+  /* ---------- flat surfaces (no decorative gradients) ---------- */
+  --gradient-primary: linear-gradient(hsl(var(--primary)), hsl(var(--primary)));
+  --gradient-gold: linear-gradient(hsl(var(--primary)), hsl(var(--primary)));
+  --gradient-sidebar: linear-gradient(hsl(0 0% 100%), hsl(0 0% 100%));
+  --gradient-hero: linear-gradient(hsl(var(--primary)), hsl(var(--primary)));
+
+  /* ---------- component surfaces (read by src/components/ui/*) ---------- */
+  --ui-field-bg: var(--card);            /* inputs, selects, textareas: white on cards */
+  --ui-tab-active-bg: var(--card);       /* the selected tab is a white chip */
+  --ui-dialog-bg: var(--card);           /* dialogs and alert dialogs */
+
+  /* ---------- shadows: barely there ---------- */
+  --ui-shadow-xs: 0 1px 1px hsl(24 20% 12% / 0.04);
+  --ui-shadow-sm: 0 1px 2px hsl(24 20% 12% / 0.05), 0 1px 1px hsl(24 20% 12% / 0.03);
+  --ui-shadow-card: 0 1px 2px hsl(24 20% 12% / 0.04), 0 8px 24px -12px hsl(24 20% 12% / 0.10);
+  --ui-shadow-pop: 0 12px 32px -10px hsl(24 20% 12% / 0.22), 0 2px 6px hsl(24 20% 12% / 0.06);
+  --ui-shadow-focus: 0 0 0 3px hsl(var(--primary) / 0.18);
+  --shadow-soft: var(--ui-shadow-sm);
+  --shadow-card: var(--ui-shadow-card);
+  --shadow-elegant: var(--ui-shadow-pop);
+  --shadow-gold: 0 6px 16px -8px hsl(var(--primary) / 0.45);
+  --transition-smooth: all 0.16s ease;
+
+  /* ---------- shape ---------- */
+  --ui-radius-control: 0.625rem;   /* buttons, inputs, selects */
+  --ui-radius-card: 1rem;          /* cards, panels */
+  --ui-radius-dialog: 1.25rem;     /* dialogs, sheets */
+  --ui-radius-pill: 999px;         /* chips, badges, category pills */
+
+  /* ---------- size: one control height, three steps ---------- */
+  --ui-control-h: 2.5rem;
+  --ui-control-h-sm: 2.125rem;
+  --ui-control-h-lg: 3rem;
+  --ui-row-h: 3rem;                /* table rows */
+  --ui-card-pad: 1.25rem;
+  --ui-sidebar-w: 15rem;
+  --ui-sidebar-w-collapsed: 4.5rem;
+  --ui-header-h: 3.75rem;
+  --ui-page-max: 90rem;
+  --ui-gap: 1rem;
+
+  /* ---------- spacing scale (rem) ---------- */
+  --ui-space-1: 0.25rem;
+  --ui-space-2: 0.5rem;
+  --ui-space-3: 0.75rem;
+  --ui-space-4: 1rem;
+  --ui-space-5: 1.25rem;
+  --ui-space-6: 1.5rem;
+  --ui-space-8: 2rem;
+
+  /* ---------- type ---------- */
+  --ui-font: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'Helvetica Neue', Arial, sans-serif;
+  --ui-font-display: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --ui-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ui-text-caption: 0.75rem;      /* 12 */
+  --ui-text-secondary: 0.8125rem;  /* 13 */
+  --ui-text-body: 0.875rem;        /* 14 */
+  --ui-text-card-title: 0.9375rem; /* 15 */
+  --ui-text-section: 1.0625rem;    /* 17 */
+  --ui-text-page: 1.5rem;          /* 24 */
+
+  /* ---------- resolved aliases for inline styles (Super Admin) ---------- */
+  --ui-bg: hsl(var(--background));
+  --ui-surface: hsl(var(--card));
+  --ui-surface-2: hsl(var(--muted));
+  --ui-border: hsl(var(--border));
+  --ui-border-strong: hsl(var(--input));
+  --ui-text: hsl(var(--foreground));
+  --ui-text-muted: hsl(var(--muted-foreground));
+  --ui-accent: hsl(var(--primary));
+  --ui-accent-fg: hsl(var(--primary-foreground));
+  --ui-accent-soft: hsl(var(--primary-soft));
+  --ui-accent-soft-strong: hsl(var(--primary-soft-strong));
+  --ui-success: hsl(var(--status-success));
+  --ui-success-soft: hsl(152 45% 93%);
+  --ui-warning: hsl(var(--status-warning));
+  --ui-warning-soft: hsl(38 90% 93%);
+  --ui-danger: hsl(var(--status-danger));
+  --ui-danger-soft: hsl(0 80% 95%);
+  --ui-info: hsl(var(--status-info));
+  --ui-info-soft: hsl(212 85% 94%);
+}

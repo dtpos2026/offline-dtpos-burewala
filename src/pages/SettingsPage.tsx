@@ -3,7 +3,7 @@ import ReceiptSettingsTab from '@/components/settings/ReceiptSettingsTab';
 import PrinterSettingsTab from '@/components/settings/PrinterSettingsTab';
 import ScreenLayoutTab from '@/components/settings/ScreenLayoutTab';
 import KotSettingsTab from '@/components/settings/KotSettingsTab';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getSettings, saveSettings, getTables, saveTable, deleteTable, getFloors, saveFloor, deleteFloor, getKitchens, saveKitchen, deleteKitchen, getWaiters, saveWaiter, deleteWaiter, getRiders, saveRider, deleteRider, genId, getCategories, getCurrentUser } from '@/lib/store';
 import { RestaurantSettings, DiningTable, Floor, Kitchen, Waiter, Rider, ReceiptTextStyle } from '@/lib/types';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -19,7 +19,12 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, Download, Printer, Palette, MapPin, Navigation, ShoppingBag, Globe2, Settings as SettingsIcon, MessageCircle } from 'lucide-react';
+import { Plus, Trash2, Download, Printer, Palette, MapPin, Navigation, ShoppingBag, Globe2, Settings as SettingsIcon, MessageCircle, Armchair, Building2, ChefHat, ChevronDown, LayoutGrid, Monitor, Moon, ReceiptText, ShieldCheck, Smartphone, Store, Truck, Type, UserRound, Bike, type LucideIcon } from 'lucide-react';
+import { useUiStyle } from '@/lib/uiStyle';
+import InterfaceStyleCard from '@/components/settings/InterfaceStyleCard';
+import ModuleManagementCard from '@/components/settings/ModuleManagementCard';
+import { PageHeader } from '@/components/ui-kit';
+import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { PAKISTAN_AREAS } from '@/lib/pakistan-areas';
 import { toast } from 'sonner';
@@ -134,8 +139,47 @@ function CountryCurrencyCard({
   );
 }
 
+/** One icon per settings section, for the Modern two-pane layout. */
+const SETTINGS_ICONS: Record<string, LucideIcon> = {
+  general: Store, theme: Palette, modules: LayoutGrid, screen: Monitor, location: MapPin,
+  tables: Armchair, waiters: UserRound, riders: Bike, pickup: ShoppingBag,
+  printer: Printer, receipt: ReceiptText, receiptstyle: Type, kot: ChefHat,
+  whatsapp: MessageCircle, online: Globe2, cities: MapPin, serviceareas: Truck, display: Monitor,
+  branches: Building2, devices: Smartphone, dayclose: Moon,
+};
+
+/** The data-security panel, folded to one line in the Modern layout. */
+function SecurityStrip() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mb-5 rounded-[var(--ui-radius-card,1rem)] border bg-card shadow-sm">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+      >
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-[hsl(var(--status-success)/0.12)] text-[hsl(var(--status-success))]"><ShieldCheck className="h-4 w-4" /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13.5px] font-bold">Data security &amp; isolation</span>
+          <span className="block text-[12px] text-muted-foreground">Active — local data is encrypted and kept separate per restaurant.</span>
+        </span>
+        <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && <div className="px-4 pb-4"><DataSecurityCard /></div>}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const navigate = useNavigate();
+  const modern = useUiStyle() === 'modern';
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<string>(() => searchParams.get('tab') || 'general');
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t) setTab(t);
+  }, [searchParams]);
   // Quick-discount draft text (comma typing ke liye — parse blur pe hota hai)
   const [discountPctDraft, setDiscountPctDraft] = useState<string>('');
   const [discountAmtDraft, setDiscountAmtDraft] = useState<string>('');
@@ -281,21 +325,25 @@ export default function SettingsPage() {
 
   return (
     <div className="p-4 lg:p-6 max-w-6xl pos-settings-pro">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md text-primary-foreground">
-          <SettingsIcon className="h-5 w-5" />
+      {modern ? (
+        <PageHeader description="Restaurant details, look and feel, printing, and the modules you use." />
+      ) : (
+        <div className="flex items-center gap-3 mb-4">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md text-primary-foreground">
+            <SettingsIcon className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-xl font-extrabold tracking-tight">Settings & Masters</h2>
+            <p className="text-[11px] text-muted-foreground">Restaurant configuration — har module ek separate card mein</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-xl font-extrabold tracking-tight">Settings & Masters</h2>
-          <p className="text-[11px] text-muted-foreground">Restaurant configuration — har module ek separate card mein</p>
-        </div>
-      </div>
+      )}
 
-      <DataSecurityCard />
+      {modern ? <SecurityStrip /> : <DataSecurityCard />}
 
 
 
-      <Tabs defaultValue="general">
+      <Tabs value={tab} onValueChange={setTab} className={modern ? 'grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start' : undefined}>
         {/* ===== FOLDER-STYLE GROUPED GRID (replaces cramped tabs row) ===== */}
         {(() => {
           const OFFLINE_HIDDEN_TABS = new Set(['riders', 'online', 'branches', 'devices']);
@@ -303,7 +351,8 @@ export default function SettingsPage() {
           const rawGroups: { title: string; emoji: string; items: { v: string; label: string; emoji: string; desc: string }[] }[] = [
             { title: 'General', emoji: '⚙️', items: [
               { v: 'general',  label: 'General',          emoji: '🏪', desc: 'Restaurant info, currency' },
-              { v: 'theme',    label: 'Theme',            emoji: '🎨', desc: 'Color scheme & look' },
+              { v: 'theme',    label: modern ? 'Appearance' : 'Theme', emoji: '🎨', desc: modern ? 'Look, accent colour' : 'Color scheme & look' },
+              ...(modern ? [{ v: 'modules', label: 'Modules', emoji: '🧩', desc: 'What the menu shows' }] : []),
               { v: 'screen',   label: 'Screen & Layout',  emoji: '🖥️', desc: 'POS layout for this screen' },
               { v: 'location', label: 'Location & Privacy', emoji: '🔒', desc: 'GPS tracking controls' },
             ]},
@@ -338,6 +387,32 @@ export default function SettingsPage() {
             .filter(g => !OFFLINE_HIDDEN_GROUPS.has(g.title) || g.items.some(i => !OFFLINE_HIDDEN_TABS.has(i.v)))
             .map(g => ({ ...g, items: g.items.filter(i => !OFFLINE_HIDDEN_TABS.has(i.v)) }))
             .filter(g => g.items.length > 0);
+          if (modern) {
+            return (
+              <nav aria-label="Settings sections" className="lg:sticky lg:top-3 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto pos-scrollbar rounded-[var(--ui-radius-card,1rem)] border bg-card p-2 shadow-sm">
+                <TabsList className="!h-auto !w-full !flex-col !items-stretch !justify-start !gap-0.5 !bg-transparent !p-0 [&>*]:w-full">
+                  {groups.map(g => (
+                    <div key={g.title} className="mb-1 last:mb-0">
+                      <div className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">{g.title}</div>
+                      {g.items.map(it => {
+                        const Icon = SETTINGS_ICONS[it.v] || SettingsIcon;
+                        const cls = 'group !h-10 !w-full !justify-start gap-3 !rounded-[10px] !px-3 text-[13.5px] font-semibold text-sidebar-foreground transition-colors hover:bg-accent data-[state=active]:!bg-primary/10 data-[state=active]:!text-primary data-[state=active]:!shadow-none';
+                        return it.v === 'dayclose' ? (
+                          <button key={it.v} type="button" title={it.desc} onClick={() => navigate('/day-close')} className={cn('inline-flex items-center whitespace-nowrap', cls)}>
+                            <Icon className="h-[18px] w-[18px] shrink-0" /><span className="truncate">{it.label}</span>
+                          </button>
+                        ) : (
+                          <TabsTrigger key={it.v} value={it.v} title={it.desc} className={cls}>
+                            <Icon className="h-[18px] w-[18px] shrink-0" /><span className="truncate">{it.label}</span>
+                          </TabsTrigger>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </TabsList>
+              </nav>
+            );
+          }
           return (
             <div className="space-y-5 mb-5">
               {groups.map(g => (
@@ -1289,7 +1364,15 @@ export default function SettingsPage() {
         </TabsContent>
 
         {/* Theme Switcher */}
+        <TabsContent value="modules" className="space-y-4">
+          <ModuleManagementCard />
+        </TabsContent>
+
         <TabsContent value="theme" className="space-y-4">
+          <InterfaceStyleCard />
+          {/* The colour themes and Premium Polish belong to the Classic style;
+              Modern has one palette and a single accent colour (above). */}
+          {!modern && (<>
           {/* Premium Polish toggle — soft shadows, subtle bg wash, focus ring, button lift.
               Works on top of ANY colour theme. Device-local (per machine). */}
           <div className="border-2 rounded-lg p-4 bg-gradient-to-r from-fuchsia-50 to-purple-50 border-fuchsia-200">
@@ -1388,6 +1471,7 @@ export default function SettingsPage() {
               })}
             </div>
           </div>
+          </>)}
         </TabsContent>
 
         <TabsContent value="whatsapp" className="space-y-4">

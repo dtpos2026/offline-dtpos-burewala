@@ -16,11 +16,13 @@ import PlanStatusWidget from '@/components/PlanStatusWidget';
 import { getCurrentScope, orderBelongsTo, listCashierUsers, getShiftStart, resetShift, filterCurrentShift } from '@/lib/cashierScope';
 import { getCurrentBusinessDay, getBusinessDayOffset, isInBusinessDay } from '@/lib/businessDay';
 import { toast } from 'sonner';
+import { useUiStyle } from '@/lib/uiStyle';
+import ModernDashboard from '@/components/dashboard/ModernDashboard';
 
 
-type Range = '1' | '7' | '30';
+export type Range = '1' | '7' | '30';
 
-export default function DashboardPage() {
+function useDashboardData() {
   const [range, setRange] = useState<Range>('7');
   const days = parseInt(range, 10);
 
@@ -243,6 +245,23 @@ export default function DashboardPage() {
     'hsl(38, 90%, 50%)',
   ];
 
+  return {
+    range, setRange, days, scope, cashiers, cashierFilter, setCashierFilter, shiftStart, setShiftStart,
+    orders, paidOrders, totalSales, orderCount, avgOrder, profit, cashIn, outstandingCredit, creditOrdersAll,
+    kpis, dailyTrend, typeBreakdown, topItems, kitchenBreakdown, hourlySales, paymentSplit, lowStock,
+    hrToday, incomeExpense, topCustomers, ridersStats, genderSplit, PIE_COLORS,
+  };
+}
+export type DashboardData = ReturnType<typeof useDashboardData>;
+
+/** The previous dashboard, unchanged (Interface style: Classic). */
+function ClassicDashboard({ d }: { d: DashboardData }) {
+  const {
+    range, setRange, days, scope, cashiers, cashierFilter, setCashierFilter, shiftStart, setShiftStart,
+    orders, paidOrders, totalSales, outstandingCredit, creditOrdersAll,
+    kpis, dailyTrend, typeBreakdown, topItems, kitchenBreakdown, hourlySales, paymentSplit, lowStock,
+    hrToday, incomeExpense, topCustomers, ridersStats, genderSplit, PIE_COLORS,
+  } = d;
   return (
     <div className="p-3 lg:p-4 space-y-3">
       <PlanStatusWidget />
@@ -544,6 +563,13 @@ export default function DashboardPage() {
   );
 }
 
+
+export default function DashboardPage() {
+  const d = useDashboardData();
+  const modern = useUiStyle() === 'modern';
+  return modern ? <ModernDashboard d={d} /> : <ClassicDashboard d={d} />;
+}
+
 function ChartCard({ title, subtitle, icon: Icon, children }: { title: string; subtitle?: string; icon?: any; children: React.ReactNode }) {
   return (
     <div className="bg-card border rounded-xl shadow-card p-3">
@@ -574,13 +600,19 @@ function StatTile({ label, value, tone }: { label: string; value: any; tone: 'go
 
 // ===== v1.0.4 — Business Day Strip =====
 // All four widgets respect the Restaurant's Business Day Timing engine (NOT calendar date).
-function BusinessDayStrip({ orders, allOrders }: { orders: any[]; allOrders: any[] }) {
+/** The business-day sums the dashboard shows, from paid sales. Shared by both dashboard styles. */
+export function businessDayFigures(allOrders: any[]) {
   const today = getCurrentBusinessDay();
   const yesterday = getBusinessDayOffset(1);
   const todaySum = allOrders.filter(o => isInBusinessDay(o.paidAt || o.createdAt, today)).reduce((s, o) => s + (o.grandTotal || 0), 0);
   const yesterdaySum = allOrders.filter(o => isInBusinessDay(o.paidAt || o.createdAt, yesterday)).reduce((s, o) => s + (o.grandTotal || 0), 0);
   const shift = filterCurrentShift(allOrders).reduce((s, o) => s + (o.grandTotal || 0), 0);
   const fmt = (d: Date) => d.toLocaleString('en-PK', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return { today, yesterday, todaySum, yesterdaySum, shift, fmt };
+}
+
+function BusinessDayStrip({ orders, allOrders }: { orders: any[]; allOrders: any[] }) {
+  const { today, yesterday, todaySum, yesterdaySum, shift, fmt } = businessDayFigures(allOrders);
   const tile = (label: string, value: string, sub: string, tone: 'gold' | 'primary' | 'green' = 'primary') => (
     <div className={`rounded-xl border bg-card p-3 ${tone === 'gold' ? 'border-gold/30' : tone === 'green' ? 'border-green-500/30' : 'border-primary/20'}`}>
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>

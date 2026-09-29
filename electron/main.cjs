@@ -321,6 +321,19 @@ ipcMain.handle('get-app-version', async () => {
   try { return app.getVersion(); } catch { return null; }
 });
 
+// Restart the application. Used by Settings → Theme after an appearance change.
+// It only relaunches the process: no file, storage or setting is touched. The
+// renderer flushes its pending writes before calling this.
+ipcMain.handle('restart-app', async () => {
+  try {
+    app.relaunch();
+    setTimeout(() => { try { app.exit(0); } catch { /* already exiting */ } }, 250);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+});
+
 // ============================================================
 // DEVICE HARDWARE INFO (manufacturer / model / Windows version)
 // Read once per app run — Super Admin device monitoring ke liye.
