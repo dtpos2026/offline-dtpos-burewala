@@ -62,10 +62,10 @@ beforeEach(() => {
 });
 
 describe('the theme list', () => {
-  it('has twelve themes with unique ids, names and taglines', () => {
-    expect(UI_THEMES).toHaveLength(12);
-    expect(new Set(UI_THEMES.map(t => t.id)).size).toBe(12);
-    expect(new Set(UI_THEMES.map(t => t.name)).size).toBe(12);
+  it('has thirteen themes with unique ids, names and taglines', () => {
+    expect(UI_THEMES).toHaveLength(13);
+    expect(new Set(UI_THEMES.map(t => t.id)).size).toBe(13);
+    expect(new Set(UI_THEMES.map(t => t.name)).size).toBe(13);
     for (const t of UI_THEMES) { expect(t.name.length).toBeGreaterThan(3); expect(t.tagline.length).toBeGreaterThan(10); }
     expect(findTheme(DEFAULT_THEME_ID).id).toBe('ember');
   });
@@ -77,7 +77,7 @@ describe('the theme list', () => {
     expect(hue('fresh')).toBeGreaterThanOrEqual(120); expect(hue('fresh')).toBeLessThanOrEqual(170); // green
     expect(hue('sunny')).toBeGreaterThanOrEqual(38); expect(hue('sunny')).toBeLessThanOrEqual(52); // yellow
     expect(findTheme('white').accent.s).toBeLessThan(30); // white / graphite: almost no colour
-    for (const id of ['ocean', 'coffee', 'rose', 'violet', 'teal', 'charcoal', 'navy']) expect(findTheme(id).id).toBe(id);
+    for (const id of ['pizza', 'ocean', 'coffee', 'rose', 'violet', 'teal', 'charcoal', 'navy']) expect(findTheme(id).id).toBe(id);
   });
 
   it('an unknown id falls back to the default theme', () => {

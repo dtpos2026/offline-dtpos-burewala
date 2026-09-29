@@ -191,12 +191,12 @@ describe('the building blocks', () => {
 });
 
 describe('themes in the Super Admin', () => {
-  it('the Theme menu lists the twelve themes and changes only the theme key', async () => {
+  it('the Theme menu lists the thirteen themes and changes only the theme key', async () => {
     localStorage.setItem('desi-pos-data', '{"orders":[1]}');
     await openApp();
     fireEvent.click(screen.getByRole('button', { name: 'Change theme' }));
     const items = screen.getAllByRole('menuitem');
-    expect(items).toHaveLength(12);
+    expect(items).toHaveLength(13);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Tomato Red' }));
     expect(localStorage.getItem('dtpos-ui-theme')).toBe('tomato');
     expect(document.documentElement.getAttribute('data-ui-theme')).toBe('tomato');

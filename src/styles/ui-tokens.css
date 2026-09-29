@@ -260,6 +260,33 @@
   --sidebar-foreground: 14 7% 40%;
   --sidebar-border: 20 9% 88%;
 }
+/* Red & Yellow — the fast-food brand look of the reference apps: red actions,
+   a yellow active menu item and yellow chips, cream image plates. Its extra
+   rules (tabs, tiles, Pay) are at the end of ui-pos.css. */
+:root[data-ui="modern"][data-ui-theme="pizza"] {
+  --background: 220 16% 96%;
+  --foreground: 0 0% 9%;
+  --card-foreground: 0 0% 9%;
+  --popover-foreground: 0 0% 9%;
+  --secondary: 220 12% 94%;
+  --secondary-foreground: 0 0% 9%;
+  --muted: 220 12% 94%;
+  --muted-foreground: 220 6% 40%;
+  --accent: 220 14% 92%;
+  --accent-foreground: 0 0% 9%;
+  --border: 220 12% 90%;
+  --input: 220 9% 85%;
+  --pos-grid-bg: 220 16% 96%;
+  --pos-sidebar-foreground: 0 0% 9%;
+  --sidebar-foreground: 220 6% 40%;
+  --sidebar-border: 220 12% 90%;
+  --sidebar-accent: 48 96% 58%;
+  --sidebar-accent-foreground: 28 45% 9%;
+  --ui-highlight: 48 96% 58%;
+  --ui-highlight-fg: 28 45% 9%;
+  --ui-plate: 48 100% 94%;
+}
+
 :root[data-ui="modern"][data-ui-theme="fresh"] {
   --background: 148 24% 96%;
   --foreground: 160 22% 9%;

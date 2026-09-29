@@ -464,3 +464,56 @@ html[data-ui="modern"] [data-pos-actions] [data-slot="button"] {
   html[data-ui="modern"] [data-pos-lines]:not(:has([data-pos-line]:nth-child(6))) [data-pos-line-qty] > button { height: 1.75rem; width: 1.75rem; }
   html[data-ui="modern"] [data-pos-lines]:not(:has([data-pos-line]:nth-child(6))) [data-pos-line-total] { font-size: 0.9375rem; }
 }
+
+/* ============================================================
+ * RED & YELLOW (data-ui-theme="pizza") — after the reference POS apps.
+ * Underline category tabs with a red count, white tiles on cream plates with
+ * centred name and price, a yellow "Apply" chip, and a red Pay button.
+ * Only this theme matches; every other theme and Classic are untouched.
+ * ============================================================ */
+html[data-ui="modern"][data-ui-theme="pizza"] .cat-pill {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  box-shadow: none;
+  color: hsl(var(--muted-foreground));
+}
+html[data-ui="modern"][data-ui-theme="pizza"] .cat-pill[data-active="true"] {
+  background: hsl(var(--primary-soft) / 0.6);
+  border-color: transparent;
+  border-bottom-color: hsl(var(--primary));
+  color: hsl(var(--foreground));
+  box-shadow: none;
+}
+html[data-ui="modern"][data-ui-theme="pizza"] .cat-pill[data-active="true"] [data-cat-count] {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+html[data-ui="modern"][data-ui-theme="pizza"] [data-pos-card] {
+  border-color: transparent;
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.04), 0 8px 18px -12px hsl(0 0% 0% / 0.18);
+}
+html[data-ui="modern"][data-ui-theme="pizza"] [data-pos-card-image] {
+  background-color: hsl(var(--ui-plate));
+  background-image: none;
+}
+html[data-ui="modern"][data-ui-theme="pizza"] [data-pos-card-name] { text-align: center; }
+html[data-ui="modern"][data-ui-theme="pizza"] [data-pos-card-foot] { justify-content: center; }
+html[data-ui="modern"][data-ui-theme="pizza"] [data-pos-card-foot] > span:first-child { color: hsl(var(--foreground)); }
+html[data-ui="modern"][data-ui-theme="pizza"] [data-pos-card-add] { display: none; }
+html[data-ui="modern"][data-ui-theme="pizza"] [data-pos-apply] {
+  background: hsl(var(--ui-highlight));
+  color: hsl(var(--ui-highlight-fg));
+}
+html[data-ui="modern"][data-ui-theme="pizza"] [data-pos-pay] {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 1px 2px hsl(var(--primary) / 0.35);
+}
+html[data-ui="modern"][data-ui-theme="pizza"] [data-pos-pay]:hover:not(:disabled) { background: hsl(var(--primary) / 0.9); }
+html[data-ui="modern"][data-ui-theme="pizza"] [data-pos-card][data-in-cart="true"] {
+  border-color: hsl(var(--primary) / 0.55);
+  box-shadow: 0 0 0 1px hsl(var(--primary) / 0.35), var(--ui-shadow-sm);
+}
+

@@ -198,11 +198,11 @@ describe('Settings → Appearance', () => {
 describe('Settings → Theme gallery', () => {
   const reset = () => ['data-ui', 'data-ui-theme', 'data-sidebar', 'data-on-accent'].forEach(a => document.documentElement.removeAttribute(a));
 
-  it('offers twelve themes; choosing one applies it and drops any accent override', () => {
+  it('offers thirteen themes; choosing one applies it and drops any accent override', () => {
     localStorage.setItem('dtpos-ui-accent', 'emerald');
     render(<InterfaceStyleCard />);
     const group = screen.getByRole('radiogroup', { name: 'Theme' });
-    expect(within(group).getAllByRole('radio')).toHaveLength(12);
+    expect(within(group).getAllByRole('radio')).toHaveLength(13);
     for (const name of ['Ember Orange', 'Tomato Red', 'Fresh Green', 'Sunny Yellow', 'Clean White']) {
       expect(within(group).getByRole('radio', { name: new RegExp(name) })).toBeInTheDocument();
     }

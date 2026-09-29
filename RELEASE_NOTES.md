@@ -1,5 +1,21 @@
 # DT POS Enterprise — Release Notes
 
+## v1.16.1 — "Red & Yellow" brand theme (the look of the reference POS apps)
+
+- **Reported:** "Make it the same as these pictures — the red and yellow branded
+  look."
+- **New theme: Red & Yellow** (Settings → Theme, the third card). Brand red
+  buttons and Pay button, a yellow active menu item and yellow "Apply" chip,
+  white tiles on cream plates with the name and price centred, underline
+  category tabs with a red count, on a light grey page.
+- It is a theme like the others: presentation only, saved on that computer, and
+  Classic and every other theme are untouched. The theme count is now thirteen.
+- **Verified:** the new theme passes the same contrast test as the others; type-check,
+  the full test suite and both builds pass.
+- **Known limit:** the reference shows product photos and a "Popular" ribbon on
+  each tile. The software shows the photo you upload for an item; add photos in
+  Menu to get the full look.
+
 ## v1.16.0 — Twelve Modern themes, a roomier POS order screen, and a more professional Super Admin
 
 - **Reported:** "Add the red one from the PDF, orange, white, green, yellow — the

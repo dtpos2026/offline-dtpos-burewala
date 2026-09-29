@@ -10,7 +10,7 @@ spacing and which navigation buttons are shown. It never touches business
 logic, calculations, the database, the licence, users and permissions, or the
 printer / receipt / KOT / token code.
 
-## Two styles, twelve Modern themes
+## Two styles, thirteen Modern themes
 
 | Style | What it is | How it is selected |
 | --- | --- | --- |
@@ -32,6 +32,7 @@ colours of each (`:root[data-ui="modern"][data-ui-theme="…"]`).
 | --- | --- | --- | --- |
 | `ember` | Ember Orange (default) | orange | light |
 | `tomato` | Tomato Red | pizza red | light |
+| `pizza` | Red & Yellow | brand red, yellow highlights and cream plates | light |
 | `fresh` | Fresh Green | salad green | light |
 | `sunny` | Sunny Yellow | lemon yellow, **dark text on it** | light |
 | `white` | Clean White | graphite | light |

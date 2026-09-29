@@ -21,7 +21,7 @@ import { INK_ON_ACCENT } from '@/lib/uiThemes';
 import { canRestartApp, restartApp } from '@/lib/appRestart';
 
 const STYLES: { id: UiStyle; name: string; blurb: string }[] = [
-  { id: 'modern', name: 'Modern', blurb: 'Light, calm and quick to scan. Short menu with a “More” launcher. Twelve themes. Recommended.' },
+  { id: 'modern', name: 'Modern', blurb: 'Light, calm and quick to scan. Short menu with a “More” launcher. Thirteen themes. Recommended.' },
   { id: 'classic', name: 'Classic', blurb: 'The look and full menu of earlier versions, with your colour theme below.' },
 ];
 

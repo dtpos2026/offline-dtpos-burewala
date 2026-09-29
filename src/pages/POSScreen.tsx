@@ -2124,6 +2124,7 @@ export default function POSScreen() {
                   />
                   <button
                     type="button"
+                    data-pos-apply
                     onClick={applyPromo}
                     className="text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded"
                   >Apply</button>

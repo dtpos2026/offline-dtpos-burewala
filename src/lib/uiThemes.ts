@@ -1,5 +1,5 @@
 // ============================================================
-// MODERN THEMES — twelve complete looks for the Modern interface style.
+// MODERN THEMES — thirteen complete looks for the Modern interface style.
 //
 // A theme is more than an accent colour: it is a surface tint (page, panels,
 // borders), an accent, the colour of the text that sits on the accent, the
@@ -76,6 +76,15 @@ export const UI_THEMES: UiTheme[] = [
     accent: { h: 356, s: 78, l: 45 },
     onAccent: 'light',
     surface: { background: '24 12% 96%', foreground: '12 14% 10%', mutedForeground: '14 7% 40%', muted: '20 9% 93%', border: '20 9% 88%' },
+    sidebar: 'light',
+  },
+  {
+    id: 'pizza',
+    name: 'Red & Yellow',
+    tagline: 'Fast-food brand look: red actions, yellow highlights, cream plates.',
+    accent: { h: 357, s: 82, l: 46 },
+    onAccent: 'light',
+    surface: { background: '220 16% 96%', foreground: '0 0% 9%', mutedForeground: '220 6% 40%', muted: '220 12% 94%', border: '220 12% 90%' },
     sidebar: 'light',
   },
   {
