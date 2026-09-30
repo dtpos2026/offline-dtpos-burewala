@@ -16,7 +16,7 @@ import { loadPrinterSettings, resolvePrinterForRole } from '@/lib/printerSetting
 import { getDeviceId } from '@/lib/tenant';
 import { appendTokenEntry } from '@/lib/tokenLedger';
 import { tokenSlipInnerHtml, type TokenTemplate } from '@/lib/tokenSlip';
-import { getTokenLines } from '@/lib/tokenRules';
+import { getTokenLines, getTokenLinesDetailed } from '@/lib/tokenRules';
 import { issueToken, findTokenForOrder } from '@/lib/tokenRecords';
 import { buildDepartmentStubs } from '@/lib/tokenDepartments';
 
@@ -40,6 +40,8 @@ export default function TokenReceipt({ order, settings, autoPrint = false, onAut
   const portalRef = useRef<HTMLDivElement | null>(null);
   const firedRef = useRef(false);
   const items = useMemo(() => getTokenItems(order, settings), [order, settings]);
+  // The same lines with each item's note and price, for the slip designs that print them.
+  const detailedItems = useMemo(() => getTokenLinesDetailed(order, settings, getMenuItems()), [order, settings]);
   // Resolved before printing so the slip carries the right number and, for a
   // second print of the same order, the REPRINT marking.
   // Detachable stubs — only when the shop turned Department Token mode on.
@@ -173,7 +175,8 @@ export default function TokenReceipt({ order, settings, autoPrint = false, onAut
             orderNumber: tokenMeta.tokenNumber,
             billNumber: order.orderNumber ?? '',
             reprint: tokenMeta.isReprint,
-            items,
+            items: detailedItems.length === items.length ? detailedItems : items,
+            orderType: order.orderType,
             // `restaurantName` was never a settings field — the shop's name
             // lives in `name`, so the token header printed empty.
             restaurantName: (settings as any).name ?? (settings as any).restaurantName,

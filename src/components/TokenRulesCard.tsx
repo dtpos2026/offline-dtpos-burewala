@@ -417,6 +417,7 @@ export default function TokenRulesCard() {
                 ['showDateTime', 'Date & time'],
                 ['showTable', 'Table'],
                 ['showCustomer', 'Customer'],
+                ['showPrices', 'Item prices (DT designs)'],
               ] as const).map(([key, label]) => (
                 <label key={key} className="flex items-center justify-between gap-2 rounded-md border px-2 py-1">
                   <span className="text-[11px]">{label}</span>

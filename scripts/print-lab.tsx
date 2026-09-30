@@ -28,6 +28,7 @@ import { thermalReportHtml, reportMoney, type ThermalReportDoc } from '@/printin
 import { shiftReportDoc } from '@/components/ShiftReport';
 
 const order = buildSampleOrder();
+const PDF_MODE = new URLSearchParams(location.search).get('pdf') === '1';
 // ?unpaid=1 — a running bill: status boxes print their UNPAID (reversed) form.
 if (new URLSearchParams(location.search).get('unpaid') === '1') {
   Object.assign(order, { status: 'running', paidAt: undefined, amountPaid: 0, cashReceived: 0, changeReturned: 0 });
@@ -78,6 +79,8 @@ if (new URLSearchParams(location.search).get('pdf') === '1') {
     }
   }
   try { localStorage.setItem('dtpos-premium-template-customizations', JSON.stringify(store)); } catch { /* lab only */ }
+  // The guide's tokens print prices and the customer's name.
+  try { localStorage.setItem('dtpos-token-slip-options', JSON.stringify({ showPrices: true, showCustomer: true, showTable: false })); } catch { /* lab only */ }
 }
 
 // The classic designs and KOTs read more of the shop's settings; these are
@@ -138,7 +141,7 @@ const LEGACY_DESIGNS = [
   'design5-delivery', 'sero', 'bero', 'kot-style', 'kot-classic',
 ];
 /** Every kitchen ticket design. */
-const KOT_DESIGNS = ['classic', 'bold', 'minimal', 'elegant', 'vip-chef', 'station', 'taimoor1', 'taimoor2'];
+const KOT_DESIGNS = ['classic', 'bold', 'minimal', 'elegant', 'vip-chef', 'station', 'taimoor1', 'taimoor2', 'dtr-kitchen'];
 
 const MARGIN_LEFT = Number(new URLSearchParams(location.search).get('left') ?? 2);
 const MARGIN_RIGHT = Number(new URLSearchParams(location.search).get('right') ?? 2);
@@ -313,11 +316,20 @@ function Slips() {
                 dangerouslySetInnerHTML={{
                   __html: tokenSlipInnerHtml(
                     {
-                      orderNumber: 6,
-                      billNumber: 1107,
-                      items: [{ name: '1.5 Liter Drink', qty: 1 }, { name: 'Chicken Biryani', qty: 2 }],
+                      orderNumber: PDF_MODE ? 27 : 6,
+                      billNumber: PDF_MODE ? 27 : 1107,
+                      orderType: PDF_MODE ? 'takeaway' : undefined,
+                      customerName: PDF_MODE ? 'Ahmed Khan' : undefined,
+                      items: PDF_MODE
+                        ? [
+                            { name: 'Zinger Burger', qty: 2, amount: 900, note: 'Extra mayo' },
+                            { name: '\u0686\u06A9\u0646 \u0628\u0631\u06CC\u0627\u0646\u06CC (Special)', qty: 1, amount: 450 },
+                            { name: 'French Fries', qty: 1, amount: 250 },
+                            { name: 'Cold Drink 500ml', qty: 3, amount: 360 },
+                          ]
+                        : [{ name: '1.5 Liter Drink', qty: 1 }, { name: 'Chicken Biryani', qty: 2 }],
                       restaurantName: settings.name,
-                      tableName: '5',
+                      tableName: PDF_MODE ? undefined : '5',
                       when: new Date(),
                       reprint: REPRINT,
                       departments: DEPT ? LAB_STUBS : undefined,

@@ -658,7 +658,7 @@ export interface RestaurantSettings {
   supportPhone?: string;
   // Kitchen print
   autoKitchenPrint?: boolean; // auto print kitchen receipt on order
-  kotDesign?: 'classic' | 'bold' | 'minimal' | 'elegant' | 'vip-chef' | 'station' | 'taimoor1' | 'taimoor2'; // KOT template
+  kotDesign?: 'classic' | 'bold' | 'minimal' | 'elegant' | 'vip-chef' | 'station' | 'taimoor1' | 'taimoor2' | 'dtr-kitchen'; // KOT template
   kotShowLogo?: boolean;
   kotShowAddress?: boolean;
   kotShowPhone?: boolean;

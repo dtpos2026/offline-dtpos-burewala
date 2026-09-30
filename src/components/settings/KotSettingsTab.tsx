@@ -215,6 +215,7 @@ export default function KotSettingsTab({ settings, setSettings, onSave, printers
                     { value: 'station', label: '🏷 Station', desc: 'COLD/HOT/BEVG ٹیگ — اسٹیشن روٹنگ' },
                     { value: 'taimoor1', label: '📋 Taimoor 1', desc: 'صاف ٹیبل ڈیزائن — Order/Token/Date/Time/Type/Table' },
                     { value: 'taimoor2', label: '📋 Taimoor 2', desc: 'Taimoor 1 + Waiter + Pax + Printed time' },
+                    { value: 'dtr-kitchen', label: '🧾 DT Kitchen Order', desc: 'DT Retail — black title bar, DINE-IN / Table box, big quantities' },
                   ] as const).map(t => (
                     <button
                       key={t.value}

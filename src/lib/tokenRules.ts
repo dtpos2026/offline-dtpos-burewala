@@ -99,6 +99,12 @@ export interface TokenLine {
   qty: number;
 }
 
+/** A token line plus what some slip designs can show: the item's note and its price. */
+export interface TokenLineDetail extends TokenLine {
+  note?: string;
+  amount?: number;
+}
+
 /**
  * The lines of an order that should appear on its token slip. Quantities
  * come straight from the order, so the token always reflects what was
@@ -117,6 +123,24 @@ export function getTokenLines(
     if ((item.quantity || 0) <= 0) continue;
     if (!itemMatchesTokenRules(item, rules, categoryOf)) continue;
     out.push({ name: item.name, qty: item.quantity });
+  }
+  return out;
+}
+
+/** getTokenLines, with each line's note and amount (for the slip designs that print them). */
+export function getTokenLinesDetailed(
+  order: Pick<Order, 'items'> | undefined | null,
+  settings: TokenRuleSettings | null | undefined,
+  menu: MenuItem[] | undefined | null,
+): TokenLineDetail[] {
+  const rules = resolveTokenRules(settings);
+  if (!rules.hasRules) return [];
+  const categoryOf = categoryLookup(menu);
+  const out: TokenLineDetail[] = [];
+  for (const item of order?.items || []) {
+    if ((item.quantity || 0) <= 0) continue;
+    if (!itemMatchesTokenRules(item, rules, categoryOf)) continue;
+    out.push({ name: item.name, qty: item.quantity, note: item.note || undefined, amount: Number(item.lineTotal) || undefined });
   }
   return out;
 }

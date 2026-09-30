@@ -19,12 +19,19 @@ export type TokenTemplate =
   // Existing designs — kept so a shop that already picked one is unaffected.
   | 'classic' | 'bold' | 'boxed' | 'minimal'
   // Professional designs built for thermal token printing.
-  | 'standard' | 'professional' | 'vip';
+  | 'standard' | 'professional' | 'vip'
+  // DT Retail designs.
+  | 'dtr-classic' | 'dtr-boxed' | 'dtr-bold' | 'dtr-minimal' | 'dtr-ticket';
 
 export const TOKEN_TEMPLATES: { id: TokenTemplate; name: string; hint: string }[] = [
   { id: 'standard',     name: 'Standard',      hint: 'Clean and compact — name, token number, items. The everyday slip.' },
   { id: 'professional', name: 'Professional',  hint: 'Framed header, ruled item table, token number in a heavy panel.' },
   { id: 'vip',          name: 'Bold / VIP',    hint: 'Very large token number, reversed banner, strong spacing — readable across a counter.' },
+  { id: 'dtr-classic',  name: 'DT Classic',    hint: 'DT Retail — rounded frame with a huge #number, order and type line, items and total.' },
+  { id: 'dtr-boxed',    name: 'DT Boxed',      hint: 'DT Retail — black TOKEN band over the number, order type underneath, items in a frame.' },
+  { id: 'dtr-bold',     name: 'DT Bold',       hint: 'DT Retail — giant number between two heavy rules, read across a counter.' },
+  { id: 'dtr-minimal',  name: 'DT Minimal',    hint: 'DT Retail — number first, shortest slip, nothing extra.' },
+  { id: 'dtr-ticket',   name: 'DT Ticket',     hint: 'DT Retail — zig-zag paper edges and a dashed TOKEN / ORDER stub.' },
   { id: 'classic',      name: 'Classic',       hint: 'Original design — boxed token number under a dashed item list.' },
   { id: 'bold',         name: 'Bold',          hint: 'Original design — large type with rules above and below the number.' },
   { id: 'boxed',        name: 'Boxed',         hint: 'Original design — fully bordered item table.' },
@@ -50,6 +57,8 @@ export interface TokenSlipOptions {
   showDateTime?: boolean;
   showTable?: boolean;
   showCustomer?: boolean;
+  /** DT Retail designs: print each item's price and the slip total. */
+  showPrices?: boolean;
 }
 
 const TOKEN_DEFAULTS: Required<Omit<TokenSlipOptions, 'headerText' | 'footerText'>> & { headerText: string; footerText: string } = {
@@ -64,6 +73,7 @@ const TOKEN_DEFAULTS: Required<Omit<TokenSlipOptions, 'headerText' | 'footerText
   showDateTime: true,
   showTable: true,
   showCustomer: false,
+  showPrices: false,
 };
 
 const TOKEN_OPTS_KEY = 'dtpos-token-slip-options';
@@ -111,7 +121,9 @@ export interface TokenPrintContext {
 
 export interface TokenSlipData {
   orderNumber: number | string;
-  items: { name: string; qty: number }[];
+  items: { name: string; qty: number; note?: string; amount?: number }[];
+  /** dining | takeaway | delivery … — the DT Retail designs print it under the number. */
+  orderType?: string;
   restaurantName?: string;
   logo?: string;
   when?: Date;
@@ -194,6 +206,146 @@ function departmentStubHtml(
     </div>`;
 }
 
+
+// ------------------------------------------------------------------
+// DT Retail token designs
+//
+// Five slips from the DT Retail design guide. They are drawn from the same
+// live data as every other token template (the token's own number, the bill it
+// belongs to, the items) and read the same options (type size, spacing, the
+// show/hide switches, the footer line). Prices are opt-in (showPrices) because
+// a tandoor token has never carried them.
+// ------------------------------------------------------------------
+const DTR_FOOTER = 'Please wait for your number to be called.';
+
+function dtrOrderTypeLabel(t?: string): string {
+  switch (String(t || '').toLowerCase()) {
+    case 'dining': return 'Dine-In';
+    case 'takeaway': return 'Takeaway';
+    case 'delivery': return 'Delivery';
+    case 'foodpanda': return 'Foodpanda';
+    default: return t ? String(t) : '';
+  }
+}
+
+function dtrSlipHtml(d: TokenSlipData, template: TokenTemplate, showTotal: boolean, o: ReturnType<typeof loadTokenOptions>, wrapSlip: (b: string) => string): string {
+  // The guide's slips are Arial, not the monospace the older token designs use.
+  const wrap = (b: string) => wrapSlip(`<div style="font-family:Arial,'Segoe UI',Helvetica,sans-serif;font-weight:400;color:#000">${b}</div>`);
+  const fs = o.fontSize;
+  const gap = o.spacing;
+  const digits = /^\d+$/.test(String(d.orderNumber));
+  const tokenText = digits ? String(d.orderNumber).padStart(3, '0') : String(d.orderNumber);
+  const billNo = d.billNumber ?? d.orderNumber;
+  const billCode = /^\d+$/.test(String(billNo)) ? `ORD-${String(billNo).padStart(6, '0')}` : String(billNo);
+  const typeText = dtrOrderTypeLabel(d.orderType);
+  const when = d.when || new Date();
+  const dateText = when.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const timeText = when.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const total = d.items.reduce((s, i) => s + (i.qty || 0), 0);
+  const priced = !!o.showPrices && d.items.some(i => Number(i.amount) > 0);
+  const amountSum = d.items.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const money = (n: number) => n.toLocaleString('en-PK', { maximumFractionDigits: 2 });
+
+  const logo = o.showLogo && d.logo
+    ? `<div style="text-align:center;margin-bottom:2px"><img src="${esc(d.logo)}" alt="" style="max-width:60%;max-height:50px;object-fit:contain;filter:grayscale(1) contrast(1.4)"/></div>`
+    : '';
+  const name = d.restaurantName
+    ? `<div style="text-align:center;font-size:${fs + 4}px;font-weight:800;line-height:1.15">${esc(d.restaurantName)}</div>`
+    : '';
+  const headerNote = o.headerText ? `<div style="text-align:center;font-size:${fs - 2}px">${esc(o.headerText)}</div>` : '';
+  const head = `${logo}${name}${headerNote}`;
+  const dash = (w = 1) => `<div style="border-top:${w}px dashed #000;margin:${gap + 2}px 0"></div>`;
+  const row = (l: string, r: string, weight = 400, size = fs) =>
+    `<div style="display:flex;justify-content:space-between;gap:8px;font-size:${size}px;font-weight:${weight}"><span>${l}</span><span style="text-align:right">${r}</span></div>`;
+
+  const orderLine = o.showOrderNumber || typeText
+    ? row(o.showOrderNumber ? esc(billCode) : '', typeText ? `<b style="font-weight:800">${esc(typeText)}</b>` : '')
+    : '';
+  const customerLine = o.showCustomer && d.customerName ? row('Customer', esc(d.customerName)) : '';
+  const tableLine = o.showTable && d.tableName ? row('Table', esc(d.tableName)) : '';
+
+  const items = d.items.map(it =>
+    `<div style="padding:${Math.max(1, gap - 1)}px 0">`
+    + `<div style="display:flex;justify-content:space-between;gap:8px;font-size:${fs + 1}px"><span><b style="font-weight:800">${it.qty}</b> × ${esc(it.name)}</span>${priced && it.amount ? `<span style="white-space:nowrap">${money(Number(it.amount))}</span>` : ''}</div>`
+    + `${it.note ? `<div style="font-size:${fs - 2}px;font-style:italic">${esc(it.note)}</div>` : ''}</div>`).join('');
+  const totalRow = showTotal
+    ? (priced
+        ? row('Total', money(amountSum), 800, fs + 4)
+        : row('Total pieces', String(total), 800, fs + 2))
+    : '';
+  const dateRow = o.showDateTime ? row(dateText, timeText, 400, fs - 1) : '';
+  const footer = `<div style="text-align:center;font-size:${fs}px;margin-top:${gap + 2}px">${esc(o.footerText || DTR_FOOTER)}</div>`;
+  const numSize = (k: number) => Math.round(o.tokenSize * k);
+
+  switch (template) {
+    case 'dtr-classic':
+      return wrap(`${head}
+        <div style="border:3px solid #000;border-radius:12px;text-align:center;padding:${gap + 2}px 4px;margin:${gap + 2}px 0">
+          <div style="font-size:${fs + 2}px;font-weight:800;letter-spacing:4px">TOKEN</div>
+          <div style="font-size:${numSize(1.35)}px;font-weight:900;line-height:1.05">#${esc(tokenText)}</div>
+        </div>
+        ${orderLine}${tableLine}${customerLine}
+        ${dash()}${items}${dash()}${totalRow ? totalRow + dash() : ''}${dateRow}${footer}`);
+
+    case 'dtr-boxed':
+      return wrap(`${head}
+        <div style="border:3px solid #000;margin:${gap + 2}px 0">
+          <div class="dt-reverse" style="background:#000;color:#fff;text-align:center;font-weight:900;letter-spacing:5px;font-size:${fs + 2}px;padding:${gap + 1}px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact">TOKEN</div>
+          <div style="text-align:center;font-size:${numSize(1.45)}px;font-weight:900;line-height:1.1;padding:${gap}px 0;border-bottom:2px solid #000">#${esc(tokenText)}</div>
+          <div style="text-align:center;font-weight:800;font-size:${fs + 2}px;padding:${gap}px 0">${esc(typeText || ' ')}</div>
+        </div>
+        ${row(o.showOrderNumber ? esc(billCode) : '', o.showCustomer && d.customerName ? esc(d.customerName) : '')}${tableLine}
+        <div style="border:3px solid #000;padding:${gap + 2}px 6px;margin:${gap + 2}px 0">
+          ${items}
+          ${totalRow ? `<div style="border-top:1px dashed #000;margin-top:${gap}px;padding-top:${gap}px">${totalRow}</div>` : ''}
+        </div>
+        ${dateRow}${footer}`);
+
+    case 'dtr-bold':
+      return wrap(`${head}
+        <div style="text-align:center;font-size:${fs + 2}px;font-weight:800;letter-spacing:5px;margin-top:${gap}px">TOKEN</div>
+        <div style="text-align:center;font-size:${numSize(1.9)}px;font-weight:900;line-height:1;padding:${gap}px 0">${esc(tokenText)}</div>
+        <div style="border-top:5px solid #000"></div>
+        <div style="text-align:center;font-weight:800;font-size:${fs + 1}px;padding:${gap}px 0">${esc(typeText || ' ')}</div>
+        <div style="border-top:5px solid #000;margin-bottom:${gap + 2}px"></div>
+        ${o.showOrderNumber ? `<div style="font-size:${fs}px">${esc(billCode)}</div>` : ''}${tableLine}${customerLine}
+        <div style="margin-top:${gap}px">${items}</div>
+        ${dash()}${totalRow}${dateRow}${footer}`);
+
+    case 'dtr-minimal':
+      return wrap(`<div style="text-align:center;font-size:${fs}px;letter-spacing:3px">TOKEN${o.showOrderNumber ? ` · ${esc(billCode)}` : ''}</div>
+        <div style="text-align:center;font-size:${numSize(1.6)}px;font-weight:900;line-height:1.05">${esc(tokenText)}</div>
+        ${typeText ? `<div style="text-align:center;font-weight:800;font-size:${fs + 2}px;margin:${gap}px 0">${esc(typeText)}</div>` : ''}
+        ${items}${totalRow ? `<div style="margin-top:${gap}px">${totalRow}</div>` : ''}
+        ${o.showDateTime ? `<div style="text-align:center;font-size:${fs - 1}px;margin-top:${gap + 2}px">${dateText} ${timeText}</div>` : ''}`);
+
+    case 'dtr-ticket': {
+      const teeth = 18, w = 100 / teeth;
+      const zig = (up: boolean) => `<svg width="100%" height="12" viewBox="0 0 100 12" preserveAspectRatio="none" style="display:block" aria-hidden="true">${Array.from({ length: teeth }, (_, i) => {
+        const x = i * w;
+        return `<polygon points="${up ? `${x},12 ${x + w / 2},0 ${x + w},12` : `${x},0 ${x + w / 2},12 ${x + w},0`}" fill="#000"/>`;
+      }).join('')}</svg>`;
+      return wrap(`${zig(true)}
+        <div style="border-left:3px solid #000;border-right:3px solid #000;padding:${gap}px 8px">
+          ${head}
+          <div style="display:flex;border:3px dashed #000;margin:${gap + 2}px 0;text-align:center">
+            <div style="flex:1.7;padding:${gap}px 2px"><div style="font-size:${fs - 2}px">TOKEN</div><div style="font-size:${numSize(1.35)}px;font-weight:900;line-height:1.05">${esc(tokenText)}</div></div>
+            ${o.showOrderNumber ? `<div style="flex:1;padding:${gap}px 2px;border-left:3px dashed #000"><div style="font-size:${fs - 2}px">ORDER</div><div style="font-size:${fs + 2}px;font-weight:800;word-break:break-all">${esc(String(billNo).replace(/^ORD-/i, '').padStart(6, '0'))}</div></div>` : ''}
+          </div>
+          ${typeText ? `<div style="text-align:center;font-weight:800;font-size:${fs + 2}px;margin-bottom:${gap}px">${esc(typeText)}</div>` : ''}
+          ${tableLine}${customerLine}${items}
+          <div style="border-top:3px dashed #000;margin:${gap + 2}px 0 ${gap}px"></div>
+          ${totalRow}
+          <div style="border-top:3px dashed #000;margin:${gap + 2}px 0 ${gap}px"></div>
+          ${dateRow}${footer}
+        </div>
+        ${zig(false)}`);
+    }
+    default:
+      return '';
+  }
+}
+
 export function tokenSlipInnerHtml(d: TokenSlipData, template: TokenTemplate = 'classic', showTotal: boolean = true): string {
   const total = d.items.reduce((s, i) => s + (i.qty || 0), 0);
   const when = (d.when || new Date()).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -249,6 +401,8 @@ export function tokenSlipInnerHtml(d: TokenSlipData, template: TokenTemplate = '
     ? (d.departments || []).map(dept => departmentStubHtml(d, dept, fs)).join('')
     : '';
   const wrap = (body: string) => `${reprintBanner}${body}${stubs}`;
+
+  if (template.startsWith('dtr-')) return dtrSlipHtml(d, template, showTotal, o, wrap);
 
   switch (template) {
     case 'standard':
@@ -355,6 +509,7 @@ export async function printTokenDirect(
     restaurantName: d.restaurantName ?? settingsAny?.name ?? settingsAny?.restaurantName,
     logo: d.logo ?? settingsAny?.logo,
     departments: d.departments ?? buildDepartmentStubs(ctx.order, settingsAny),
+    orderType: d.orderType ?? ctx.order?.orderType,
   }, template, settingsAny?.tokenShowTotal !== false);
   portal.appendChild(inner);
   document.body.appendChild(portal);

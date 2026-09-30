@@ -792,6 +792,67 @@ export default function KitchenReceipt({ order: rawOrder, settings, showPrintBut
     );
   };
 
+  // DT Retail "Kitchen Order" slip: a black title bar, the order type and table
+  // in a heavy frame, then big quantities the line can read across the pass.
+  const renderDtrKitchen = () => {
+    const typeText = order.orderType === 'dining' ? 'DINE-IN'
+      : order.orderType === 'takeaway' ? 'TAKEAWAY'
+      : order.orderType === 'delivery' ? 'DELIVERY'
+      : String(order.orderType || 'ORDER').toUpperCase();
+    const tableRaw = String(order.tableName || order.tableLabel || '').trim();
+    const tableText = tableRaw ? (/^\d+$/.test(tableRaw) ? `Table ${tableRaw}` : tableRaw) : '';
+    const orderText = `ORD-${String(order.orderNumber ?? '').padStart(6, '0')}`;
+    const customerName = showCustomer ? String(order.customer?.name || '').trim() : '';
+    return (
+      <div style={{ color: '#000' }}>
+        <div className="dt-reverse" style={{ background: '#000', color: '#fff', textAlign: 'center', fontWeight: 900, letterSpacing: 4, fontSize: 13, padding: '4px 4px', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>KITCHEN ORDER</div>
+        <div style={{ border: '3px solid #000', textAlign: 'center', padding: '4px 4px', margin: '5px 0' }}>
+          <div style={{ fontWeight: 800, fontSize: 18 }}>{typeText}</div>
+          {tableText && <div style={{ fontWeight: 900, fontSize: 24, lineHeight: 1.1 }}>{tableText}</div>}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
+          <span style={{ fontWeight: 900 }}>{orderText}</span>
+          {showDateTime && <span>{date} {time}</span>}
+        </div>
+        {customerName && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
+            <span>Customer</span><span style={{ textAlign: 'right' }}>{customerName}</span>
+          </div>
+        )}
+        {showWaiter && order.waiterName && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
+            <span>Waiter</span><span>{order.waiterName}</span>
+          </div>
+        )}
+        {showRider && order.riderName && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
+            <span>Rider</span><span>{order.riderName}</span>
+          </div>
+        )}
+        <div style={{ borderTop: '3px solid #000', margin: '5px 0 2px' }} />
+        {order.items.map((item, i) => (
+          <div key={item.id} className="item-row" style={{
+            display: 'flex', alignItems: 'flex-start', gap: 10, padding: '5px 0',
+            borderBottom: i < order.items.length - 1 ? '1px dashed #000' : undefined,
+          }}>
+            <span style={{ width: '1.8em', flex: 'none', fontWeight: 900, fontSize: 22, lineHeight: 1 }}>{kotQtyLabel(item)}</span>
+            <span style={{ flex: 1, minWidth: 0, fontWeight: 800, fontSize: 14, lineHeight: 1.2, wordBreak: 'break-word' }}>
+              {item.name}{(item as any).variantName ? ` (${(item as any).variantName})` : ''}
+              {showNotes && item.note && (
+                <span style={{ display: 'inline-block', marginLeft: 6, border: '1px solid #000', padding: '0 4px', fontWeight: 400, fontSize: 11 }}>* {item.note}</span>
+              )}
+            </span>
+          </div>
+        ))}
+        <div style={{ borderTop: '1px dashed #000', marginTop: 2 }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 13, padding: '3px 0' }}>
+          <span>Items: {order.items.length}</span><span>Qty: {totalItems}</span>
+        </div>
+        {order.cashierName && <div style={{ textAlign: 'center', fontSize: 11 }}>Cashier: {order.cashierName}</div>}
+      </div>
+    );
+  };
+
   // FIX (client): ORDER REMARKS should print on every design — previously
   // order.notes only rendered on 2 designs, so instructions like "serve later"
   // would disappear. This block is universal and thermal-safe (border + bold).
@@ -812,6 +873,7 @@ export default function KitchenReceipt({ order: rawOrder, settings, showPrintBut
     : design === 'station' ? renderStation()
     : design === 'taimoor1' ? renderTaimoor(1)
     : design === 'taimoor2' ? renderTaimoor(2)
+    : design === 'dtr-kitchen' ? renderDtrKitchen()
     : renderClassic();
 
   // ===== UPDATE KOT banner — printed when this is a follow-up KOT for an
@@ -1056,7 +1118,7 @@ export function KitchenReceiptBody({ order, settings }: { order: Order; settings
   const date = now.toLocaleDateString('en-PK');
   const totalItems = order.items.reduce((s, i) => s + i.quantity, 0);
 
-  if (design === 'taimoor1' || design === 'taimoor2') return (
+  if (design === 'taimoor1' || design === 'taimoor2' || design === 'dtr-kitchen') return (
     <div style={{ paddingTop: '4mm' }}>
       <div style={{ borderTop: '1px dashed #000', marginBottom: '6px' }} />
       <KitchenReceipt order={order} settings={settings} showPrintButton={false} noPrintPortal />
