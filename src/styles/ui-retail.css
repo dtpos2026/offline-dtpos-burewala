@@ -175,15 +175,15 @@ html[data-ui="modern"][data-look="retail"] [data-dtr="hero"] button[data-tone="s
 html[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-gold"] [data-dtr="hero"] button[data-tone="solid"] { color: hsl(43 98% 24%); }
 
 /* the lead KPI card */
-html[data-ui="modern"][data-look="retail"] [data-dtr-kpis] > [data-stat-card]:first-child {
+html[data-ui="modern"][data-look="retail"] [data-dtr-kpis="lead"] > [data-stat-card]:first-child {
   color: #fff;
   border-color: transparent;
   background: linear-gradient(135deg, hsl(var(--dtr-hero-b)), hsl(var(--dtr-hero-a)));
   box-shadow: 0 12px 26px -14px hsl(var(--dtr-hero-a) / 0.85);
 }
-html[data-ui="modern"][data-look="retail"] [data-dtr-kpis] > [data-stat-card]:first-child * { color: #fff !important; }
-html[data-ui="modern"][data-look="retail"] [data-dtr-kpis] > [data-stat-card]:first-child span.grid { background: rgb(255 255 255 / 0.2) !important; }
-html[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-gold"] [data-dtr-kpis] > [data-stat-card]:first-child * { color: hsl(43 98% 10%) !important; }
+html[data-ui="modern"][data-look="retail"] [data-dtr-kpis="lead"] > [data-stat-card]:first-child * { color: #fff !important; }
+html[data-ui="modern"][data-look="retail"] [data-dtr-kpis="lead"] > [data-stat-card]:first-child span.grid { background: rgb(255 255 255 / 0.2) !important; }
+html[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-gold"] [data-dtr-kpis="lead"] > [data-stat-card]:first-child * { color: hsl(43 98% 10%) !important; }
 
 /* ---------------------------------------------------------------- POS screen */
 /* Product tiles without a photo: a coloured gradient square with the initials. */
@@ -401,10 +401,10 @@ html[data-ui="modern"][data-look="retail"] .dtr-login-brand {
   background: linear-gradient(150deg, hsl(var(--dtr-sb-top)) 0%, hsl(var(--dtr-hero-a)) 58%, hsl(var(--dtr-hero-b)) 150%);
 }
 html[data-ui="modern"][data-look="retail"] .dtr-shape {
+  /* Right triangles (the Digital Target mark's shape), faint like the guide. */
   position: absolute;
-  border-radius: 2.2rem;
-  border: 1px solid rgb(255 255 255 / 0.14);
-  background: rgb(255 255 255 / 0.06);
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.03));
   transform: rotate(12deg);
   pointer-events: none;
 }

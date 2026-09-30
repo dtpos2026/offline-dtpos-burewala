@@ -597,7 +597,10 @@ export interface RestaurantSettings {
     | 'premium-grouped' | 'premium-token-hero' | 'premium-boxed-ledger'
     | 'premium-rounded-panel'
     // Café designs: regular body type, "2 × Item" lines, pickup number.
-    | 'premium-cafe-classic' | 'premium-coffee-house' | 'premium-cafe-counter';
+    | 'premium-cafe-classic' | 'premium-coffee-house' | 'premium-cafe-counter'
+    // DT Retail designs (lib/premiumReceiptTemplates.ts → components/DtRetailReceipt.tsx).
+    | 'dtr-classic' | 'dtr-modern' | 'dtr-minimal' | 'dtr-restaurant' | 'dtr-retail-invoice' | 'dtr-compact'
+    | 'dtr-boxed-grid' | 'dtr-bold-restaurant' | 'dtr-tax-invoice' | 'dtr-luxury' | 'dtr-ticket';
   // ===== Text spacing (src/lib/textSpacing.ts) — unset = as designed =====
   receiptLineSpacing?: number;    // line height multiplier, 1.0–2.2
   receiptWordSpacing?: number;    // extra px between words

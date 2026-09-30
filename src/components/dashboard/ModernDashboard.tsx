@@ -11,12 +11,12 @@ import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import {
-  Activity, Banknote, Bike, ChevronDown, CreditCard, ShoppingBag, Sparkles, TrendingUp, Users, Wallet,
+  Activity, Banknote, Bike, ChevronDown, CreditCard, Percent, ShoppingBag, Sparkles, TrendingUp, Users, Utensils, Wallet,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { getSettings, getUsers } from '@/lib/store';
+import { getSettings, getTables, getUsers } from '@/lib/store';
 import { useUiLook } from '@/lib/uiStyle';
 import PlanStatusWidget from '@/components/PlanStatusWidget';
 import { EmptyState, PageHeader, SectionCard, SegmentedControl, StatCard, StatusBadge } from '@/components/ui-kit';
@@ -135,6 +135,11 @@ export default function ModernDashboard({ d }: { d: DashboardData }) {
   const rangeLabel = range === '1' ? 'Today' : `Last ${days} days`;
   const long = new Date().toLocaleDateString('en-PK', { weekday: 'long', day: 'numeric', month: 'long' });
 
+  const otherPaid = paymentSplit.filter(p => p.name.toLowerCase() !== 'cash').reduce((sum, p) => sum + p.value, 0);
+  const discountsGiven = paidAll.reduce((sum, o) => sum + (o.discount || 0), 0);
+  const floorTables = retail ? getTables() : [];
+  const occupiedTables = floorTables.filter(t => t.status !== 'free' && t.status !== 'closed').length;
+
   const myShift = scope.restrict ? filterCurrentShift(orders).filter(isPaidSale) : [];
   const shiftSales = myShift.reduce((s, o) => s + o.grandTotal, 0);
   const shiftCash = myShift.filter(o => (o.paymentMethod || 'cash') === 'cash').reduce((s, o) => s + o.grandTotal, 0);
@@ -201,12 +206,22 @@ export default function ModernDashboard({ d }: { d: DashboardData }) {
       )}
 
       {/* 1 — the headline numbers for the chosen period */}
-      <div data-dtr-kpis className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div data-dtr-kpis="lead" className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatCard label="Sales" value={rs(totalSales)} hint={rangeLabel} icon={Banknote} />
         <StatCard label="Orders" value={orderCount} hint={rangeLabel} icon={ShoppingBag} tone="info" />
         <StatCard label="Average order" value={rs(avgOrder)} hint="Per paid bill" icon={TrendingUp} tone="success" />
         <StatCard label="Profit" value={rs(profit)} hint="Sales minus expenses" icon={Activity} tone="warning" />
       </div>
+
+      {/* DT Retail: the second row of headline cards — how the money came in, what was given away, floor load. */}
+      {retail && (
+        <div data-dtr-kpis="second" className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <StatCard label="Cash" value={rs(cashIn)} hint={rangeLabel} icon={Wallet} tone="success" />
+          <StatCard label="Card / Bank / Other" value={rs(otherPaid)} hint={rangeLabel} icon={CreditCard} tone="accent" />
+          <StatCard label="Discounts given" value={rs(discountsGiven)} hint={rangeLabel} icon={Percent} tone="warning" />
+          <StatCard label="Tables occupied" value={`${occupiedTables} / ${floorTables.length}`} hint="Dine-in running bills" icon={Utensils} tone="danger" />
+        </div>
+      )}
 
       {/* 2 — the business day, on the restaurant's own clock */}
       <SectionCard

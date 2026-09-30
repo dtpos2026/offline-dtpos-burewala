@@ -220,6 +220,7 @@ export const RETAIL_THEMES: UiTheme[] = [
     id: 'dtr-crimson', family: 'retail', name: 'Crimson Red & White',
     tagline: 'Bold red with clean white cards.',
     accent: { h: 0, s: 72, l: 51 }, onAccent: 'light',
+    accentText: { h: 0, s: 72, l: 48 }, // deeper (lighter on the dark page) where the accent is text
     surface: { background: '12 33% 97%', card: WHITE_PANEL, foreground: '222 47% 11%', mutedForeground: '215 16% 40%', muted: '12 22% 94%', border: '12 18% 89%' },
     sidebar: 'dark', sidebarColor: '358 60% 8%', sidebarGradient: ['356 58% 10%', '357 64% 5%'], hero: ['0 64% 31%', '0 81% 62%'],
     swatches: ['#2b0b0d', '#dc2626', '#faf6f5', '#ffffff'],
@@ -236,6 +237,7 @@ export const RETAIL_THEMES: UiTheme[] = [
     id: 'dtr-emerald', family: 'retail', name: 'Emerald',
     tagline: 'Fresh green — food & grocery.',
     accent: { h: 161, s: 94, l: 30 }, onAccent: 'light',
+    accentText: { h: 161, s: 94, l: 25 }, // deeper (lighter on the dark page) where the accent is text
     surface: { background: '150 30% 96%', card: WHITE_PANEL, foreground: '222 47% 11%', mutedForeground: '215 16% 40%', muted: '150 20% 93%', border: '150 18% 88%' },
     sidebar: 'dark', sidebarColor: '161 83% 9%', sidebarGradient: ['162 81% 12%', '160 80% 6%'], hero: ['164 86% 17%', '160 69% 43%'],
     swatches: ['#063a2b', '#059669', '#f2f8f5', '#ffffff'],
@@ -244,6 +246,7 @@ export const RETAIL_THEMES: UiTheme[] = [
     id: 'dtr-sunset', family: 'retail', name: 'Sunset Orange',
     tagline: 'Warm, energetic and friendly.',
     accent: { h: 21, s: 90, l: 48 }, onAccent: 'light',
+    accentText: { h: 21, s: 90, l: 38 }, // deeper (lighter on the dark page) where the accent is text
     surface: { background: '30 44% 96%', card: WHITE_PANEL, foreground: '222 47% 11%', mutedForeground: '215 16% 40%', muted: '28 30% 93%', border: '28 26% 88%' },
     sidebar: 'dark', sidebarColor: '17 70% 9%', sidebarGradient: ['18 67% 12%', '18 74% 6%'], hero: ['16 76% 29%', '26 94% 63%'],
     swatches: ['#34160a', '#ea580c', '#faf6f2', '#facc15'],
@@ -252,6 +255,7 @@ export const RETAIL_THEMES: UiTheme[] = [
     id: 'dtr-ocean', family: 'retail', name: 'Ocean Blue',
     tagline: 'Calm, corporate and clear.',
     accent: { h: 200, s: 98, l: 39 }, onAccent: 'light',
+    accentText: { h: 200, s: 98, l: 33 }, // deeper (lighter on the dark page) where the accent is text
     surface: { background: '207 47% 96%', card: WHITE_PANEL, foreground: '222 47% 11%', mutedForeground: '215 16% 40%', muted: '207 30% 93%', border: '207 25% 88%' },
     sidebar: 'dark', sidebarColor: '203 84% 12%', sidebarGradient: ['204 82% 16%', '203 87% 9%'], hero: ['202 81% 25%', '199 89% 61%'],
     swatches: ['#07304a', '#0284c7', '#f1f6fa', '#ffffff'],
@@ -260,6 +264,7 @@ export const RETAIL_THEMES: UiTheme[] = [
     id: 'dtr-night', family: 'retail', name: 'Night',
     tagline: 'Dark mode for dim shops.',
     accent: { h: 258, s: 90, l: 66 }, onAccent: 'light',
+    accentText: { h: 258, s: 90, l: 75 }, // deeper (lighter on the dark page) where the accent is text
     surface: { background: '223 49% 8%', card: '221 41% 12%', foreground: '220 43% 93%', mutedForeground: '215 20% 65%', muted: '219 37% 19%', border: '220 34% 23%' },
     sidebar: 'dark', dark: true, sidebarColor: '220 51% 8%', sidebarGradient: ['221 53% 6%', '222 48% 11%'], hero: ['273 84% 22%', '259 87% 67%'],
     swatches: ['#070c17', '#8b5cf6', '#0b1120', '#e6ebf5'],

@@ -1,5 +1,60 @@
 # DT POS Enterprise — Release Notes
 
+## v1.17.0 — DT Retail look: seven themes, animated welcome, and the matching receipts, tokens and kitchen slip
+
+- **Reported:** "Add this design guide — the UI, the themes, the print and token
+  receipts — the same, about 99%, and let me change it back from Settings."
+- **DT Retail themes** (Settings → Appearance → *DT Retail themes*): **Royal Purple**,
+  **Crimson Red & White**, **Black & Gold** (dark), **Emerald**, **Sunset Orange**,
+  **Ocean Blue** and **Night** (dark). Each is a whole look: gradient sidebar with a
+  brand mark and a "Powered by Digital Target" card, a greeting banner on the
+  Dashboard with Refresh and New Sale, a highlighted lead figure and a second row of
+  headline cards (Cash, Card / Bank / Other, Discounts given, Tables occupied), a user
+  chip with log-out in the header, rounded cards and softer shadows, and the Inter
+  typeface (bundled, nothing is fetched).
+- **POS order screen:** an item without a photo shows a coloured tile with its
+  initials, one colour per category; the Pay button and the category chips follow the
+  theme.
+- **Welcome and sign-in:** the Digital Target mark pops in triangle by triangle, the
+  wordmark rises, a light streak runs along a thin bar. The sign-in screen has a
+  gradient brand panel with slowly floating triangles, "Billing made simple & fast."
+  and six feature chips beside the form.
+- **Smooth animations** switch (same card). Off, every retail animation stops at once
+  — for slow computers. The system's own "reduce motion" setting is honoured too.
+- **Go back any time:** choosing a DT Retail theme remembers the look you had. Settings →
+  Appearance → **Back to my previous look** restores it (Classic, or your Modern theme and
+  accent). Choosing Classic, or any of the thirteen Modern themes, also leaves DT Retail
+  at once. Nothing you had before was changed.
+- **Eleven receipt designs** (Settings → Receipt, listed first, prefixed "DT"): Classic,
+  Modern, Minimal, Restaurant, Retail Invoice, Compact, Boxed Grid, Bold Restaurant,
+  Tax Invoice + QR, Luxury and Ticket. They print on **80 mm and 58 mm**; every word and
+  number comes from the real bill. The existing sixteen designs are unchanged.
+- **Five token designs** (Settings → Token): DT Classic, Boxed, Bold, Minimal and Ticket —
+  the big `#number`, the order type, each item with its note. Item prices are an option
+  (off by default). The kitchen slip has a **DT Kitchen Order** design (KOT Settings).
+- **Print quality:** the designs are built from plain boxes instead of tables, because the
+  thermal print step restyles tables. Measured through the real dot-matrix conversion:
+  equal left and right margins (2 mm), no invisible text, white-on-black bars stay
+  legible, on both paper widths.
+- **Verified:** type-check (app and Super Admin), the full test suite (1,035 tests,
+  including 74 new ones for the themes, the stylesheet, the animations switch, the
+  go-back memory, tiles, receipts and tokens), both builds, routes checked at
+  1920×1080, 1366×768, 1024×768 and 800×600 in four of the new themes with no
+  overflow, and Classic confirmed unchanged.
+- **Known limits (honest list):**
+  - The guide's sign-in uses user tiles and a PIN pad. The software keeps its
+    username / password form — only the look matches.
+  - The guide's splash is a separate window; here it is the in-app welcome screen.
+  - The guide's "Item discount" line on a receipt is not printed, because the bill has
+    no per-item discount.
+  - The token number on a receipt is the bill number; reports keep their existing
+    layout (they do not use the black section bars).
+  - On Emerald, Sunset and Night the white text on buttons is about 3.6 : 1 (the guide's
+    exact brand colours, a pass for large and bold text). Text links use a deeper shade.
+  - Printing was verified by simulation through the real raster code, not on a physical
+    BIXOLON or other printer, and the screens were not viewed on a phone or tablet.
+  - Electron build: rebuild the installer to get the new fonts and animations.
+
 ## v1.16.1 — "Red & Yellow" brand theme (the look of the reference POS apps)
 
 - **Reported:** "Make it the same as these pictures — the red and yellow branded

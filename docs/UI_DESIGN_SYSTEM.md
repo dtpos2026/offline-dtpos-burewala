@@ -1,4 +1,4 @@
-# DT POS — UI design system (v1.15)
+# DT POS — UI design system (v1.17)
 
 One set of design tokens drives **both** the POS and the Super Admin panel.
 This page is the map for anyone changing how the product looks.
@@ -10,7 +10,7 @@ spacing and which navigation buttons are shown. It never touches business
 logic, calculations, the database, the licence, users and permissions, or the
 printer / receipt / KOT / token code.
 
-## Two styles, thirteen Modern themes
+## Two styles, thirteen Modern themes, and the DT Retail look
 
 | Style | What it is | How it is selected |
 | --- | --- | --- |
@@ -20,6 +20,40 @@ printer / receipt / KOT / token code.
 Settings → Theme → **Interface style** switches between them. The choice is
 stored per device and applies at once, with no restart. Nothing else is read or
 written.
+
+### DT Retail look (v1.17)
+
+Seven more themes — Royal Purple, Crimson Red & White, Black & Gold, Emerald,
+Sunset Orange, Ocean Blue and Night — form the **DT Retail** family, after the
+"DT Retail POS Design Guide". They are Modern themes with extra attributes:
+
+| Attribute on `<html>` | Set when | Used for |
+| --- | --- | --- |
+| `data-look="retail"` | a DT Retail theme is chosen | every rule in `ui-retail.css` |
+| `data-ui-mode="dark"` | Black & Gold or Night | dark-page fixes for screens that hard-code light colours |
+| `data-anim="off"` | *Smooth animations* is switched off | stops every retail animation |
+
+- `ui-retail.css` is imported after `ui-pos.css`. **Every selector must contain
+  `[data-ui="modern"]` and `[data-look="retail"]`** (dark-page rules use
+  `[data-ui-mode="dark"]`, which only retail themes set); `src/test/dt-retail-look.test.tsx`
+  fails otherwise. Animations sit under `:not([data-anim="off"])` and `prefers-reduced-motion`.
+- Screens hook on `data-dtr="…"` attributes (`brand-mark`, `user-row`, `user-chip`,
+  `hero`, `search-wide`) and `data-dtr-kpis="lead|second"`, which exist in every look
+  but are styled only under retail.
+- **Going back:** `setTheme()` stores the previous style / theme / accent in
+  `dtpos-ui-prev` when a retail theme is chosen from anything else;
+  `restorePreviousLook()` puts it back. Picking a non-retail theme clears it.
+  Keys used: `dtpos-ui-theme`, `dtpos-ui-style`, `dtpos-ui-accent`, `dtpos-ui-anim`,
+  `dtpos-ui-prev` — nothing else is read or written.
+- Retail themes may set `accentText` (a deeper shade, lighter on dark pages) so the
+  accent stays readable as text (≥ 4.5 : 1); the brand colours on buttons are kept
+  exactly as in the guide (≥ 3 : 1 for white text).
+- **Print follows the same guide but not the same CSS:** receipt designs are
+  `DtRetailReceipt.tsx` (11), token designs `dtrSlipHtml()` in `tokenSlip.ts` (5), and
+  `renderDtrKitchen()` in `KitchenReceipt.tsx`. They use CSS grid, never `<table>`, because
+  the thermal print step forces borders, bold and vertical centring on tables. White on black
+  uses the `dt-reverse` class the print worker already understands. Check a change with
+  `scripts/simulate-print.mjs 'dtr-*'` (80 mm, and `?paper=58mm` in `LAB_URL`).
 
 ### Themes (Modern)
 
@@ -70,7 +104,8 @@ stylesheet and the theme list agree; and that Classic removes every trace.
 | `src/styles/ui-tokens.css` | The tokens. Every value lives here: palette, accent, status colours, radii, shadows, control heights, spacing and type scales, and the resolved `--ui-*` aliases for inline styles. |
 | `src/styles/ui-modern.css` | What a token cannot say: focus, table and dialog finish, flat replacements for the old gradients, badge tints. Every selector starts with `html[data-ui="modern"]`. |
 | `src/styles/ui-pos.css` | The POS order screen: product tiles, the Order panel, lines, totals, the Pay bar. It hooks onto `data-pos-*` attributes that `POSScreen.tsx` carries in both styles, so Classic never matches it. |
-| `src/lib/uiThemes.ts` | The twelve themes. |
+| `src/lib/uiThemes.ts` | The thirteen Modern themes and the seven DT Retail ones. |
+| `src/styles/ui-retail.css` | The DT Retail look: gradient shell, dashboard banner and cards, tiles, motion, dark-page fixes, splash and sign-in. Scoped to `data-look="retail"`. |
 | `src/lib/uiStyle.ts` | Applies the style and the accent, keeps the accent readable (`safeAccent` darkens a pale colour until white text on it reaches contrast 4.6). |
 | `src/lib/navPrefs.ts` | Module visibility (Settings → Modules): what is in the sidebar, under **More**, or hidden. Navigation only. |
 | `src/components/ui-kit/*` | `PageHeader`, `StatCard`, `StatusBadge`, `EmptyState`, `LoadingState`, `SectionCard`, `SearchField`, `SegmentedControl`. |
