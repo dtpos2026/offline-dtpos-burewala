@@ -13,6 +13,8 @@
 // ============================================================
 import React, { useMemo } from 'react';
 import { ReceiptCodesSlot } from '@/components/ReceiptCodes';
+import DtRetailReceipt from '@/components/DtRetailReceipt';
+import { FONT_STACKS, ITEM_TABLE_CSS } from '@/components/premiumShared';
 import type { Order, RestaurantSettings, CartItem } from '@/lib/types';
 import {
   getPremiumTemplate,
@@ -31,25 +33,6 @@ interface Props {
   /** Preview override — when omitted the saved customization is used. */
   customization?: PremiumCustomization;
 }
-
-/**
- * Typeface stacks.
- *
- * Every family here ships with Windows, which is the point: the print worker
- * renders its document from a different directory, and a webfont that fails
- * to resolve there is silently swapped for a fallback — the receipt then
- * prints in a face the preview never showed. System faces cannot fail to
- * load, so preview and paper rasterise identically.
- */
-const FONT_STACKS: Record<PremiumCustomization['fontFamily'], string> = {
-  sans: "'Segoe UI', Arial, Helvetica, sans-serif",
-  // Condensed: fits noticeably more characters per 80mm line without
-  // dropping the point size, which is how the busier references stay legible.
-  grotesk: "'Arial Narrow', 'Tahoma', 'Segoe UI', Arial, sans-serif",
-  serif: "Georgia, 'Times New Roman', Times, serif",
-  slab: "Cambria, Georgia, 'Times New Roman', serif",
-  mono: "'Consolas', 'Lucida Console', 'Courier New', monospace",
-};
 
 /** Money, using the shop's own currency symbol and decimal preference. */
 function useMoney(settings: RestaurantSettings) {
@@ -87,34 +70,6 @@ const COLUMN_LABEL: Record<ItemColumn, string> = {
   amount: 'Amount',
 };
 
-/**
- * Money and quantity columns must never break mid-number — "450.00" split
- * across two lines as "450.0" / "0" is worse than useless on a bill.
- *
- * The shared print CSS forces `table-layout: fixed` on every receipt table,
- * which splits the width by percentage regardless of content, so the money
- * columns were too narrow for four-figure totals while the item name kept
- * space it did not need. These rules switch the premium tables back to
- * content-driven sizing: the numeric columns take exactly what they need,
- * the item name absorbs the rest and wraps like prose.
- *
- * The selector deliberately mirrors the print CSS's own specificity chain
- * plus one class, so it wins in both the preview and the print worker.
- */
-const ITEM_TABLE_CSS = `
-.premium-receipt table.premium-items { table-layout: auto; }
-.premium-receipt .premium-num { white-space: nowrap; }
-body.thermal-printing .receipt-print-portal[data-active-print="true"] .print-receipt table.premium-items,
-body[data-print-active="true"] .receipt-print-portal[data-active-print="true"] .print-receipt table.premium-items {
-  table-layout: auto !important;
-  width: 100% !important;
-}
-body.thermal-printing .receipt-print-portal[data-active-print="true"] .print-receipt .premium-num,
-body[data-print-active="true"] .receipt-print-portal[data-active-print="true"] .print-receipt .premium-num {
-  white-space: nowrap !important;
-}
-`;
-
 /** Columns whose value is a number and must stay on one line. */
 const NUMERIC_COLUMNS = new Set<ItemColumn>(['sr', 'qty', 'rate', 'amount']);
 
@@ -138,6 +93,12 @@ export default function PremiumReceipt({ order, settings, templateId, customizat
   // An unknown template id must never produce a blank slip — the print
   // pipeline treats an empty portal as a failure and refuses to print.
   if (!template) return null;
+
+  // The DT Retail designs have their own renderer; everything else about the
+  // slip (customization, order data, print pipeline) is shared.
+  if (template.dtr) {
+    return <DtRetailReceipt order={order} settings={settings} templateId={templateId} design={template.dtr} customization={c} />;
+  }
 
   const L = template.layout;
   const s = settings as any;

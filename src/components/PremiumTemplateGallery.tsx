@@ -19,6 +19,9 @@ import { pickPreviewOrder } from '@/lib/sampleOrder';
 import PremiumReceipt from '@/components/PremiumReceipt';
 import {
   PREMIUM_TEMPLATES,
+  DTR_TEMPLATES,
+  ALL_PREMIUM_TEMPLATES,
+  type PremiumTemplate,
   loadCustomization,
   saveCustomization,
   resetCustomization,
@@ -144,6 +147,28 @@ export default function PremiumTemplateGallery() {
     toast.success('Reset to the template defaults');
   };
 
+  const renderCard = (t: PremiumTemplate) => {
+    const isActive = activeDesign === t.id;
+    const isSaved = saved.includes(t.id);
+    return (
+      <button
+        key={t.id}
+        onClick={() => open(t.id)}
+        className={`rounded-lg border p-3 text-left transition ${
+          isActive ? 'border-primary bg-primary/5 ring-2 ring-primary/30' : 'hover:bg-muted/50'
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-semibold">{templateDisplayName(t.id)}</span>
+          {isActive
+            ? <Check className="h-4 w-4 shrink-0 text-primary" />
+            : isSaved ? <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">SAVED</span> : null}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">{t.hint}</p>
+      </button>
+    );
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -151,34 +176,19 @@ export default function PremiumTemplateGallery() {
           <LayoutTemplate className="h-5 w-5" /> Premium Receipt Templates
         </CardTitle>
         <CardDescription>
-          {PREMIUM_TEMPLATES.length} professional 80mm layouts, including three café designs.
+          {DTR_TEMPLATES.length} DT Retail designs and {PREMIUM_TEMPLATES.length} more professional layouts (80mm; 58mm is the same design narrower).
           Tap one to preview it with your own order data, adjust what it shows, and save —
           your prices, items and totals fill in automatically.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {PREMIUM_TEMPLATES.map(t => {
-            const isActive = activeDesign === t.id;
-            const isSaved = saved.includes(t.id);
-            return (
-              <button
-                key={t.id}
-                onClick={() => open(t.id)}
-                className={`rounded-lg border p-3 text-left transition ${
-                  isActive ? 'border-primary bg-primary/5 ring-2 ring-primary/30' : 'hover:bg-muted/50'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-semibold">{templateDisplayName(t.id)}</span>
-                  {isActive
-                    ? <Check className="h-4 w-4 shrink-0 text-primary" />
-                    : isSaved ? <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">SAVED</span> : null}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">{t.hint}</p>
-              </button>
-            );
-          })}
+        <div className="space-y-2">
+          <h4 className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">DT Retail designs</h4>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{DTR_TEMPLATES.map(renderCard)}</div>
+        </div>
+        <div className="space-y-2">
+          <h4 className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">More premium layouts</h4>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{PREMIUM_TEMPLATES.map(renderCard)}</div>
         </div>
 
         {openId && draft && (
@@ -273,7 +283,7 @@ export default function PremiumTemplateGallery() {
                     <input
                       value={draft.displayName}
                       onChange={e => patch('displayName', e.target.value)}
-                      placeholder={PREMIUM_TEMPLATES.find(t => t.id === openId)?.name}
+                      placeholder={ALL_PREMIUM_TEMPLATES.find(t => t.id === openId)?.name}
                       className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-xs"
                     />
                     <p className="mt-1 text-[11px] text-muted-foreground">

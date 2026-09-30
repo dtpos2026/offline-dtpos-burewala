@@ -19,7 +19,7 @@ import PremiumReceipt from '@/components/PremiumReceipt';
 import ReceiptPreview from '@/components/ReceiptPreview';
 import KitchenReceipt from '@/components/KitchenReceipt';
 import { ReceiptCodesProvider, ReceiptCodesSlot } from '@/components/ReceiptCodes';
-import { PREMIUM_TEMPLATES, loadCustomization } from '@/lib/premiumReceiptTemplates';
+import { ALL_PREMIUM_TEMPLATES as PREMIUM_TEMPLATES, ALL_PREMIUM_TEMPLATES, loadCustomization } from '@/lib/premiumReceiptTemplates';
 import { buildSampleOrder } from '@/lib/sampleOrder';
 import { buildWorkerDocument } from '@/printing/fastPrint';
 import { tokenSlipInnerHtml, TOKEN_TEMPLATES } from '@/lib/tokenSlip';
@@ -44,6 +44,41 @@ const settings: any = {
   thankYouText: 'Thank You!',
   receiptFooter: '',
 };
+
+// ?pdf=1 — the sample bill and shop of the DT Retail design guide, so a slip can
+// be laid next to the guide's own picture of it.
+if (new URLSearchParams(location.search).get('pdf') === '1') {
+  Object.assign(settings, {
+    name: 'Sample Restaurant', address: 'Main Boulevard, Gulberg III, Lahore',
+    phone1: '0300-1234567', phone2: '', currencySymbol: 'Rs.', receiptHideDecimals: true,
+    thankYouText: 'Thank you for your visit! Please come again.', receiptFooter: '',
+  });
+  Object.assign(order, {
+    orderNumber: 27, orderType: 'dining', tableName: '4', cashierName: 'Cashier', waiterName: undefined,
+    customer: { id: 'c1', name: 'Ahmed Khan', phone: '03001234567', address: '' },
+    items: [
+      { id: 'i1', menuItemId: 'm1', name: 'Zinger Burger', pricingType: 'fixed', price: 450, quantity: 2, lineTotal: 900, note: 'Extra mayo' },
+      { id: 'i2', menuItemId: 'm2', name: '\u0686\u06A9\u0646 \u0628\u0631\u06CC\u0627\u0646\u06CC (Special)', pricingType: 'fixed', price: 480, quantity: 1, lineTotal: 450, note: '' },
+      { id: 'i3', menuItemId: 'm3', name: 'French Fries', pricingType: 'fixed', price: 250, quantity: 1, lineTotal: 250, note: '' },
+      { id: 'i4', menuItemId: 'm4', name: 'Cold Drink 500ml', pricingType: 'fixed', price: 120, quantity: 3, lineTotal: 360, note: '' },
+    ],
+    subtotal: 1990, discount: 90, discountTitle: 'Discount', tax: 0, serviceCharge: 0, grandTotal: 1900,
+    paymentMethod: 'cash', cashReceived: 2000, changeReturned: 100,
+  });
+  // Every DT Retail design starts with the guide's header line and credit.
+  // Written straight to the store (not through saveCustomization, which would
+  // pin every default and hide each template's own type size and weight).
+  const store: Record<string, unknown> = {};
+  for (const t of ALL_PREMIUM_TEMPLATES) {
+    if (t.id.startsWith('dtr-')) {
+      store[t.id] = {
+        headerNote: t.id === 'dtr-tax-invoice' ? '1234567-8' : (t.id === 'dtr-luxury' || t.id === 'dtr-modern' || t.id === 'dtr-compact' ? 'NTN 1234567-8' : 'NTN: 1234567-8'),
+        showPoweredBy: true,
+      };
+    }
+  }
+  try { localStorage.setItem('dtpos-premium-template-customizations', JSON.stringify(store)); } catch { /* lab only */ }
+}
 
 // The classic designs and KOTs read more of the shop's settings; these are
 // the values a new shop starts with, plus a footer so every block renders.
@@ -218,7 +253,10 @@ const SLIPS: Slip[] = [
   ...Object.keys(REPORTS).map(id => ({ id, label: `Report · ${REPORTS[id].title}`, kind: 'report' as const })),
 ];
 
-const geom = resolvePrintGeometry({ paper: '80mm', leftMm: MARGIN_LEFT, rightMm: MARGIN_RIGHT });
+const PAPER = (new URLSearchParams(location.search).get('paper') === '58mm' ? '58mm' : '80mm') as '58mm' | '80mm';
+const geom = resolvePrintGeometry({ paper: PAPER, leftMm: MARGIN_LEFT, rightMm: MARGIN_RIGHT });
+settings.paperSize = PAPER;
+legacySettings.paperSize = PAPER;
 
 function Slips() {
   const ready = useRef(false);
@@ -252,7 +290,7 @@ function Slips() {
         >
           <div
             className="print-receipt bg-white text-black"
-            data-paper-size="80mm"
+            data-paper-size={PAPER}
             style={{ width: `${geom.contentMm}mm`, background: '#fff', color: '#000' }}
           >
             {slip.kind === 'report' ? (
@@ -317,14 +355,14 @@ function slipHtml(id: string): string {
 (window as any).__printLabBuild = (id: string) => {
   const { html, geometry } = buildWorkerDocument({
     html: slipHtml(id),
-    paperWidth: '80mm',
+    paperWidth: PAPER,
     compact: COMPACT,
     marginLeftMm: MARGIN_LEFT,
     marginRightMm: MARGIN_RIGHT,
   }, 'raster');
   return {
     html,
-    paperLabel: '80mm',
+    paperLabel: PAPER,
     marginLeftMm: geometry.leftMm,
     marginRightMm: geometry.rightMm,
     // The worker lays the document out at exactly this CSS width.
@@ -339,12 +377,12 @@ function slipHtml(id: string): string {
 (window as any).__printLabBuildMode = (id: string, mode: 'raster' | 'html') => {
   const { html, geometry } = buildWorkerDocument({
     html: slipHtml(id),
-    paperWidth: '80mm',
+    paperWidth: PAPER,
     compact: COMPACT,
     marginLeftMm: MARGIN_LEFT,
     marginRightMm: MARGIN_RIGHT,
   }, mode);
-  return { html, paperLabel: '80mm', marginLeftMm: geometry.leftMm, marginRightMm: geometry.rightMm };
+  return { html, paperLabel: PAPER, marginLeftMm: geometry.leftMm, marginRightMm: geometry.rightMm };
 };
 
 createRoot(document.getElementById('root')!).render(<Slips />);

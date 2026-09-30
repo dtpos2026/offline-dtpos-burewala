@@ -326,7 +326,7 @@ const slips = await page.evaluate(() => window.__printLabSlips());
 const results = [];
 
 for (const slip of slips) {
-  if (only && slip.id !== only) continue;
+  if (only && !(slip.id === only || (only.endsWith('*') && slip.id.startsWith(only.slice(0, -1))))) continue;
 
   // Build the real worker document for this slip, exactly as fastPrint does.
   const built = await page.evaluate(id => window.__printLabBuild(id), slip.id);

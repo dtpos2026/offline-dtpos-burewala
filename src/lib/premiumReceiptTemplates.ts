@@ -38,7 +38,24 @@ export type PremiumTemplateId =
   | 'premium-rounded-panel'
   | 'premium-cafe-classic'
   | 'premium-coffee-house'
-  | 'premium-cafe-counter';
+  | 'premium-cafe-counter'
+  // DT Retail designs (see DTR_TEMPLATES below) — drawn by DtRetailReceipt.
+  | 'dtr-classic'
+  | 'dtr-modern'
+  | 'dtr-minimal'
+  | 'dtr-restaurant'
+  | 'dtr-retail-invoice'
+  | 'dtr-compact'
+  | 'dtr-boxed-grid'
+  | 'dtr-bold-restaurant'
+  | 'dtr-tax-invoice'
+  | 'dtr-luxury'
+  | 'dtr-ticket';
+
+/** The eleven DT Retail receipt designs. */
+export type DtrDesign =
+  | 'classic' | 'modern' | 'minimal' | 'restaurant' | 'retail-invoice' | 'compact'
+  | 'boxed-grid' | 'bold-restaurant' | 'tax-invoice' | 'luxury' | 'ticket';
 
 /** Header shape. */
 export type HeaderStyle =
@@ -127,6 +144,8 @@ export interface PremiumTemplate {
   name: string;
   hint: string;
   layout: PremiumLayout;
+  /** Set on the DT Retail designs: which drawing DtRetailReceipt makes. */
+  dtr?: DtrDesign;
 }
 
 // ------------------------------------------------------------
@@ -315,14 +334,73 @@ export const PREMIUM_TEMPLATES: PremiumTemplate[] = [
   },
 ];
 
-export const PREMIUM_TEMPLATE_IDS = PREMIUM_TEMPLATES.map(t => t.id);
+// ------------------------------------------------------------
+// DT Retail designs
+//
+// Eleven layouts taken from the DT Retail POS design guide. Like every other
+// template they are configuration only: the shop's words and numbers come
+// from the live order and settings at print time. They are drawn by
+// DtRetailReceipt (PremiumReceipt hands over when `dtr` is set), which keeps
+// the sixteen layouts above exactly as they were.
+//
+// `layout` is required by the type and used for the starting typeface, size
+// and weight; the drawing itself is decided by `dtr`.
+// ------------------------------------------------------------
+const dtrLayout = (over: Partial<PremiumLayout> = {}): PremiumLayout => ({
+  header: 'centered', meta: 'rows', items: 'ruled', totals: 'right',
+  grandTotal: 'plain', hero: 'none',
+  font: 'sans', fontSize: 11, boldBody: false,
+  columns: ['name', 'qty', 'rate', 'amount'],
+  ...over,
+});
+
+export const DTR_TEMPLATES: PremiumTemplate[] = [
+  { id: 'dtr-classic', dtr: 'classic', name: 'DT Classic',
+    hint: 'Centred header, dashed lines, SALES RECEIPT title and a four-column item table.',
+    layout: dtrLayout({ title: 'SALES RECEIPT' }) },
+  { id: 'dtr-modern', dtr: 'modern', name: 'DT Modern',
+    hint: 'Black header band, two-line items (qty × rate) and a rounded, highlighted total.',
+    layout: dtrLayout({ header: 'banner', rounded: true, grandTotal: 'box' }) },
+  { id: 'dtr-minimal', dtr: 'minimal', name: 'DT Minimal',
+    hint: 'Clean and borderless: name, amount, and "2 @ 450" underneath each item.',
+    layout: dtrLayout() },
+  { id: 'dtr-restaurant', dtr: 'restaurant', name: 'DT Restaurant',
+    hint: 'Framed DINE-IN / table / token box, quantity first, GRAND TOTAL between double rules.',
+    layout: dtrLayout({ hero: 'token', grandTotal: 'large', columns: ['qty', 'name', 'amount'] }) },
+  { id: 'dtr-retail-invoice', dtr: 'retail-invoice', name: 'DT Retail Invoice',
+    hint: 'Boxed grid with a SALES INVOICE band, item and quantity counts and a "you saved" line.',
+    layout: dtrLayout({ items: 'grid', meta: 'boxed', totals: 'grid', columns: ['sr', 'name', 'qty', 'rate', 'amount'] }) },
+  { id: 'dtr-compact', dtr: 'compact', name: 'DT Compact',
+    hint: 'One line per item and a tight header — saves paper, great for 58 mm.',
+    layout: dtrLayout({ header: 'stacked', columns: ['name', 'qty', 'amount'] }) },
+  { id: 'dtr-boxed-grid', dtr: 'boxed-grid', name: 'DT Boxed Grid',
+    hint: 'Bold boxes around every section, a black item header and a black GRAND TOTAL row.',
+    layout: dtrLayout({ items: 'grid', meta: 'boxed', totals: 'grid', grandTotal: 'bar', columns: ['name', 'qty', 'rate', 'amount'] }) },
+  { id: 'dtr-bold-restaurant', dtr: 'bold-restaurant', name: 'DT Bold Restaurant',
+    hint: 'Giant DINE-IN / TABLE / TOKEN box, heavy item lines and a black TOTAL bar.',
+    layout: dtrLayout({ hero: 'token', grandTotal: 'bar', columns: ['qty', 'name', 'amount'] }) },
+  { id: 'dtr-tax-invoice', dtr: 'tax-invoice', name: 'DT Tax Invoice + QR',
+    hint: 'NTN / STRN line, gross-to-net breakup, amount in words and a QR — FBR / PRA style.',
+    layout: dtrLayout({ items: 'grid', meta: 'boxed', totals: 'grid', amountInWords: true, qr: true, columns: ['sr', 'name', 'qty', 'rate', 'amount'] }) },
+  { id: 'dtr-luxury', dtr: 'luxury', name: 'DT Luxury',
+    hint: 'Serif type, double-line frame, diamond dividers and dotted price leaders.',
+    layout: dtrLayout({ header: 'decorated', serif: true, font: 'serif', fontSize: 12, items: 'dotted' }) },
+  { id: 'dtr-ticket', dtr: 'ticket', name: 'DT Ticket',
+    hint: 'Zig-zag paper edges, a dashed ORDER / TOKEN stub and a PAID stamp.',
+    layout: dtrLayout({ hero: 'ticket', statusLine: true, columns: ['qty', 'name', 'amount'] }) },
+];
+
+/** Every premium template: the DT Retail designs first, then the sixteen layouts. */
+export const ALL_PREMIUM_TEMPLATES: PremiumTemplate[] = [...DTR_TEMPLATES, ...PREMIUM_TEMPLATES];
+
+export const PREMIUM_TEMPLATE_IDS = ALL_PREMIUM_TEMPLATES.map(t => t.id);
 
 export function isPremiumTemplateId(id: unknown): id is PremiumTemplateId {
   return typeof id === 'string' && PREMIUM_TEMPLATE_IDS.includes(id as PremiumTemplateId);
 }
 
 export function getPremiumTemplate(id: string | undefined): PremiumTemplate | undefined {
-  return PREMIUM_TEMPLATES.find(t => t.id === id);
+  return ALL_PREMIUM_TEMPLATES.find(t => t.id === id);
 }
 
 // ============================================================
