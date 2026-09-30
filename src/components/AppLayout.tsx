@@ -4,7 +4,7 @@ import HeaderClock from '@/components/shell/HeaderClock';
 import ModernSidebar from '@/components/shell/ModernSidebar';
 import ModernHeader from '@/components/shell/ModernHeader';
 import ModuleLauncher from '@/components/shell/ModuleLauncher';
-import { useUiStyle } from '@/lib/uiStyle';
+import { useUiLook, useUiStyle } from '@/lib/uiStyle';
 import { useScreenConfig } from '@/hooks/usePosLayout';
 import { shouldCollapseMenu } from '@/lib/posLayout';
 import { ReactNode, useState, useEffect } from 'react';
@@ -327,6 +327,11 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
   const location = useLocation();
   const isDisplaySurface = DISPLAY_SURFACES.some(r => location.pathname.startsWith(r));
   const modern = useUiStyle() === 'modern';
+  // DT Retail look: the signed-in user sits in the top bar.
+  const retail = useUiLook() === 'retail';
+  const signedInName = (() => {
+    try { return getUsers().find(u => u.id === (localStorage.getItem('pos-user-id') || ''))?.name || ''; } catch { return ''; }
+  })();
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('pos-sidebar-collapsed') === '1');
@@ -481,6 +486,7 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
             zoom={zoom}
             onZoom={d => setZoom(z => Math.max(70, Math.min(130, z + d)))}
             onResetZoom={() => setZoom(100)}
+            userChip={retail ? { name: signedInName, role: userRole, onLogout } : undefined}
           >
             <BranchSelector />
           </ModernHeader>

@@ -28,6 +28,8 @@ export type Triplet = string;
 export interface ThemeSurface {
   /** The page behind the panels. */
   background: Triplet;
+  /** Panels and cards (white when absent; a dark theme sets its own). */
+  card?: Triplet;
   /** Body text. */
   foreground: Triplet;
   /** Quiet text: captions, hints. */
@@ -52,6 +54,16 @@ export interface UiTheme {
   sidebar: SidebarStyle;
   /** The sidebar colour when it is dark (also used by the gallery preview). */
   sidebarColor?: Triplet;
+  /** 'retail' marks the DT Retail family (gradient sidebar, hero banner, motion). Absent = a plain Modern theme. */
+  family?: 'retail';
+  /** The whole page is dark (Night, Black & Gold), not just the sidebar. */
+  dark?: boolean;
+  /** Top and bottom of the retail sidebar gradient. */
+  sidebarGradient?: [Triplet, Triplet];
+  /** Start and end of the retail hero banner / highlighted KPI gradient. */
+  hero?: [Triplet, Triplet];
+  /** Four chips shown in the gallery: sidebar, accent, page, highlight. */
+  swatches?: [string, string, string, string];
 }
 
 /** Near-black used for text on a light accent (yellow). */
@@ -183,10 +195,87 @@ export const UI_THEMES: UiTheme[] = [
   },
 ];
 
+// ============================================================
+// DT RETAIL THEMES — the seven looks of the DT Retail design guide.
+//
+// A separate family from the thirteen above so nothing about them changes.
+// Each is a whole look: a dark gradient sidebar, a gradient hero banner on the
+// dashboard, the brand colour on the active item and the main buttons — and,
+// for Black & Gold and Night, a dark page. The colours were read from the
+// guide's own screenshots. src/styles/ui-tokens.css holds the same values per
+// data-ui-theme; src/test/dt-retail-look.test.ts fails if the two drift.
+// ============================================================
+const WHITE_PANEL: Triplet = '0 0% 100%';
+
+export const RETAIL_THEMES: UiTheme[] = [
+  {
+    id: 'dtr-royal', family: 'retail', name: 'Royal Purple',
+    tagline: 'Digital Target signature — deep purple luxury.',
+    accent: { h: 263, s: 70, l: 50 }, onAccent: 'light',
+    surface: { background: '257 37% 96%', card: WHITE_PANEL, foreground: '222 47% 11%', mutedForeground: '215 16% 40%', muted: '257 25% 94%', border: '215 27% 91%' },
+    sidebar: 'dark', sidebarColor: '265 83% 14%', sidebarGradient: ['265 79% 18%', '265 88% 10%'], hero: ['270 85% 21%', '259 82% 66%'],
+    swatches: ['#2a0a55', '#6d28d9', '#f4f2f9', '#f5b301'],
+  },
+  {
+    id: 'dtr-crimson', family: 'retail', name: 'Crimson Red & White',
+    tagline: 'Bold red with clean white cards.',
+    accent: { h: 0, s: 72, l: 51 }, onAccent: 'light',
+    surface: { background: '12 33% 97%', card: WHITE_PANEL, foreground: '222 47% 11%', mutedForeground: '215 16% 40%', muted: '12 22% 94%', border: '12 18% 89%' },
+    sidebar: 'dark', sidebarColor: '358 60% 8%', sidebarGradient: ['356 58% 10%', '357 64% 5%'], hero: ['0 64% 31%', '0 81% 62%'],
+    swatches: ['#2b0b0d', '#dc2626', '#faf6f5', '#ffffff'],
+  },
+  {
+    id: 'dtr-gold', family: 'retail', name: 'Black & Gold',
+    tagline: 'Dark luxury with gold accents.',
+    accent: { h: 43, s: 80, l: 46 }, onAccent: 'dark',
+    surface: { background: '30 9% 4%', card: '45 21% 7%', foreground: '44 59% 91%', mutedForeground: '43 14% 62%', muted: '43 21% 13%', border: '43 22% 16%' },
+    sidebar: 'dark', dark: true, sidebarColor: '40 20% 3%', sidebarGradient: ['0 0% 2%', '40 27% 4%'], hero: ['43 98% 19%', '46 77% 55%'],
+    swatches: ['#050505', '#d4a017', '#1a1810', '#f6efdc'],
+  },
+  {
+    id: 'dtr-emerald', family: 'retail', name: 'Emerald',
+    tagline: 'Fresh green — food & grocery.',
+    accent: { h: 161, s: 94, l: 30 }, onAccent: 'light',
+    surface: { background: '150 30% 96%', card: WHITE_PANEL, foreground: '222 47% 11%', mutedForeground: '215 16% 40%', muted: '150 20% 93%', border: '150 18% 88%' },
+    sidebar: 'dark', sidebarColor: '161 83% 9%', sidebarGradient: ['162 81% 12%', '160 80% 6%'], hero: ['164 86% 17%', '160 69% 43%'],
+    swatches: ['#063a2b', '#059669', '#f2f8f5', '#ffffff'],
+  },
+  {
+    id: 'dtr-sunset', family: 'retail', name: 'Sunset Orange',
+    tagline: 'Warm, energetic and friendly.',
+    accent: { h: 21, s: 90, l: 48 }, onAccent: 'light',
+    surface: { background: '30 44% 96%', card: WHITE_PANEL, foreground: '222 47% 11%', mutedForeground: '215 16% 40%', muted: '28 30% 93%', border: '28 26% 88%' },
+    sidebar: 'dark', sidebarColor: '17 70% 9%', sidebarGradient: ['18 67% 12%', '18 74% 6%'], hero: ['16 76% 29%', '26 94% 63%'],
+    swatches: ['#34160a', '#ea580c', '#faf6f2', '#facc15'],
+  },
+  {
+    id: 'dtr-ocean', family: 'retail', name: 'Ocean Blue',
+    tagline: 'Calm, corporate and clear.',
+    accent: { h: 200, s: 98, l: 39 }, onAccent: 'light',
+    surface: { background: '207 47% 96%', card: WHITE_PANEL, foreground: '222 47% 11%', mutedForeground: '215 16% 40%', muted: '207 30% 93%', border: '207 25% 88%' },
+    sidebar: 'dark', sidebarColor: '203 84% 12%', sidebarGradient: ['204 82% 16%', '203 87% 9%'], hero: ['202 81% 25%', '199 89% 61%'],
+    swatches: ['#07304a', '#0284c7', '#f1f6fa', '#ffffff'],
+  },
+  {
+    id: 'dtr-night', family: 'retail', name: 'Night',
+    tagline: 'Dark mode for dim shops.',
+    accent: { h: 258, s: 90, l: 66 }, onAccent: 'light',
+    surface: { background: '223 49% 8%', card: '221 41% 12%', foreground: '220 43% 93%', mutedForeground: '215 20% 65%', muted: '219 37% 19%', border: '220 34% 23%' },
+    sidebar: 'dark', dark: true, sidebarColor: '220 51% 8%', sidebarGradient: ['221 53% 6%', '222 48% 11%'], hero: ['273 84% 22%', '259 87% 67%'],
+    swatches: ['#070c17', '#8b5cf6', '#0b1120', '#e6ebf5'],
+  },
+];
+
+/** Every theme the picker can apply: the thirteen Modern ones, then the DT Retail seven. */
+export const ALL_THEMES: UiTheme[] = [...UI_THEMES, ...RETAIL_THEMES];
+
 export const DEFAULT_THEME_ID = 'ember';
 
 export function findTheme(id: string | null | undefined): UiTheme {
-  return UI_THEMES.find(t => t.id === id) || UI_THEMES[0];
+  return ALL_THEMES.find(t => t.id === id) || UI_THEMES[0];
 }
 
-export const isThemeId = (id: unknown): id is string => typeof id === 'string' && UI_THEMES.some(t => t.id === id);
+export const isThemeId = (id: unknown): id is string => typeof id === 'string' && ALL_THEMES.some(t => t.id === id);
+
+/** True for a DT Retail theme (the look with the gradient sidebar, hero banner and motion). */
+export const isRetailTheme = (id: unknown): boolean => typeof id === 'string' && RETAIL_THEMES.some(t => t.id === id);

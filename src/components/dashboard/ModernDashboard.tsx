@@ -13,7 +13,11 @@ import {
 import {
   Activity, Banknote, Bike, ChevronDown, CreditCard, ShoppingBag, Sparkles, TrendingUp, Users, Wallet,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { getSettings, getUsers } from '@/lib/store';
+import { useUiLook } from '@/lib/uiStyle';
 import PlanStatusWidget from '@/components/PlanStatusWidget';
 import { EmptyState, PageHeader, SectionCard, SegmentedControl, StatCard, StatusBadge } from '@/components/ui-kit';
 import { isPaidSale } from '@/lib/sales';
@@ -88,6 +92,35 @@ const Empty = ({ title = 'Nothing to show yet', description }: { title?: string;
   <EmptyState className="border-0 bg-transparent py-8" title={title} description={description} />
 );
 
+/** DT Retail look: "Good afternoon, <name>" with Refresh and New Sale. */
+function RetailHero({ onRefresh }: { onRefresh: () => void }) {
+  const navigate = useNavigate();
+  let name = '';
+  let shop = '';
+  try {
+    name = getUsers().find(u => u.id === (localStorage.getItem('pos-user-id') || ''))?.name || '';
+    shop = getSettings().name || '';
+  } catch { /* store not ready */ }
+  const h = new Date().getHours();
+  const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  return (
+    <div data-dtr="hero">
+      <div className="min-w-0 flex-1">
+        <h2>{greeting}{name ? `, ${name}` : ''}</h2>
+        <p>Here is how {shop || 'your restaurant'} is doing today.</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" data-tone="glass" onClick={() => { onRefresh(); toast.success('Figures refreshed'); }}>
+          <RefreshCw className="h-4 w-4" /> Refresh
+        </button>
+        <button type="button" data-tone="solid" onClick={() => navigate('/')}>
+          <ShoppingBag className="h-4 w-4" /> New Sale
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ModernDashboard({ d }: { d: DashboardData }) {
   const {
     range, setRange, days, scope, cashiers, cashierFilter, setCashierFilter, shiftStart, setShiftStart,
@@ -96,6 +129,7 @@ export default function ModernDashboard({ d }: { d: DashboardData }) {
     hrToday, incomeExpense, topCustomers, ridersStats, genderSplit,
   } = d;
   const [more, setMore] = useState(false);
+  const retail = useUiLook() === 'retail';
   const paidAll = orders.filter(isPaidSale);
   const fig = businessDayFigures(paidAll);
   const rangeLabel = range === '1' ? 'Today' : `Last ${days} days`;
@@ -108,6 +142,8 @@ export default function ModernDashboard({ d }: { d: DashboardData }) {
   return (
     <div className="mx-auto w-full max-w-[var(--ui-page-max)] space-y-5 p-4 lg:p-6" data-testid="modern-dashboard">
       <PlanStatusWidget />
+
+      {retail && <RetailHero onRefresh={d.refresh} />}
 
       <PageHeader
         description={<>{long} · Business day {fig.today.label}</>}
@@ -165,7 +201,7 @@ export default function ModernDashboard({ d }: { d: DashboardData }) {
       )}
 
       {/* 1 — the headline numbers for the chosen period */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div data-dtr-kpis className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatCard label="Sales" value={rs(totalSales)} hint={rangeLabel} icon={Banknote} />
         <StatCard label="Orders" value={orderCount} hint={rangeLabel} icon={ShoppingBag} tone="info" />
         <StatCard label="Average order" value={rs(avgOrder)} hint="Per paid bill" icon={TrendingUp} tone="success" />

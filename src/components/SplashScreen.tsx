@@ -3,7 +3,8 @@ import { Sparkles, MessageCircle, Mail, Facebook, Instagram } from 'lucide-react
 import { getSettings } from '@/lib/store';
 import { APP_NAME, APP_VERSION, getInstalledVersion } from '@/lib/version';
 import dtLogo from '@/assets/dt-mark.png';
-import { useUiStyle } from '@/lib/uiStyle';
+import { useUiLook, useUiStyle } from '@/lib/uiStyle';
+import DtMark from '@/components/DtMark';
 
 interface Props {
   onDone: () => void;
@@ -16,12 +17,31 @@ export default function SplashScreen({ onDone, duration = 2800 }: Props) {
   useEffect(() => { getInstalledVersion().then(setAppVer).catch(() => {}); }, []);
   const settings = getSettings();
   const modern = useUiStyle() === 'modern';
+  const retail = useUiLook() === 'retail';
 
   useEffect(() => {
     const t1 = setTimeout(() => setFade(true), duration - 400);
     const t2 = setTimeout(onDone, duration);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [duration, onDone]);
+
+  if (retail) {
+    // DT Retail welcome: a dark gradient with two drifting colour orbs, the mark's four
+    // triangles popping in one by one, the wordmark rising, then a light streak on a thin bar.
+    return (
+      <div className={`dtr-splash fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden transition-opacity duration-500 ${fade ? 'opacity-0' : 'opacity-100'}`}>
+        <span className="dtr-orb dtr-orb-a" aria-hidden />
+        <span className="dtr-orb dtr-orb-b" aria-hidden />
+        <div className="dtr-splash-card relative z-10 flex flex-col items-center text-center">
+          <DtMark size={96} animate className="text-white" />
+          <h1 className="dtr-wordmark">DT POS ENTERPRISE</h1>
+          <p className="dtr-tagline">{settings.name || 'Smart POS Solutions'}</p>
+          <div className="dtr-progress" aria-hidden><span /></div>
+        </div>
+        <div className="dtr-splash-foot relative z-10">Developed by Digital Target · v{appVer}</div>
+      </div>
+    );
+  }
 
   if (modern) {
     const logo = settings.appLogo || settings.logo;

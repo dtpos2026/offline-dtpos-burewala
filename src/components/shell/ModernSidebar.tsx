@@ -14,6 +14,7 @@ import { isPremiumThemeActive, PREMIUM_BRAND_NAME } from '@/lib/premiumTheme';
 import { cn } from '@/lib/utils';
 import { navIcon } from '@/components/shell/navIcons';
 import { navTitle } from '@/components/shell/navLabels';
+import { useUiLook } from '@/lib/uiStyle';
 import PoweredByBrand from '@/components/PoweredByBrand';
 import dtMark from '@/assets/dt-mark.png';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -78,6 +79,7 @@ export default function ModernSidebar({ userRole, onLogout, mobileOpen, setMobil
   const shopName = isPremiumThemeActive() ? PREMIUM_BRAND_NAME : (settings.name || 'DT POS');
   const logo = settings.appLogo || settings.logo;
   const moreCount = nav.more.length;
+  const retail = useUiLook() === 'retail';
 
   return (
     <aside
@@ -94,7 +96,7 @@ export default function ModernSidebar({ userRole, onLogout, mobileOpen, setMobil
         {logo ? (
           <img src={logo} alt="" className="h-9 w-9 shrink-0 rounded-[10px] object-contain" />
         ) : (
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-primary p-1.5">
+          <div data-dtr="brand-mark" className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-primary p-1.5">
             <img src={dtMark} alt="" className="h-full w-full object-contain" />
           </div>
         )}
@@ -159,7 +161,7 @@ export default function ModernSidebar({ userRole, onLogout, mobileOpen, setMobil
         {nav.locked.map(item => (
           <NavItem key={item.key} item={item} active={location.pathname === item.path} collapsed={collapsed} onGo={go} />
         ))}
-        <div className={cn('flex items-center gap-2.5 rounded-[10px] p-1.5', collapsed && 'flex-col')}>
+        <div data-dtr="user-row" className={cn('flex items-center gap-2.5 rounded-[10px] p-1.5', collapsed && 'flex-col')}>
           <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/10 text-[12px] font-extrabold uppercase text-primary">
             {(user?.name || userRole || '?').slice(0, 1)}
           </div>
@@ -179,7 +181,7 @@ export default function ModernSidebar({ userRole, onLogout, mobileOpen, setMobil
             <TooltipContent side="right">Log out</TooltipContent>
           </Tooltip>
         </div>
-        <PoweredByBrand variant="credit" collapsed={collapsed} />
+        <PoweredByBrand variant={retail ? 'retail' : 'credit'} collapsed={collapsed} />
       </div>
     </aside>
   );

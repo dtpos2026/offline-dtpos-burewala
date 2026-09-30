@@ -1,6 +1,7 @@
 import { MessageCircle, Mail, Facebook, Instagram } from 'lucide-react';
 import logo from '@/assets/dt-mark.png';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { APP_VERSION } from '@/lib/version';
 
 const BRAND_BG = '#3c096c';
 
@@ -25,10 +26,26 @@ function openExternal(href: string) {
  * logo lead, and this is one quiet line at the bottom. The contact links are
  * the same ones as the full panel, one click away.
  */
-function PoweredByCredit({ collapsed }: { collapsed: boolean }) {
+function PoweredByCredit({ collapsed, retail = false }: { collapsed: boolean; retail?: boolean }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
+        {retail ? (
+          // DT Retail look: the lockup card — mark, wordmark, "Powered by" and the version.
+          <button type="button" data-dtr="powered" title="Software by Digital Target" aria-label="Powered by Digital Target" className={collapsed ? 'justify-center' : ''}>
+            <img src={logo} alt="" className="h-7 w-7 shrink-0 object-contain" />
+            {!collapsed && (
+              <>
+                <span className="text-[9px] font-black uppercase leading-[1.05] tracking-[0.12em]">Digital<br />Target</span>
+                <span className="ml-auto min-w-0 text-right">
+                  <small>Powered by</small>
+                  <span className="block truncate text-[12px] font-bold leading-tight">Digital Target</span>
+                  <small style={{ letterSpacing: 0 }}>v{APP_VERSION}</small>
+                </span>
+              </>
+            )}
+          </button>
+        ) : (
         <button
           type="button"
           title="Software by Digital Target"
@@ -42,6 +59,7 @@ function PoweredByCredit({ collapsed }: { collapsed: boolean }) {
             </span>
           )}
         </button>
+        )}
       </PopoverTrigger>
       <PopoverContent side="right" align="end" className="w-64 p-2">
         <div className="px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Digital Target — support</div>
@@ -64,8 +82,9 @@ function PoweredByCredit({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-export default function PoweredByBrand({ collapsed = false, variant = 'panel' }: { collapsed?: boolean; variant?: 'panel' | 'credit' }) {
+export default function PoweredByBrand({ collapsed = false, variant = 'panel' }: { collapsed?: boolean; variant?: 'panel' | 'credit' | 'retail' }) {
   if (variant === 'credit') return <PoweredByCredit collapsed={collapsed} />;
+  if (variant === 'retail') return <PoweredByCredit collapsed={collapsed} retail />;
   return (
     <div
       className="rounded-lg p-2 text-white shadow-md"

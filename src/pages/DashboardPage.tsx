@@ -25,6 +25,9 @@ export type Range = '1' | '7' | '30';
 function useDashboardData() {
   const [range, setRange] = useState<Range>('7');
   const days = parseInt(range, 10);
+  // "Refresh" on the DT Retail greeting banner: read the stored figures again.
+  const [tick, setTick] = useState(0);
+  const refresh = () => setTick(t => t + 1);
 
   const scope = useMemo(() => getCurrentScope(), []);
   const cashiers = useMemo(() => scope.restrict ? [] : listCashierUsers(), [scope.restrict]);
@@ -32,19 +35,19 @@ function useDashboardData() {
   const [cashierFilter, setCashierFilter] = useState<string>(scope.restrict ? scope.userId : 'all');
   const [shiftStart, setShiftStart] = useState<string>(() => getShiftStart());
 
-  const allOrdersRaw = useMemo(() => getOrders(), []);
+  const allOrdersRaw = useMemo(() => getOrders(), [tick]);
   const orders = useMemo(() => {
     if (cashierFilter === 'all') return allOrdersRaw;
     return allOrdersRaw.filter(o => orderBelongsTo(o, cashierFilter));
   }, [allOrdersRaw, cashierFilter]);
 
-  const inventory = useMemo(() => getInventory(), []);
-  const employees = useMemo(() => getEmployees(), []);
-  const attendance = useMemo(() => getAttendance(), []);
-  const transactions = useMemo(() => getTransactions(), []);
-  const customers = useMemo(() => getCustomers(), []);
-  const riders = useMemo(() => getRiders(), []);
-  const creditPayments = useMemo(() => getCreditPayments(), []);
+  const inventory = useMemo(() => getInventory(), [tick]);
+  const employees = useMemo(() => getEmployees(), [tick]);
+  const attendance = useMemo(() => getAttendance(), [tick]);
+  const transactions = useMemo(() => getTransactions(), [tick]);
+  const customers = useMemo(() => getCustomers(), [tick]);
+  const riders = useMemo(() => getRiders(), [tick]);
+  const creditPayments = useMemo(() => getCreditPayments(), [tick]);
 
 
   // Online customer accounts (gender analytics)
@@ -249,7 +252,7 @@ function useDashboardData() {
     range, setRange, days, scope, cashiers, cashierFilter, setCashierFilter, shiftStart, setShiftStart,
     orders, paidOrders, totalSales, orderCount, avgOrder, profit, cashIn, outstandingCredit, creditOrdersAll,
     kpis, dailyTrend, typeBreakdown, topItems, kitchenBreakdown, hourlySales, paymentSplit, lowStock,
-    hrToday, incomeExpense, topCustomers, ridersStats, genderSplit, PIE_COLORS,
+    hrToday, incomeExpense, topCustomers, ridersStats, genderSplit, PIE_COLORS, refresh,
   };
 }
 export type DashboardData = ReturnType<typeof useDashboardData>;

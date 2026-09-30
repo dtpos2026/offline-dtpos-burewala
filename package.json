@@ -25,6 +25,7 @@
     "package:release": "node scripts/package-release.mjs"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/manrope": "^5.2.8",
     "@fontsource/sora": "^5.2.8",

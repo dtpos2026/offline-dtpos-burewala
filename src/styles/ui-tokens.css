@@ -503,3 +503,240 @@
   --border: var(--ui-sb-border);
   --primary-text: var(--ui-accent-h) 92% 74%;
 }
+
+/* ============================================================
+ * DT RETAIL THEMES (src/lib/uiThemes.ts → RETAIL_THEMES)
+ *
+ * The seven looks of the DT Retail design guide. Same contract as the themes
+ * above: only the surface colours live here; the accent is set from JS. They
+ * also carry the colours ui-retail.css paints with (sidebar gradient, hero
+ * banner). Two are dark pages (Black & Gold, Night). src/test/dt-retail-look.test.ts
+ * keeps these blocks and uiThemes.ts in step.
+ * ============================================================ */
+
+:root[data-ui="modern"][data-ui-theme="dtr-royal"] {
+  --background: 257 37% 96%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --secondary: 257 25% 94%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 257 25% 94%;
+  --muted-foreground: 215 16% 40%;
+  --accent: 257 25% 94%;
+  --accent-foreground: 222 47% 11%;
+  --border: 215 27% 91%;
+  --input: 215 22% 84%;
+  --pos-grid-bg: 257 37% 96%;
+  --pos-sidebar: 0 0% 100%;
+  --pos-cart: 0 0% 100%;
+  --pos-sidebar-foreground: 222 47% 11%;
+  --sidebar-foreground: 262 30% 84%;
+  --sidebar-border: 265 45% 24%;
+  --ui-sb-bg: 265 83% 14%;
+  --ui-sb-fg: 262 30% 84%;
+  --ui-sb-border: 265 45% 24%;
+  --ui-sb-hover: 265 50% 22%;
+  --ui-sb-muted-fg: 262 20% 68%;
+  --dtr-sb-top: 265 79% 18%;
+  --dtr-sb-bot: 265 88% 10%;
+  --dtr-hero-a: 270 85% 21%;
+  --dtr-hero-b: 259 82% 66%;
+  --dtr-highlight: 44 98% 50%;
+}
+:root[data-ui="modern"][data-ui-theme="dtr-crimson"] {
+  --background: 12 33% 97%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --secondary: 12 22% 94%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 12 22% 94%;
+  --muted-foreground: 215 16% 40%;
+  --accent: 12 22% 94%;
+  --accent-foreground: 222 47% 11%;
+  --border: 12 18% 89%;
+  --input: 12 14% 82%;
+  --pos-grid-bg: 12 33% 97%;
+  --pos-sidebar: 0 0% 100%;
+  --pos-cart: 0 0% 100%;
+  --pos-sidebar-foreground: 222 47% 11%;
+  --sidebar-foreground: 0 20% 84%;
+  --sidebar-border: 356 35% 20%;
+  --ui-sb-bg: 358 60% 8%;
+  --ui-sb-fg: 0 20% 84%;
+  --ui-sb-border: 356 35% 20%;
+  --ui-sb-hover: 356 40% 18%;
+  --ui-sb-muted-fg: 0 12% 68%;
+  --dtr-sb-top: 356 58% 10%;
+  --dtr-sb-bot: 357 64% 5%;
+  --dtr-hero-a: 0 64% 31%;
+  --dtr-hero-b: 0 81% 62%;
+  --dtr-highlight: 44 98% 50%;
+}
+:root[data-ui="modern"][data-ui-theme="dtr-gold"] {
+  --background: 30 9% 4%;
+  --foreground: 44 59% 91%;
+  --card: 45 21% 7%;
+  --card-foreground: 44 59% 91%;
+  --popover: 45 21% 7%;
+  --popover-foreground: 44 59% 91%;
+  --secondary: 43 21% 13%;
+  --secondary-foreground: 44 59% 91%;
+  --muted: 43 21% 13%;
+  --muted-foreground: 43 14% 62%;
+  --accent: 43 21% 13%;
+  --accent-foreground: 44 59% 91%;
+  --border: 43 22% 16%;
+  --input: 43 22% 20%;
+  --pos-grid-bg: 30 9% 4%;
+  --pos-sidebar: 45 21% 7%;
+  --pos-cart: 45 21% 7%;
+  --pos-sidebar-foreground: 44 59% 91%;
+  --sidebar-foreground: 43 25% 80%;
+  --sidebar-border: 43 18% 14%;
+  --ui-sb-bg: 40 20% 3%;
+  --ui-sb-fg: 43 25% 80%;
+  --ui-sb-border: 43 18% 14%;
+  --ui-sb-hover: 43 20% 13%;
+  --ui-sb-muted-fg: 43 12% 62%;
+  --dtr-sb-top: 0 0% 2%;
+  --dtr-sb-bot: 40 27% 4%;
+  --dtr-hero-a: 43 98% 19%;
+  --dtr-hero-b: 46 77% 55%;
+  --dtr-highlight: 44 98% 50%;
+  color-scheme: dark;
+}
+:root[data-ui="modern"][data-ui-theme="dtr-emerald"] {
+  --background: 150 30% 96%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --secondary: 150 20% 93%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 150 20% 93%;
+  --muted-foreground: 215 16% 40%;
+  --accent: 150 20% 93%;
+  --accent-foreground: 222 47% 11%;
+  --border: 150 18% 88%;
+  --input: 150 14% 80%;
+  --pos-grid-bg: 150 30% 96%;
+  --pos-sidebar: 0 0% 100%;
+  --pos-cart: 0 0% 100%;
+  --pos-sidebar-foreground: 222 47% 11%;
+  --sidebar-foreground: 158 25% 82%;
+  --sidebar-border: 162 45% 18%;
+  --ui-sb-bg: 161 83% 9%;
+  --ui-sb-fg: 158 25% 82%;
+  --ui-sb-border: 162 45% 18%;
+  --ui-sb-hover: 162 50% 16%;
+  --ui-sb-muted-fg: 158 15% 66%;
+  --dtr-sb-top: 162 81% 12%;
+  --dtr-sb-bot: 160 80% 6%;
+  --dtr-hero-a: 164 86% 17%;
+  --dtr-hero-b: 160 69% 43%;
+  --dtr-highlight: 44 98% 50%;
+}
+:root[data-ui="modern"][data-ui-theme="dtr-sunset"] {
+  --background: 30 44% 96%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --secondary: 28 30% 93%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 28 30% 93%;
+  --muted-foreground: 215 16% 40%;
+  --accent: 28 30% 93%;
+  --accent-foreground: 222 47% 11%;
+  --border: 28 26% 88%;
+  --input: 28 18% 80%;
+  --pos-grid-bg: 30 44% 96%;
+  --pos-sidebar: 0 0% 100%;
+  --pos-cart: 0 0% 100%;
+  --pos-sidebar-foreground: 222 47% 11%;
+  --sidebar-foreground: 24 30% 84%;
+  --sidebar-border: 18 40% 20%;
+  --ui-sb-bg: 17 70% 9%;
+  --ui-sb-fg: 24 30% 84%;
+  --ui-sb-border: 18 40% 20%;
+  --ui-sb-hover: 18 45% 18%;
+  --ui-sb-muted-fg: 24 16% 66%;
+  --dtr-sb-top: 18 67% 12%;
+  --dtr-sb-bot: 18 74% 6%;
+  --dtr-hero-a: 16 76% 29%;
+  --dtr-hero-b: 26 94% 63%;
+  --dtr-highlight: 48 96% 53%;
+}
+:root[data-ui="modern"][data-ui-theme="dtr-ocean"] {
+  --background: 207 47% 96%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --secondary: 207 30% 93%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 207 30% 93%;
+  --muted-foreground: 215 16% 40%;
+  --accent: 207 30% 93%;
+  --accent-foreground: 222 47% 11%;
+  --border: 207 25% 88%;
+  --input: 207 18% 80%;
+  --pos-grid-bg: 207 47% 96%;
+  --pos-sidebar: 0 0% 100%;
+  --pos-cart: 0 0% 100%;
+  --pos-sidebar-foreground: 222 47% 11%;
+  --sidebar-foreground: 200 30% 84%;
+  --sidebar-border: 203 50% 22%;
+  --ui-sb-bg: 203 84% 12%;
+  --ui-sb-fg: 200 30% 84%;
+  --ui-sb-border: 203 50% 22%;
+  --ui-sb-hover: 203 55% 20%;
+  --ui-sb-muted-fg: 200 18% 66%;
+  --dtr-sb-top: 204 82% 16%;
+  --dtr-sb-bot: 203 87% 9%;
+  --dtr-hero-a: 202 81% 25%;
+  --dtr-hero-b: 199 89% 61%;
+  --dtr-highlight: 44 98% 50%;
+}
+:root[data-ui="modern"][data-ui-theme="dtr-night"] {
+  --background: 223 49% 8%;
+  --foreground: 220 43% 93%;
+  --card: 221 41% 12%;
+  --card-foreground: 220 43% 93%;
+  --popover: 221 41% 12%;
+  --popover-foreground: 220 43% 93%;
+  --secondary: 219 37% 19%;
+  --secondary-foreground: 220 43% 93%;
+  --muted: 219 37% 19%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 219 37% 19%;
+  --accent-foreground: 220 43% 93%;
+  --border: 220 34% 23%;
+  --input: 220 30% 28%;
+  --pos-grid-bg: 223 49% 8%;
+  --pos-sidebar: 221 41% 12%;
+  --pos-cart: 221 41% 12%;
+  --pos-sidebar-foreground: 220 43% 93%;
+  --sidebar-foreground: 218 30% 82%;
+  --sidebar-border: 220 30% 16%;
+  --ui-sb-bg: 220 51% 8%;
+  --ui-sb-fg: 218 30% 82%;
+  --ui-sb-border: 220 30% 16%;
+  --ui-sb-hover: 220 32% 17%;
+  --ui-sb-muted-fg: 218 18% 62%;
+  --dtr-sb-top: 221 53% 6%;
+  --dtr-sb-bot: 222 48% 11%;
+  --dtr-hero-a: 273 84% 22%;
+  --dtr-hero-b: 259 87% 67%;
+  --dtr-highlight: 44 98% 50%;
+  color-scheme: dark;
+}

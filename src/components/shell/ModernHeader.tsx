@@ -4,7 +4,7 @@
 // clock, zoom), grouped and quieter. Nothing was removed.
 // ============================================================
 import type { ReactNode } from 'react';
-import { Menu, PanelLeftClose, PanelLeftOpen, Search, Type, ZoomIn, ZoomOut } from 'lucide-react';
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, Type, ZoomIn, ZoomOut } from 'lucide-react';
 import HeaderNotificationBar from '@/components/HeaderNotificationBar';
 import BillingStatusBar from '@/components/BillingStatusBar';
 import HeaderClock from '@/components/shell/HeaderClock';
@@ -22,12 +22,14 @@ interface Props {
   onResetZoom: () => void;
   /** Extra controls placed before the clock (the branch selector). */
   children?: ReactNode;
+  /** DT Retail look: the signed-in user's chip with the log-out button, at the far right. */
+  userChip?: { name: string; role: string; onLogout: () => void };
 }
 
 const iconButton = 'grid h-9 w-9 place-items-center rounded-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground';
 
 export default function ModernHeader({
-  title, collapsed, onToggleCollapse, onOpenMobileMenu, onOpenLauncher, zoom, onZoom, onResetZoom, children,
+  title, collapsed, onToggleCollapse, onOpenMobileMenu, onOpenLauncher, zoom, onZoom, onResetZoom, children, userChip,
 }: Props) {
   return (
     <header data-ui-shell="header" className="flex h-[var(--ui-header-h)] shrink-0 items-center gap-2 border-b bg-card px-4">
@@ -48,13 +50,14 @@ export default function ModernHeader({
       <button
         type="button"
         onClick={onOpenLauncher}
+        data-dtr="search-wide"
         className="ml-2 hidden h-9 w-[220px] items-center gap-2 rounded-[10px] border bg-background px-3 text-[13px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground md:flex xl:w-[280px]"
         aria-label="Search modules"
       >
         <Search className="h-4 w-4" />
         <span className="flex-1 text-left">Go to module…</span>
       </button>
-      <button type="button" className={`${iconButton} md:hidden`} onClick={onOpenLauncher} aria-label="Search modules">
+      <button type="button" data-dtr="search-icon" className={`${iconButton} md:hidden`} onClick={onOpenLauncher} aria-label="Search modules">
         <Search className="h-[18px] w-[18px]" />
       </button>
 
@@ -80,6 +83,19 @@ export default function ModernHeader({
             </div>
           </PopoverContent>
         </Popover>
+        {userChip && (
+          <div data-dtr="user-chip">
+            <span data-dtr="avatar" className="text-[13px]">{(userChip.name || userChip.role || '?').slice(0, 1).toUpperCase()}</span>
+            <span className="hidden min-w-0 leading-tight sm:block">
+              <span className="block max-w-[9rem] truncate text-[13px] font-bold">{userChip.name || userChip.role}</span>
+              <span className="block text-[11px] capitalize text-muted-foreground">{userChip.role}</span>
+            </span>
+            <button type="button" onClick={userChip.onLogout} aria-label="Log out" title="Log out"
+              className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive">
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );

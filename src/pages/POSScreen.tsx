@@ -43,6 +43,7 @@ import { isPrintPreviewEnabled } from '@/lib/printPreferences';
 import { usePosLayout } from '@/hooks/usePosLayout';
 import { saveScreenConfig, RESIZE_HANDLE } from '@/lib/posLayout';
 import { useUiStyle } from '@/lib/uiStyle';
+import { tileHue, tileInitials } from '@/lib/tileLook';
 
 const DEALS_CATEGORY_ID = 'cat-deals';
 
@@ -1762,7 +1763,12 @@ export default function POSScreen() {
                   <CachedImage src={item.image} alt={item.name} fallbackLabel={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
                 </div>
               ) : (
-                <div data-pos-card-image className="w-full bg-gradient-to-br from-primary/8 to-accent/30 flex items-center justify-center" style={{ height: Math.round(layout.cardImageHeight * 0.66) }}>
+                <div
+                  data-pos-card-image
+                  data-initials={tileInitials(item.name)}
+                  className="w-full bg-gradient-to-br from-primary/8 to-accent/30 flex items-center justify-center"
+                  style={{ height: Math.round(layout.cardImageHeight * 0.66), ['--tile-hue' as any]: tileHue(item.categoryId) }}
+                >
                   <span className="text-2xl opacity-40 group-hover:scale-110 transition-transform duration-200">
                     {categories.find(c => c.id === item.categoryId)?.icon || '🍽️'}
                   </span>

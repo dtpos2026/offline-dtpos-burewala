@@ -12,19 +12,24 @@
 //   dtpos-ui-style   'modern' | 'classic'        (absent → modern)
 //   dtpos-ui-theme   a theme id (uiThemes.ts)    (absent → ember, the orange default)
 //   dtpos-ui-accent  a preset id, or '#rrggbb'   (absent → the theme's own accent)
+//   dtpos-ui-anim    'on' | 'off'                (absent → on; DT Retail motion only)
+//   dtpos-ui-prev    JSON of the look in use before a DT Retail theme was picked,
+//                    so "Back to my previous look" can restore it
 //
 // Modern is a set of twelve themes (surface tint, accent, sidebar style). The
 // accent key is an optional override for shops that want their own colour on
 // top of a theme; choosing a theme clears it.
 // ============================================================
 import { useSyncExternalStore } from 'react';
-import { DEFAULT_THEME_ID, INK_ON_ACCENT, UI_THEMES, WHITE, findTheme, isThemeId, type UiTheme } from './uiThemes';
+import { ALL_THEMES, DEFAULT_THEME_ID, INK_ON_ACCENT, RETAIL_THEMES, UI_THEMES, WHITE, findTheme, isRetailTheme, isThemeId, type UiTheme } from './uiThemes';
 
 export type UiStyle = 'modern' | 'classic';
 
 export const UI_STYLE_KEY = 'dtpos-ui-style';
 export const UI_ACCENT_KEY = 'dtpos-ui-accent';
 export const UI_THEME_KEY = 'dtpos-ui-theme';
+export const UI_ANIM_KEY = 'dtpos-ui-anim';
+export const UI_PREV_KEY = 'dtpos-ui-prev';
 export const UI_STYLE_EVENT = 'dtpos-ui-style-changed';
 
 export interface AccentPreset {
@@ -166,7 +171,7 @@ const MODERN_VARS = [
   '--ui-text-h', '--ui-text-s', '--ui-text-l',
   '--ui-on-accent', '--ui-soft-s', '--ui-gold-on-dark',
 ];
-const MODERN_ATTRS = ['data-ui', 'data-ui-theme', 'data-sidebar', 'data-on-accent'];
+const MODERN_ATTRS = ['data-ui', 'data-ui-theme', 'data-sidebar', 'data-on-accent', 'data-look', 'data-ui-mode', 'data-anim'];
 
 const softSaturation = (c: Hsl) => Math.max(6, Math.min(85, Math.round(c.s * 0.9)));
 
@@ -212,6 +217,11 @@ export function applyUiStyle(style: UiStyle = getUiStyle()): void {
       root.setAttribute('data-ui-theme', look.theme.id);
       root.setAttribute('data-sidebar', look.theme.sidebar);
       root.setAttribute('data-on-accent', look.darkOnAccent ? 'dark' : 'light');
+      // DT Retail: one more attribute switches on its extra rules (ui-retail.css);
+      // a dark page and the animation preference ride along. All removed with the rest.
+      if (look.theme.family === 'retail') root.setAttribute('data-look', 'retail'); else root.removeAttribute('data-look');
+      if (look.theme.dark) root.setAttribute('data-ui-mode', 'dark'); else root.removeAttribute('data-ui-mode');
+      if (getAnimations()) root.removeAttribute('data-anim'); else root.setAttribute('data-anim', 'off');
       const set = (k: string, v: string) => root.style.setProperty(k, v);
       set('--ui-accent-h', String(look.accent.h));
       set('--ui-accent-s', `${look.accent.s}%`);
@@ -252,15 +262,72 @@ export function clearAccent(): void {
   announce();
 }
 
+/** What the screen looked like before a DT Retail theme was picked. */
+export interface PreviousLook { style: UiStyle; theme: string; accent: string | null }
+
+export function getPreviousLook(): PreviousLook | null {
+  try {
+    const raw = localStorage.getItem(UI_PREV_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as Partial<PreviousLook>;
+    if (!v || (v.style !== 'modern' && v.style !== 'classic') || !isThemeId(v.theme)) return null;
+    return { style: v.style, theme: v.theme, accent: typeof v.accent === 'string' ? v.accent : null };
+  } catch { return null; }
+}
+
 /** Picks a theme. A theme is a whole look, so any accent override is dropped with it. */
 export function setTheme(id: string): void {
   if (!isThemeId(id)) return;
   try {
+    // Moving onto a DT Retail theme from anything else: remember where we came from,
+    // so one click puts it all back. Moving between DT Retail themes keeps that memory.
+    const comingFrom = getThemeId();
+    if (isRetailTheme(id) && (!isRetailTheme(comingFrom) || getUiStyle() === 'classic') && !getPreviousLook()) {
+      const prev: PreviousLook = { style: getUiStyle(), theme: isRetailTheme(comingFrom) ? DEFAULT_THEME_ID : comingFrom, accent: getAccentOverride() };
+      localStorage.setItem(UI_PREV_KEY, JSON.stringify(prev));
+    } else if (!isRetailTheme(id)) {
+      localStorage.removeItem(UI_PREV_KEY);
+    }
     localStorage.setItem(UI_THEME_KEY, id);
     localStorage.removeItem(UI_ACCENT_KEY);
+    // A DT Retail theme is a Modern look.
+    if (isRetailTheme(id)) localStorage.setItem(UI_STYLE_KEY, 'modern');
   } catch { /* session only */ }
   applyUiStyle();
   announce();
+}
+
+/** Puts back the style, theme and accent that were in use before the DT Retail theme. */
+export function restorePreviousLook(): boolean {
+  const prev = getPreviousLook();
+  if (!prev) return false;
+  try {
+    localStorage.setItem(UI_STYLE_KEY, prev.style);
+    localStorage.setItem(UI_THEME_KEY, prev.theme);
+    if (prev.accent) localStorage.setItem(UI_ACCENT_KEY, prev.accent); else localStorage.removeItem(UI_ACCENT_KEY);
+    localStorage.removeItem(UI_PREV_KEY);
+  } catch { /* session only */ }
+  applyUiStyle();
+  announce();
+  return true;
+}
+
+/** Smooth animations (DT Retail): on unless switched off for a slow computer. */
+export function getAnimations(): boolean {
+  return read(UI_ANIM_KEY) !== 'off';
+}
+
+export function setAnimations(on: boolean): void {
+  try { localStorage.setItem(UI_ANIM_KEY, on ? 'on' : 'off'); } catch { /* session only */ }
+  applyUiStyle();
+  announce();
+}
+
+/** Which look is on screen: DT Retail, plain Modern, or Classic. */
+export type UiLook = 'retail' | 'modern' | 'classic';
+export function getUiLook(): UiLook {
+  if (getUiStyle() === 'classic') return 'classic';
+  return isRetailTheme(getThemeId()) ? 'retail' : 'modern';
 }
 
 // ------------------------------------------------------------ React
@@ -285,11 +352,25 @@ export function useThemeId(): string {
   return useSyncExternalStore(subscribe, getThemeId, () => DEFAULT_THEME_ID);
 }
 
+export function useUiLook(): UiLook {
+  return useSyncExternalStore(subscribe, getUiLook, () => 'modern' as UiLook);
+}
+
+export function useAnimations(): boolean {
+  return useSyncExternalStore(subscribe, getAnimations, () => true);
+}
+
+export function usePreviousLook(): PreviousLook | null {
+  // A stable string snapshot: the object itself would be new on every read.
+  const raw = useSyncExternalStore(subscribe, () => read(UI_PREV_KEY) || '', () => '');
+  return raw ? getPreviousLook() : null;
+}
+
 export function useAccentOverride(): string | null {
   return useSyncExternalStore(subscribe, getAccentOverride, () => null);
 }
 
-export { UI_THEMES };
+export { UI_THEMES, RETAIL_THEMES, ALL_THEMES };
 
 export function isModernUi(): boolean {
   return getUiStyle() === 'modern';

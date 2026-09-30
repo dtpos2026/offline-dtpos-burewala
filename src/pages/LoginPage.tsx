@@ -10,7 +10,8 @@ import dtLogo from '@/assets/dt-mark.png';
 import LoginMarketingPanel, { LoginVersionBadge } from '@/components/LoginMarketingPanel';
 import ContactDigitalTargetDialog from '@/components/ContactDigitalTargetDialog';
 import { APP_VERSION } from '@/lib/version';
-import { useUiStyle } from '@/lib/uiStyle';
+import { useUiLook, useUiStyle } from '@/lib/uiStyle';
+import LoginRetailBrand from '@/components/LoginRetailBrand';
 
 interface Props {
   onLogin: (userId: string, role: string) => void;
@@ -36,6 +37,7 @@ export default function LoginPage({ onLogin }: Props) {
   const [recoveryPassword, setRecoveryPassword] = useState('');
   const settings = getSettings();
   const modern = useUiStyle() === 'modern';
+  const retail = useUiLook() === 'retail';
 
   // Hidden maintenance shortcut for administrators (Ctrl+Alt+Shift+R).
   useEffect(() => {
@@ -126,22 +128,28 @@ export default function LoginPage({ onLogin }: Props) {
       <LoginVersionBadge />
 
       {/* Left brand panel — matches LicenseGate purple theme */}
-      <div className="relative hidden min-h-screen overflow-hidden bg-primary px-10 py-9 text-primary-foreground lg:flex lg:w-[42%] lg:flex-col lg:justify-between xl:px-14 xl:py-11">
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-primary-glow/80 to-transparent" />
-        <div className="pointer-events-none absolute -bottom-32 -right-28 h-80 w-80 rotate-12 rounded-[4rem] border border-primary-foreground/10 bg-primary-foreground/5" />
-        <LoginMarketingPanel />
+      <div className={`relative hidden min-h-screen overflow-hidden bg-primary px-10 py-9 text-primary-foreground lg:flex lg:w-[42%] lg:flex-col lg:justify-between xl:px-14 xl:py-11 ${retail ? 'dtr-login-brand' : ''}`}>
+        {retail ? (
+          <LoginRetailBrand shop={(settings.name || '').trim() || undefined} />
+        ) : (
+          <>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-primary-glow/80 to-transparent" />
+            <div className="pointer-events-none absolute -bottom-32 -right-28 h-80 w-80 rotate-12 rounded-[4rem] border border-primary-foreground/10 bg-primary-foreground/5" />
+            <LoginMarketingPanel />
+          </>
+        )}
       </div>
 
       {/* Right activation-style form */}
       <section className="flex min-h-screen flex-1 flex-col px-5 py-5 sm:px-8 lg:px-10 lg:py-8 xl:px-14">
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-card sm:p-8">
+          <div className={`rounded-2xl border border-border bg-card p-6 shadow-card sm:p-8 ${retail ? 'dtr-login-form' : ''}`}>
             <div className="flex flex-col items-center text-center">
-              <div className="h-16 w-16 rounded-xl bg-primary p-2 ring-1 ring-primary/20 shadow-elegant">
+              <div className={`h-16 w-16 rounded-xl bg-primary p-2 ring-1 ring-primary/20 shadow-elegant ${retail ? 'dtr-login-logo' : ''}`}>
                 <img src={brandLogo} alt="Logo" className="h-full w-full object-contain" />
               </div>
-              <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">{modern && settings.name ? settings.name : 'Welcome Back'}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">{modern && settings.name ? 'Sign in to continue' : 'Sign in to your restaurant account'}</p>
+              <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">{retail ? 'Welcome back' : modern && settings.name ? settings.name : 'Welcome Back'}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{retail ? `Sign in${settings.name ? ` to ${settings.name}` : ''} to continue` : modern && settings.name ? 'Sign in to continue' : 'Sign in to your restaurant account'}</p>
               <div className="mt-3 h-[1px] w-20 bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
             </div>
 
