@@ -137,8 +137,27 @@ export default function BillEditorPage() {
 
   function recalcTotals(o: Order) {
     o.subtotal = o.items.reduce((s, i) => s + i.lineTotal, 0);
+    // A percentage service charge follows the bill when items or the discount change;
+    // a flat one (or one typed in by hand as an amount) stays exactly as set.
+    if (o.serviceChargeType !== 'pkr' && (o.serviceChargePercent || 0) > 0) {
+      o.serviceCharge = Math.round(Math.max(0, o.subtotal - (o.discount || 0)) * (o.serviceChargePercent || 0) / 100);
+    }
     o.grandTotal = Math.max(0, o.subtotal - (o.discount || 0)) + (o.tax || 0) + (o.serviceCharge || 0);
   }
+
+  const setServiceCharge = (raw: string) => {
+    if (!draft) return;
+    const v = Math.max(0, Number(raw) || 0);
+    const next: Order = {
+      ...draft,
+      serviceCharge: v,
+      serviceChargePercent: 0,
+      serviceChargeType: v > 0 ? 'pkr' : undefined,
+      serviceChargeManual: v > 0 ? true : undefined,
+    };
+    recalcTotals(next);
+    setDraft(next); setDirty(true);
+  };
 
   const setDiscount = (raw: string) => {
     if (!draft) return;
@@ -413,6 +432,33 @@ export default function BillEditorPage() {
                         </td>
                         <td></td>
                       </tr>
+                      {(
+                        <tr>
+                          <td colSpan={3} className="p-1.5 text-right text-muted-foreground">
+                            Service charge{(draft.serviceChargeType !== 'pkr' && (draft.serviceChargePercent || 0) > 0) ? ` (${draft.serviceChargePercent}%)` : ''}
+                          </td>
+                          <td className="p-1 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="text-xs text-muted-foreground">Rs.</span>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={draft.serviceCharge || 0}
+                                onChange={e => setServiceCharge(e.target.value)}
+                                className="h-7 w-24 text-right text-xs"
+                                aria-label="Service charge"
+                              />
+                              {(draft.serviceCharge || 0) > 0 && (
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-red-600"
+                                  onClick={() => setServiceCharge('0')} title="Remove service charge">
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                          <td></td>
+                        </tr>
+                      )}
                       <tr>
                         <td colSpan={3} className="p-1.5 text-right font-extrabold">Grand Total</td>
                         <td className="p-1.5 text-right font-extrabold text-primary">Rs.{draft.grandTotal.toLocaleString()}</td>

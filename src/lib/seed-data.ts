@@ -29,6 +29,11 @@ export function seedData(): AppData {
       receiptFooter: 'Thank you for dining with us!\nVisit again soon!',
       taxAmount: 0,
       serviceChargePercent: 0,
+      // A new shop's service charge starts on Dine-In only; Takeaway and Delivery are switched on in Settings.
+      serviceChargeMode: 'percent',
+      serviceChargeAmount: 0,
+      serviceChargeOrderTypes: { dining: true, takeaway: false, delivery: false },
+      serviceChargeEditable: true,
       qrMode: 'auto',
       customQrImage: '',
       bankName: '',

@@ -287,6 +287,10 @@ export interface Order {
   deliveryChargeAmount?: number;   // is order pe laga delivery charge
   roundingAdjust?: number;         // cash rounding adjustment (+/-)
   serviceChargePercent: number;
+  /** 'percent' or a flat 'pkr' charge (see lib/serviceCharge.ts). Missing on older orders = percent. */
+  serviceChargeType?: 'percent' | 'pkr';
+  /** True when the charge was typed in by hand on this bill instead of coming from Settings. */
+  serviceChargeManual?: boolean;
   grandTotal: number;
   paymentMethod?: PaymentMethod;
   paymentAccountId?: string;    // which payment account received the money (online/card)
@@ -542,6 +546,14 @@ export interface RestaurantSettings {
   kotShowDeveloperCredit?: boolean;
   taxAmount: number;
   serviceChargePercent: number;
+  /** Service charge: 'percent' (default) or a flat 'pkr' amount per bill. */
+  serviceChargeMode?: 'percent' | 'pkr';
+  /** The flat amount, when serviceChargeMode is 'pkr'. */
+  serviceChargeAmount?: number;
+  /** Which order types get the service charge automatically. A missing key = ON (older shops charged every type). */
+  serviceChargeOrderTypes?: { dining?: boolean; takeaway?: boolean; delivery?: boolean };
+  /** Allow adding / editing the service charge by hand on a bill (default on; cashiers follow the discount approval rule). */
+  serviceChargeEditable?: boolean;
   qrMode: 'auto' | 'custom';
   customQrImage: string;
   customQrWidth?: number; // px, default 80

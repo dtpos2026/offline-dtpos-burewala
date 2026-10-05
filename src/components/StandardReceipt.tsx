@@ -12,6 +12,8 @@
 //   receiptShowPoweredBy, receiptCompactMode
 // ============================================================
 import type { CSSProperties } from 'react';
+import { serviceChargeLabel } from '@/lib/serviceCharge';
+import { discountLineTitle } from '@/lib/billLabels';
 import type { Order, RestaurantSettings } from '@/lib/types';
 import { applyReceiptTemplate } from '@/lib/receiptTemplates';
 import { ReceiptCodesSlot } from '@/components/ReceiptCodes';
@@ -166,7 +168,7 @@ export default function StandardReceipt({ order, settings: rawSettings }: Props)
         </div>
         {showDiscount && (
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Discount{order.discountTitle ? ` (${order.discountTitle})` : ''}</span>
+            <span>{discountLineTitle(order)}</span>
             <span>- Rs. {fmt(order.discount)}</span>
           </div>
         )}
@@ -177,7 +179,7 @@ export default function StandardReceipt({ order, settings: rawSettings }: Props)
         )}
         {showTax && (order.serviceCharge || 0) > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Service Charge{order.serviceChargePercent ? ` (${order.serviceChargePercent}%)` : ''}</span>
+            <span>{serviceChargeLabel(order)}</span>
             <span>Rs. {fmt(order.serviceCharge)}</span>
           </div>
         )}

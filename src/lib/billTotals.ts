@@ -24,6 +24,11 @@
 //   6. Rounding, last, so the figure on the slip is the figure in the till.
 // ============================================================
 
+import {
+  resolveServiceCharge, serviceChargeAmount,
+  type ServiceChargeMode, type ServiceChargeOverride, type ServiceChargeSettings,
+} from '@/lib/serviceCharge';
+
 export type TaxMode = 'exclusive' | 'inclusive';
 export type DiscountMode = 'pkr' | 'percent';
 export type RoundingMode = 'none' | '0.05' | '0.10' | '1';
@@ -34,7 +39,7 @@ export interface BillLine {
   lineTotal: number;
 }
 
-export interface BillSettings {
+export interface BillSettings extends ServiceChargeSettings {
   /** Automatic event discount. */
   eventDiscountEnabled?: boolean;
   eventDiscountType?: DiscountMode;
@@ -43,7 +48,6 @@ export interface BillSettings {
   /** Categories and items a discount may never touch. */
   discountExcludedCategoryIds?: string[];
   discountExcludedItemIds?: string[];
-  serviceChargePercent?: number;
   taxPercent?: number;
   taxMode?: TaxMode;
   /** Legacy flat tax, used only when there is no percentage. */
@@ -66,6 +70,8 @@ export interface BillInput {
   /** A promo code's discount, applied on top of the others. */
   promoDiscount?: number;
   orderType?: string;
+  /** A service charge typed in by hand on this bill; replaces the automatic one, even when it is 0. */
+  serviceChargeOverride?: ServiceChargeOverride | null;
 }
 
 export interface BillTotals {
@@ -79,6 +85,12 @@ export interface BillTotals {
   /** Subtotal less every discount. */
   netSubtotal: number;
   serviceCharge: number;
+  /** How the service charge was worked out, for the bill's label and for saving on the order. */
+  serviceChargeMode: ServiceChargeMode;
+  /** The percentage (mode 'percent') or the PKR amount (mode 'pkr') behind serviceCharge. */
+  serviceChargeRate: number;
+  /** True when the charge came from a hand-typed override. */
+  serviceChargeManual: boolean;
   /** What tax is charged on. */
   taxableBase: number;
   taxAmount: number;
@@ -140,9 +152,12 @@ export function computeBillTotals(input: BillInput): BillTotals {
   // EXCLUSIVE: item 100 -> SC 10% = 10 -> base 110 -> GST 9% = 9.90 -> 119.90
   // INCLUSIVE: the tax is already inside the total and is only shown
   //            separately: base = total / 1.09, gst = total x 0.09 / 1.09
-  const scPercent = s.serviceChargePercent || 0;
+  // The charge is configured per order type (Dine-In / Takeaway / Delivery), as a
+  // percentage or a flat amount, and can be typed over on one bill. Percentages are
+  // worked out exactly as before: whole rupees, on what is left after discount.
   const netSubtotal = subtotal - totalDiscount;
-  const serviceCharge = Math.round(netSubtotal * scPercent / 100);
+  const scRule = resolveServiceCharge(s, input.orderType, input.serviceChargeOverride);
+  const serviceCharge = serviceChargeAmount(scRule, scRule.mode === 'pkr' ? subtotal : netSubtotal);
   const taxPct = Number(s.taxPercent) || 0;
   const taxMode: TaxMode = (s.taxMode as TaxMode) || 'exclusive';
   const taxableBase = netSubtotal + serviceCharge;
@@ -185,6 +200,9 @@ export function computeBillTotals(input: BillInput): BillTotals {
     totalDiscount,
     netSubtotal,
     serviceCharge,
+    serviceChargeMode: scRule.mode,
+    serviceChargeRate: scRule.value,
+    serviceChargeManual: scRule.manual,
     taxableBase,
     taxAmount,
     deliveryCharge,

@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import {
-  getTables, getOrders, saveTable, saveOrder, getFloors, refreshOrdersFromCloud, onDataChange,
+  getTables, getOrders, saveTable, saveOrder, getFloors, refreshOrdersFromCloud, onDataChange, getSettings,
 } from '@/lib/store';
+import ReceiptPreview from '@/components/ReceiptPreview';
 import { DiningTable, Order, TableStatus, CartItem, TableSession } from '@/lib/types';
-import { Users, Utensils, Clock, ArrowRightLeft, Combine, Split, Grid3x3, Map as MapIcon, History, QrCode, Plus, Minus } from 'lucide-react';
+import { Users, Utensils, Clock, ArrowRightLeft, Combine, Split, Grid3x3, Map as MapIcon, History, QrCode, Plus, Minus, Receipt as ReceiptIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -64,6 +65,8 @@ export default function TablesPage() {
   const [activeFloor, setActiveFloor] = useState<string>('all');
   const [selectedTable, setSelectedTable] = useState<DiningTable | null>(null);
   const [billAction, setBillAction] = useState<BillAction>(null);
+  // The bill of the selected table, shown as a customer receipt that can be printed.
+  const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
   const [splitPicks, setSplitPicks] = useState<Record<string, boolean>>({});
   // Client #4: split by equal / by items / by amounts
   const [splitMode, setSplitMode] = useState<'items' | 'equal' | 'amount'>('items');
@@ -285,7 +288,10 @@ export default function TablesPage() {
   // ============================================================
   const recomputeTotals = (o: Order): Order => {
     const subtotal = o.items.reduce((s, i) => s + i.lineTotal, 0);
-    const serviceCharge = Math.round(((o.serviceChargePercent || 0) / 100) * subtotal);
+    // A flat charge stays as it was; a percentage follows the bill, after the discount (as the POS works it out).
+    const serviceCharge = o.serviceChargeType === 'pkr'
+      ? (o.serviceCharge || 0)
+      : Math.round(((o.serviceChargePercent || 0) / 100) * Math.max(0, subtotal - (o.discount || 0)));
     const grandTotal = Math.max(0, subtotal - (o.discount || 0) + (o.tax || 0) + serviceCharge);
     return { ...o, subtotal, serviceCharge, grandTotal };
   };
@@ -644,6 +650,11 @@ export default function TablesPage() {
                     >
                       ✏️ Edit / Add Items
                     </Button>
+                    {order && (
+                      <Button variant="outline" className="w-full font-bold" onClick={() => setReceiptOrder(order)}>
+                        <ReceiptIcon className="h-4 w-4 mr-1.5" /> Print Receipt (this bill)
+                      </Button>
+                    )}
                     <div className="grid grid-cols-3 gap-2 pt-2 border-t">
                       <Button size="sm" variant="outline" onClick={() => setBillAction('transfer')} title="Move bill to another free table">
                         <ArrowRightLeft className="h-3.5 w-3.5 mr-1" /> Transfer
@@ -773,6 +784,13 @@ export default function TablesPage() {
       </Dialog>
 
       {/* Transfer dialog */}
+      <Dialog open={!!receiptOrder} onOpenChange={(o) => !o && setReceiptOrder(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Receipt — Order #{receiptOrder?.orderNumber}</DialogTitle></DialogHeader>
+          {receiptOrder && <ReceiptPreview order={receiptOrder} settings={getSettings()} />}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={billAction === 'transfer'} onOpenChange={(o) => !o && setBillAction(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Transfer Bill from {selectedTable?.name}</DialogTitle></DialogHeader>

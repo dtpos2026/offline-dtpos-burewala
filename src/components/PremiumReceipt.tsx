@@ -12,6 +12,8 @@
 // that a thermal head renders grey mush rather than text.
 // ============================================================
 import React, { useMemo } from 'react';
+import { serviceChargeLabel } from '@/lib/serviceCharge';
+import { discountLineTitle } from '@/lib/billLabels';
 import { ReceiptCodesSlot } from '@/components/ReceiptCodes';
 import DtRetailReceipt from '@/components/DtRetailReceipt';
 import { FONT_STACKS, ITEM_TABLE_CSS } from '@/components/premiumShared';
@@ -524,9 +526,9 @@ export default function PremiumReceipt({ order, settings, templateId, customizat
   // ---- totals ------------------------------------------------------------
   const totalRows: Array<[string, string]> = [];
   if (c.showSubtotal) totalRows.push(['Subtotal', money(order.subtotal)]);
-  if (c.showDiscount && order.discount) totalRows.push([order.discountTitle || 'Discount', `- ${money(order.discount)}`]);
+  if (c.showDiscount && order.discount) totalRows.push([discountLineTitle(order), `- ${money(order.discount)}`]);
   if (c.showTax && order.tax) totalRows.push(['Tax', money(order.tax)]);
-  if (c.showServiceCharge && order.serviceCharge) totalRows.push(['Service Charge', money(order.serviceCharge)]);
+  if (c.showServiceCharge && order.serviceCharge) totalRows.push([serviceChargeLabel(order), money(order.serviceCharge)]);
   if (order.deliveryChargeAmount) totalRows.push(['Delivery', money(order.deliveryChargeAmount)]);
   if (order.roundingAdjust) totalRows.push(['Rounding', money(order.roundingAdjust)]);
 

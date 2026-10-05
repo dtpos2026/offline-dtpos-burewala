@@ -5,6 +5,8 @@
 // starts immediately, then cuts. One builder for every slip type.
 // ============================================================
 import type { Order, RestaurantSettings } from '@/lib/types';
+import { serviceChargeLabel } from '@/lib/serviceCharge';
+import { discountLineTitle } from '@/lib/billLabels';
 import { resolveReceiptLayout, type ReceiptLayout } from './receiptLayout';
 import { columnsOf } from './paperProfile';
 import { DEVELOPER_CREDIT } from '@/lib/displayTemplates';
@@ -448,9 +450,9 @@ export function buildReceiptBytes(order: Order, settings: RestaurantSettings, ge
   d.rule();
 
   d.lr('Subtotal', money(order.subtotal || 0, sym));
-  if (order.discount) d.lr(order.discountTitle || 'Discount', '-' + money(order.discount, sym));
+  if (order.discount) d.lr(discountLineTitle(order), '-' + money(order.discount, sym));
   if (order.tax) d.lr('Tax', money(order.tax, sym));
-  if (order.serviceCharge) d.lr('Service Charge', money(order.serviceCharge, sym));
+  if (order.serviceCharge) d.lr(serviceChargeLabel(order), money(order.serviceCharge, sym));
   if ((order as any).deliveryChargeAmount) d.lr('Delivery', money((order as any).deliveryChargeAmount, sym));
   if ((order as any).roundingAdjust) d.lr('Rounding', money((order as any).roundingAdjust, sym));
   d.rule('=');

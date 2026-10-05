@@ -14,6 +14,8 @@ import { beginThermalPrintDomSession, getEffectiveReceiptMargins, getThermalPape
 import { StandardInfoGrid, StandardInfoRows, getOrderTypeLabel } from '@/lib/standardOrderInfo';
 import PremiumReceipt from '@/components/PremiumReceipt';
 import { isPremiumTemplateId } from '@/lib/premiumReceiptTemplates';
+import { serviceChargeLabel } from '@/lib/serviceCharge';
+import { discountLabel, discountLineTitle } from '@/lib/billLabels';
 import StandardReceipt from '@/components/StandardReceipt';
 import { spacingNodeProps } from '@/lib/textSpacing';
 import { ReceiptCodesProvider, ReceiptCodesSlot, useReceiptCodes } from '@/components/ReceiptCodes';
@@ -796,9 +798,9 @@ function ModernReceipt({ order, settings }: { order: Order; settings: Restaurant
       </table>
       <div style={{ borderTop: '2px solid #000', marginTop: '4px', paddingTop: '4px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600 }}><span>Subtotal ({totalQty} items)</span><span>{order.subtotal.toFixed(2)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600 }}><span>Discount</span><span>-{order.discount.toFixed(2)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600 }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600 }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
-        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600 }}><span>Service ({order.serviceChargePercent}%)</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600 }}><span>{serviceChargeLabel(order, 'Service')}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
         {!!(order as any).deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600 }}><span>Delivery</span><span>{(order as any).deliveryChargeAmount.toFixed(2)}</span></div>}
         {!!(order as any).roundingAdjust && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600 }}><span>Rounding</span><span>{(order as any).roundingAdjust.toFixed(2)}</span></div>}
       </div>
@@ -900,9 +902,9 @@ function LuxuryReceipt({ order, settings }: { order: Order; settings: Restaurant
 
       <div style={{ borderTop: '2px solid #000', marginTop: '4px', paddingTop: '4px', fontSize: '11px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}><span>Subtotal ({totalQty} items)</span><span>{order.subtotal.toFixed(2)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}><span>Discount</span><span>-{order.discount.toFixed(2)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
-        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}><span>Service ({order.serviceChargePercent}%)</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}><span>{serviceChargeLabel(order, 'Service')}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
         {!!(order as any).deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}><span>Delivery</span><span>{(order as any).deliveryChargeAmount.toFixed(2)}</span></div>}
         {!!(order as any).roundingAdjust && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}><span>Rounding</span><span>{(order as any).roundingAdjust.toFixed(2)}</span></div>}
       </div>
@@ -936,9 +938,9 @@ function TotalsTable({ order, totalQty, rs, bordered }: { order: Order; totalQty
     <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '0', ...getStyleCSS(rs.totals, { size: 12, align: 'right', bold: true }) }}>
       <tbody>
         <tr><td style={{ ...cs, fontWeight: 700 }}>Items: {totalQty}</td><td style={{ ...cs, textAlign: 'right', fontWeight: 800 }}>Sub Total</td><td style={{ ...cs, textAlign: 'right', fontWeight: 800, width: '80px' }}>{order.subtotal.toFixed(2)}</td></tr>
-        {order.discount > 0 && <tr><td colSpan={2} style={{ ...cs, textAlign: 'right', fontWeight: 700 }}>Discount</td><td style={{ ...cs, textAlign: 'right', fontWeight: 700 }}>-{order.discount.toFixed(2)}</td></tr>}
+        {order.discount > 0 && <tr><td colSpan={2} style={{ ...cs, textAlign: 'right', fontWeight: 700 }}>{discountLabel(order)}</td><td style={{ ...cs, textAlign: 'right', fontWeight: 700 }}>-{order.discount.toFixed(2)}</td></tr>}
         {order.tax > 0 && <tr><td colSpan={2} style={{ ...cs, textAlign: 'right', fontWeight: 700 }}>Tax</td><td style={{ ...cs, textAlign: 'right', fontWeight: 700 }}>{order.tax.toFixed(2)}</td></tr>}
-        {order.serviceCharge > 0 && <tr><td colSpan={2} style={{ ...cs, textAlign: 'right', fontWeight: 700 }}>Service ({order.serviceChargePercent}%)</td><td style={{ ...cs, textAlign: 'right', fontWeight: 700 }}>{order.serviceCharge.toFixed(2)}</td></tr>}
+        {order.serviceCharge > 0 && <tr><td colSpan={2} style={{ ...cs, textAlign: 'right', fontWeight: 700 }}>{serviceChargeLabel(order, 'Service')}</td><td style={{ ...cs, textAlign: 'right', fontWeight: 700 }}>{order.serviceCharge.toFixed(2)}</td></tr>}
         {!!(order as any).deliveryChargeAmount && <tr><td colSpan={2} style={{ ...cs, textAlign: 'right', fontWeight: 700 }}>Delivery</td><td style={{ ...cs, textAlign: 'right', fontWeight: 700 }}>{(order as any).deliveryChargeAmount.toFixed(2)}</td></tr>}
         {!!(order as any).roundingAdjust && <tr><td colSpan={2} style={{ ...cs, textAlign: 'right', fontWeight: 700 }}>Rounding</td><td style={{ ...cs, textAlign: 'right', fontWeight: 700 }}>{(order as any).roundingAdjust.toFixed(2)}</td></tr>}
         <tr><td colSpan={2} style={{ border: '2px solid black', padding: '4px 5px', textAlign: 'right', ...getStyleCSS(rs.totals, { size: 14, bold: true }) }}>Grand Total</td><td style={{ border: '2px solid black', padding: '4px 5px', textAlign: 'right', ...getStyleCSS(rs.totals, { size: 14, bold: true }) }}>{order.grandTotal.toFixed(2)}</td></tr>
@@ -990,9 +992,9 @@ function ExecutiveReceipt({ order, settings }: { order: Order; settings: Restaur
       </table>
       <div style={{ borderTop: '2px solid #000', marginTop: '6px', padding: '4px 0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 600, padding: '1px 0' }}><span>Subtotal ({totalQty} items)</span><span>{order.subtotal.toFixed(2)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 600 }}><span>Discount</span><span>-{order.discount.toFixed(2)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 600 }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 600 }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
-        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 600 }}><span>Service ({order.serviceChargePercent}%)</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 600 }}><span>{serviceChargeLabel(order, 'Service')}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
       </div>
       <div className="dt-reverse" style={{ background: '#000', color: '#fff', padding: '6px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
         <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px' }}>GRAND TOTAL</span>
@@ -1049,9 +1051,9 @@ function RoyalReceipt({ order, settings }: { order: Order; settings: RestaurantS
       </div>
       <div style={{ borderTop: '1px solid #000', marginTop: '6px', padding: '4px 0', fontSize: '11px', fontFamily: 'Georgia, serif' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}><span>Subtotal ({totalQty})</span><span>{order.subtotal.toFixed(2)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Discount</span><span>-{order.discount.toFixed(2)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
-        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Service ({order.serviceChargePercent}%)</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{serviceChargeLabel(order, 'Service')}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
       </div>
       <div style={{ textAlign: 'center', border: '3px double #000', padding: '8px', margin: '4px 0', fontFamily: 'Georgia, serif' }}>
         <div style={{ fontSize: '9px', letterSpacing: '4px', color: '#555' }}>✦ GRAND TOTAL ✦</div>
@@ -1114,9 +1116,9 @@ function BistroReceipt({ order, settings }: { order: Order; settings: Restaurant
       <div style={{ fontSize: '9px', textAlign: 'center', letterSpacing: '2px', marginTop: '4px' }}>{wave}</div>
       <div style={{ padding: '4px 0', fontSize: '11px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal ({totalQty})</span><span>{order.subtotal.toFixed(2)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>♥ Discount</span><span>-{order.discount.toFixed(2)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>♥ {discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
-        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Service ({order.serviceChargePercent}%)</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{serviceChargeLabel(order, 'Service')}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
       </div>
       <div style={{ border: '2px dashed #000', padding: '6px', textAlign: 'center', borderRadius: '8px' }}>
         <div style={{ fontSize: '10px', fontWeight: 700, color: '#444' }}>YOUR TOTAL</div>
@@ -1177,9 +1179,9 @@ function HeritageReceipt({ order, settings }: { order: Order; settings: Restaura
       </table>
       <div style={{ borderTop: '1px solid #000', marginTop: '4px', padding: '4px 0', fontFamily: 'Georgia, serif', fontSize: '11px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal ({totalQty})</span><span>{order.subtotal.toFixed(2)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Discount</span><span>-{order.discount.toFixed(2)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
-        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Service ({order.serviceChargePercent}%)</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{serviceChargeLabel(order, 'Service')}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
       </div>
       <div style={{ border: '2px solid #000', padding: '6px', textAlign: 'center', fontFamily: 'Georgia, serif', margin: '4px 0' }}>
         <div style={{ fontSize: '9px', letterSpacing: '3px', color: '#444', textTransform: 'uppercase' }}>Sum Total</div>
@@ -1240,9 +1242,9 @@ function MetroReceipt({ order, settings }: { order: Order; settings: RestaurantS
       </table>
       <div style={{ borderTop: '2px solid #000', marginTop: '4px', padding: '4px 0', fontSize: '11px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>Subtotal ({totalQty})</span><span>{order.subtotal.toFixed(2)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>Discount</span><span>-{order.discount.toFixed(2)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
-        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>Service ({order.serviceChargePercent}%)</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>{serviceChargeLabel(order, 'Service')}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
       </div>
       <div className="dt-reverse" style={{ background: '#000', color: '#fff', padding: '6px 8px', display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
         <span style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '3px', textTransform: 'uppercase' }}>Total Fare</span>
@@ -1345,9 +1347,9 @@ function ShahenshahReceipt({ order, settings }: { order: Order; settings: Restau
             <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 800 }}>Sub Total</td>
             <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 800, width: '80px' }}>{order.subtotal.toFixed(2)}</td>
           </tr>
-          {order.discount > 0 && <tr><td colSpan={2} style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>Discount</td><td style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>-{order.discount.toFixed(2)}</td></tr>}
+          {order.discount > 0 && <tr><td colSpan={2} style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>{discountLabel(order)}</td><td style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>-{order.discount.toFixed(2)}</td></tr>}
           {order.tax > 0 && <tr><td colSpan={2} style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>Tax</td><td style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>{order.tax.toFixed(2)}</td></tr>}
-          {order.serviceCharge > 0 && <tr><td colSpan={2} style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>Service ({order.serviceChargePercent}%)</td><td style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>{order.serviceCharge.toFixed(2)}</td></tr>}
+          {order.serviceCharge > 0 && <tr><td colSpan={2} style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>{serviceChargeLabel(order, 'Service')}</td><td style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>{order.serviceCharge.toFixed(2)}</td></tr>}
           <tr>
             <td colSpan={2} style={{ ...cellStyle, textAlign: 'right', fontWeight: 900, fontSize: '14px' }}>Grand Total</td>
             <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 900, fontSize: '14px' }}>{order.grandTotal.toFixed(2)}</td>
@@ -1411,9 +1413,9 @@ function TasteBistroReceipt({ order, settings }: { order: Order; settings: Resta
 
       <div style={{ borderTop: '1px dashed #000', marginTop: '4px', paddingTop: '4px', fontSize: '12px', fontWeight: 700 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal</span><span>{order.subtotal.toFixed(2)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Discount</span><span>-{order.discount.toFixed(2)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
-        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Service Charge ({order.serviceChargePercent}%)</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{serviceChargeLabel(order)}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
       </div>
 
       <div className="dt-reverse" style={{ background: '#000', color: '#fff', display: 'flex', justifyContent: 'space-between', padding: '6px 8px', margin: '4px 0', fontSize: '16px', fontWeight: 900 }}>
@@ -1473,9 +1475,9 @@ function FoodPalaceReceipt({ order, settings }: { order: Order; settings: Restau
 
       <div style={{ borderTop: '1px solid #000', marginTop: '4px', paddingTop: '4px', fontSize: '12px', fontWeight: 700 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal ({totalQty})</span><span>{order.subtotal.toFixed(2)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Discount</span><span>-{order.discount.toFixed(2)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
-        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Service Charge ({order.serviceChargePercent}%)</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{serviceChargeLabel(order)}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
       </div>
 
       <div style={{ borderTop: '2px solid #000', display: 'flex', justifyContent: 'space-between', padding: '6px 2px', marginTop: '4px', fontSize: '18px', fontWeight: 900, color: '#000' }}>
@@ -1539,9 +1541,9 @@ function SpiceHouseReceipt({ order, settings }: { order: Order; settings: Restau
 
       <div style={{ borderTop: '1px dashed #000', marginTop: '4px', paddingTop: '4px', fontSize: '12px', fontWeight: 700 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal ({totalQty})</span><span>{order.subtotal.toFixed(2)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Discount</span><span>-{order.discount.toFixed(2)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
-        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Service Charge ({order.serviceChargePercent}%)</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{serviceChargeLabel(order)}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
       </div>
 
       <div style={{ border: '2px solid #000', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', padding: '6px 10px', margin: '6px 0', fontSize: '17px', fontWeight: 900, color: '#000' }}>
@@ -1646,12 +1648,12 @@ function TaimoorReceipt({ order, settings }: { order: Order; settings: Restauran
         </div>
         {order.discount > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-            <span>Discount</span><span>-{order.discount.toFixed(2)}</span>
+            <span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span>
           </div>
         )}
         {order.serviceCharge > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-            <span>Service Charge{order.serviceChargePercent ? ` (${order.serviceChargePercent}%)` : ''}</span>
+            <span>{serviceChargeLabel(order)}</span>
             <span>{order.serviceCharge.toFixed(2)}</span>
           </div>
         )}
@@ -1734,7 +1736,7 @@ function Design1TableReceipt({ order, settings }: { order: Order; settings: Rest
       </table>
       <div style={{ borderTop: '1px solid #000', marginTop: '4px', paddingTop: '4px', fontSize: '11px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Subtotal</span><span>{order.subtotal.toFixed(2)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Discount</span><span>-{order.discount.toFixed(2)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Tax (5%)</span><span>{order.tax.toFixed(2)}</span></div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderTop: '1px solid #000', marginTop: '2px', fontSize: '13px', fontWeight: 900 }}><span>TOTAL</span><span>{order.grandTotal.toFixed(2)}</span></div>
       </div>
@@ -1793,7 +1795,7 @@ function Design2BoxReceipt({ order, settings }: { order: Order; settings: Restau
       </table>
       <div style={{ borderTop: '1px solid #000', marginTop: '4px', paddingTop: '4px', fontSize: '11px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Subtotal</span><span>{order.subtotal.toFixed(2)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Discount</span><span>-{order.discount.toFixed(2)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Tax (5%)</span><span>{order.tax.toFixed(2)}</span></div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderTop: '1px solid #000', marginTop: '2px', fontSize: '13px', fontWeight: 900 }}><span>TOTAL</span><span>{order.grandTotal.toFixed(2)}</span></div>
       </div>
@@ -1851,20 +1853,23 @@ function Design3ModernReceipt({ order, settings }: { order: Order; settings: Res
           ))}
         </tbody>
       </table>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px', margin: '6px 0', border: '1px solid #000', padding: '6px' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700 }}>SUBTOTAL</div>
-          <div style={{ fontSize: '12px', fontWeight: 900 }}>{order.subtotal.toFixed(2)}</div>
-        </div>
-        <div style={{ textAlign: 'center', borderLeft: '1px solid #000', borderRight: '1px solid #000' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700 }}>DISCOUNT</div>
-          <div style={{ fontSize: '12px', fontWeight: 900 }}>{order.discount > 0 ? `-${order.discount.toFixed(2)}` : '0.00'}</div>
-        </div>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700 }}>TAX (5%)</div>
-          <div style={{ fontSize: '12px', fontWeight: 900 }}>{order.tax > 0 ? order.tax.toFixed(2) : '0.00'}</div>
-        </div>
-      </div>
+      {(() => {
+        // Only the amounts this bill actually has: no "DISCOUNT 0.00" or an invented tax rate.
+        const boxes: Array<[string, string]> = [['SUBTOTAL', order.subtotal.toFixed(2)]];
+        if (order.discount > 0) boxes.push(['DISCOUNT', `-${order.discount.toFixed(2)}`]);
+        if (order.serviceCharge > 0) boxes.push([serviceChargeLabel(order, 'SERVICE').toUpperCase(), order.serviceCharge.toFixed(2)]);
+        if (order.tax > 0) boxes.push(['TAX', order.tax.toFixed(2)]);
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${boxes.length}, 1fr)`, gap: '4px', margin: '6px 0', border: '1px solid #000', padding: '6px' }}>
+            {boxes.map(([label, value], k) => (
+              <div key={label} style={{ textAlign: 'center', borderLeft: k > 0 ? '1px solid #000' : undefined }}>
+                <div style={{ fontSize: '10px', fontWeight: 700 }}>{label}</div>
+                <div style={{ fontSize: '12px', fontWeight: 900 }}>{value}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
       <div className="dt-reverse" style={{ background: '#000', color: '#fff', display: 'flex', justifyContent: 'space-between', padding: '6px 8px', fontSize: '16px', fontWeight: 900, margin: '4px 0' }}>
         <span>TOTAL</span><span>{order.grandTotal.toFixed(2)}</span>
       </div>
@@ -1984,7 +1989,7 @@ function Design5DeliveryReceipt({ order, settings }: { order: Order; settings: R
       </table>
       <div style={{ borderTop: '1px solid #000', marginTop: '4px', paddingTop: '4px', fontSize: '11px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Subtotal</span><span>{order.subtotal.toFixed(2)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Discount</span><span>-{order.discount.toFixed(2)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Delivery Charge</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Tax (5%)</span><span>{order.tax.toFixed(2)}</span></div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderTop: '1px solid #000', marginTop: '2px', fontSize: '13px', fontWeight: 900 }}><span>TOTAL</span><span>{order.grandTotal.toFixed(2)}</span></div>
@@ -2048,7 +2053,7 @@ function SeroReceipt({ order, settings }: { order: Order; settings: RestaurantSe
       <div style={{ marginTop: '6px', fontSize: '12px', padding: '0 4px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Items / Qty</span><span>{order.items.length} / {totalQty}</span></div>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Subtotal</span><span>Rs. {order.subtotal.toFixed(0)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Discount</span><span>- Rs. {order.discount.toFixed(0)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{discountLabel(order)}</span><span>- Rs. {order.discount.toFixed(0)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Tax</span><span>Rs. {order.tax.toFixed(0)}</span></div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', marginTop: '4px', border: '2px solid #000', fontSize: '15px', fontWeight: 900, letterSpacing: '1px' }}>
           <span>TOTAL</span><span>Rs. {order.grandTotal.toFixed(0)}</span>
@@ -2112,7 +2117,7 @@ function BeroReceipt({ order, settings }: { order: Order; settings: RestaurantSe
       <div style={{ marginTop: '6px', border: '1px solid #000', padding: '4px 6px', fontSize: '12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Total Items</span><span>{order.items.length} ({totalQty} qty)</span></div>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal</span><span>Rs. {order.subtotal.toFixed(0)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Discount</span><span>- Rs. {order.discount.toFixed(0)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{discountLabel(order)}</span><span>- Rs. {order.discount.toFixed(0)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tax</span><span>Rs. {order.tax.toFixed(0)}</span></div>}
       </div>
       <div style={{ border: '2px solid #000', padding: '8px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2195,7 +2200,7 @@ function KotStyleReceipt({ order, settings }: { order: Order; settings: Restaura
       <div style={{ marginTop: '6px', fontSize: '12px', padding: '0 4px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Items / Qty</span><span>{order.items.length} / {totalQty}</span></div>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Subtotal</span><span>Rs. {order.subtotal.toFixed(0)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Discount</span><span>- Rs. {order.discount.toFixed(0)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{discountLabel(order)}</span><span>- Rs. {order.discount.toFixed(0)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Tax</span><span>Rs. {order.tax.toFixed(0)}</span></div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', marginTop: '4px', border: '2px solid #000', fontSize: '14px', fontWeight: 900, letterSpacing: '1px' }}>
           <span>GRAND TOTAL</span><span>Rs. {order.grandTotal.toFixed(0)}</span>
@@ -2331,7 +2336,7 @@ function KotClassicReceipt({ order, settings }: { order: Order; settings: Restau
         </div>
         {order.serviceCharge > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-            <span>Service Charge {order.serviceChargePercent ? `(${order.serviceChargePercent}%)` : ''}</span>
+            <span>{serviceChargeLabel(order)}</span>
             <span>{order.serviceCharge.toFixed(2)}</span>
           </div>
         )}
@@ -2343,7 +2348,7 @@ function KotClassicReceipt({ order, settings }: { order: Order; settings: Restau
         )}
         {order.discount > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-            <span>Discount{order.discountTitle ? ` (${order.discountTitle})` : ''}</span>
+            <span>{discountLineTitle(order)}</span>
             <span>-{order.discount.toFixed(2)}</span>
           </div>
         )}

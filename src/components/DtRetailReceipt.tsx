@@ -22,6 +22,8 @@
 //     already turns into readable reversed text.
 // ============================================================
 import React from 'react';
+import { serviceChargeLabel } from '@/lib/serviceCharge';
+import { discountLineTitle } from '@/lib/billLabels';
 import { ReceiptCodesSlot } from '@/components/ReceiptCodes';
 import { FONT_STACKS, ITEM_TABLE_CSS } from '@/components/premiumShared';
 import type { CartItem, Order, RestaurantSettings } from '@/lib/types';
@@ -180,9 +182,9 @@ function prepare(order: Order, settings: RestaurantSettings, c: PremiumCustomiza
   // ---- totals --------------------------------------------------------------
   const adjust: Array<[string, string]> = [];
   if (c.showSubtotal) adjust.push(['Subtotal', num(order.subtotal)]);
-  if (c.showDiscount && order.discount) adjust.push([order.discountTitle || 'Discount', `-${num(order.discount)}`]);
+  if (c.showDiscount && order.discount) adjust.push([discountLineTitle(order), `-${num(order.discount)}`]);
   if (c.showTax && order.tax) adjust.push([s.countryTaxLabel || 'Tax', num(order.tax)]);
-  if (c.showServiceCharge && order.serviceCharge) adjust.push(['Service Charge', num(order.serviceCharge)]);
+  if (c.showServiceCharge && order.serviceCharge) adjust.push([serviceChargeLabel(order), num(order.serviceCharge)]);
   if (order.deliveryChargeAmount) adjust.push(['Delivery', num(order.deliveryChargeAmount)]);
   if (order.roundingAdjust) adjust.push(['Rounding', num(order.roundingAdjust)]);
 
@@ -683,9 +685,9 @@ function taxInvoice(d: Data) {
   const net = Math.max(0, (Number(gross) || 0) - (Number(d.order.discount) || 0));
   const rows: Array<[string, string]> = [];
   if (d.c.showSubtotal) rows.push(['Gross Amount', d.num(gross)]);
-  if (d.c.showDiscount && d.order.discount) rows.push(['Discount', `-${d.num(d.order.discount)}`]);
+  if (d.c.showDiscount && d.order.discount) rows.push([discountLineTitle(d.order), `-${d.num(d.order.discount)}`]);
   if (d.c.showSubtotal) rows.push(['Value excl. tax', d.num(net)]);
-  d.adjust.filter(([k]) => k !== 'Subtotal' && !(d.c.showDiscount && k === (d.order.discountTitle || 'Discount') && d.order.discount)).forEach(r => rows.push(r));
+  d.adjust.filter(([k]) => k !== 'Subtotal' && !(d.c.showDiscount && k === discountLineTitle(d.order) && d.order.discount)).forEach(r => rows.push(r));
   return (
     <>
       <ShopHeader d={d} noteBold noteLead="NTN / STRN: " />

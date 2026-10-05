@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo } from 'react';
-import { getOrders, deleteOrder, getSettings, getBranches, getCurrentBranchId, logOrderReprint } from '@/lib/store';
+import { Fragment, useEffect, useState, useMemo } from 'react';
+import { getOrders, deleteOrder, getSettings, getBranches, getCurrentBranchId, logOrderReprint, getMenuItems, getDeletedMenuItems, getCategories, getDeletedCategories } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { FileText, AlertTriangle, ChevronDown, ChevronUp, Printer, Trash2, Building2, User as UserIcon } from 'lucide-react';
 import { Order } from '@/lib/types';
@@ -10,6 +10,11 @@ import { getCurrentScope, orderBelongsTo, listCashierUsers } from '@/lib/cashier
 import DateTimeRangeFilter, { DateTimeRange } from '@/components/DateTimeRangeFilter';
 import { getCurrentBusinessDay } from '@/lib/businessDay';
 import { printThermalReport, reportMoney, reportTime, type ReportBlock } from '@/printing/thermalReport';
+import { serviceChargeLabel } from '@/lib/serviceCharge';
+import { discountLabel } from '@/lib/billLabels';
+import ReportSearchPanel from '@/components/reports/ReportSearchPanel';
+import CategoryProductReport from '@/components/reports/CategoryProductReport';
+import { filterOrders, hasActiveFilters, itemSales, itemSalesCsv, makeCatalog, type ReportFilters } from '@/lib/reportSearch';
 
 export default function ReportsPage() {
   const [orders, setOrders] = useState(() => getOrders());
@@ -24,6 +29,11 @@ export default function ReportsPage() {
   const scope = useMemo(() => getCurrentScope(), []);
   const cashierUsers = useMemo(() => scope.restrict ? [] : listCashierUsers(), [scope.restrict]);
   const [cashierFilter, setCashierFilter] = useState<string>(scope.restrict ? scope.userId : 'all');
+
+  // Search & filters (bill no, product, category, customer, payment, order type, cashier, qty, amount).
+  const [filters, setFilters] = useState<ReportFilters>({});
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [view, setView] = useState<'bills' | 'items'>('bills');
 
   const allBranches = getBranches().filter(b => b.isActive);
   const activeBranchId = getCurrentBranchId();
@@ -70,6 +80,25 @@ export default function ReportsPage() {
   const cancelledOrders = useMemo(() => baseFilter(orders.filter(o => o.status === 'cancelled')), deps);
   const compOrders = useMemo(() => baseFilter(orders.filter(o => o.status === 'complimentary')), deps);
   const creditOrders = useMemo(() => baseFilter(orders.filter(o => (o as any).status === 'credit' || o.status === 'credit_received')), deps);
+
+  // The catalog lets a bill's lines be traced to their category (deleted items keep their history).
+  const catalog = useMemo(
+    () => makeCatalog(
+      [...getMenuItems(), ...getDeletedMenuItems()].map(m => ({ id: m.id, name: m.name, categoryId: m.categoryId })),
+      [...getCategories(), ...getDeletedCategories()].map(c => ({ id: c.id, name: c.name })),
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [orders],
+  );
+  // The cashier box in the filter panel is the same one as in the header, so there is only ever one answer.
+  const effectiveFilters: ReportFilters = useMemo(
+    () => ({ ...filters, cashierId: cashierFilter === 'all' ? undefined : cashierFilter }),
+    [filters, cashierFilter],
+  );
+  const matchedOrders = useMemo(() => filterOrders(paidOrders, filters, catalog), [paidOrders, filters, catalog]);
+  const itemResult = useMemo(() => itemSales(matchedOrders, catalog, filters), [matchedOrders, filters, catalog]);
+  const productNames = useMemo(() => [...new Set(catalog.items.map(i => i.name || '').filter(Boolean))].sort(), [catalog]);
+  const searching = hasActiveFilters(filters);
 
   // Admin: per-cashier breakdown (only meaningful when "All cashiers" is selected).
   const cashierBreakdown = useMemo(() => {
@@ -194,6 +223,54 @@ export default function ReportsPage() {
     if (!res.success) toast.error(`Report not printed: ${res.error || 'printer unavailable'}`);
   };
 
+  const searchCaption = () => {
+    const bits: string[] = [];
+    if (filters.text?.trim()) bits.push(`"${filters.text.trim()}"`);
+    if (filters.categoryIds?.length) bits.push(catalog.categories.find(c => c.id === filters.categoryIds![0])?.name || 'Category');
+    if (filters.product?.trim()) bits.push(filters.product.trim());
+    if (filters.payment && filters.payment !== 'all') bits.push(filters.payment);
+    if (filters.orderType && filters.orderType !== 'all') bits.push(filters.orderType === 'dining' ? 'Dine-In' : filters.orderType);
+    return bits.join(' · ');
+  };
+
+  const downloadItemCsv = () => {
+    const blob = new Blob(['\ufeff' + itemSalesCsv(itemResult)], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `DT-POS-Category-Product-Sales-${new Date(range.startMs).toISOString().slice(0, 10)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+
+  // 80mm: one block per category with its items, then the grand total.
+  const printItemReport = async () => {
+    const money = (n: number) => reportMoney(n);
+    const blocks: ReportBlock[] = [];
+    for (const c of itemResult.categories) {
+      blocks.push({ kind: 'section', title: c.categoryName });
+      blocks.push({ kind: 'table', head: ['Item', 'Qty', 'Net'], rows: c.items.map(i => [i.name, String(i.qty), money(i.net)]), foot: ['Total', String(c.qty), money(c.net)] });
+    }
+    const t = itemResult.totals;
+    blocks.push({ kind: 'section', title: 'Summary' });
+    blocks.push({ kind: 'table', head: ['', 'Amount'], rows: [
+      ['Sales', money(t.sales)],
+      ...(t.discount > 0 ? [['Discounts', `-${money(t.discount)}`]] : []),
+      ...(t.serviceCharge > 0 ? [['Service charge', money(t.serviceCharge)]] : []),
+    ] });
+    blocks.push({ kind: 'total', label: 'NET AMOUNT', value: money(t.net) });
+    const res = await printThermalReport({
+      title: 'Category / Product Sales',
+      meta: [
+        ['From', reportTime(range.startMs)],
+        ['To', reportTime(range.endMs)],
+        ...(searchCaption() ? [['Search', searchCaption()] as [string, string]] : []),
+      ],
+      blocks,
+      footer: settings.marketingFooter,
+    });
+    if (!res.success) toast.error(`Report not printed: ${res.error || 'printer unavailable'}`);
+  };
+
   return (
     <div className="p-4 lg:p-6 space-y-6">
       <div className="flex flex-wrap items-center gap-3">
@@ -249,6 +326,47 @@ export default function ReportsPage() {
         </div>
       )}
 
+      {/* Search & filters, then either the bills or the category / product totals */}
+      <ReportSearchPanel
+        filters={effectiveFilters}
+        onChange={next => {
+          const { cashierId, ...rest } = next;
+          setFilters(rest);
+          if (!scope.restrict) setCashierFilter(cashierId || 'all');
+        }}
+        categories={catalog.categories}
+        productNames={productNames}
+        cashiers={scope.restrict ? [] : cashierUsers}
+        matched={matchedOrders.length}
+        total={paidOrders.length}
+        expanded={filtersOpen}
+        onToggleExpanded={setFiltersOpen}
+      />
+
+      <div role="tablist" aria-label="Report view" className="inline-flex overflow-hidden rounded-lg border bg-card">
+        {([['bills', 'Bills'], ['items', 'Category & Product wise']] as const).map(([id, name]) => (
+          <button
+            key={id} type="button" role="tab" aria-selected={view === id}
+            onClick={() => setView(id)}
+            className={`px-4 py-2 text-sm font-bold ${view === id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'}`}
+          >{name}</button>
+        ))}
+      </div>
+
+      {view === 'items' && (
+        <CategoryProductReport
+          result={itemResult}
+          categories={catalog.categories}
+          categoryId={filters.categoryIds?.[0] || ''}
+          onCategoryChange={id => setFilters(f => ({ ...f, categoryIds: id ? [id] : undefined }))}
+          onCsv={downloadItemCsv}
+          onPrint={() => void printItemReport()}
+          caption={`${new Date(range.startMs).toLocaleString('en-PK')} → ${new Date(range.endMs).toLocaleString('en-PK')}${searchCaption() ? ` · ${searchCaption()}` : ''} · ${matchedOrders.length} paid bills`}
+        />
+      )}
+
+      {view === 'bills' && (
+      <>
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-card border rounded-xl p-4">
@@ -371,7 +489,14 @@ export default function ReportsPage() {
 
       {/* Order List with expandable details */}
       <div className="bg-card border rounded-xl">
-        <div className="px-4 py-3 border-b"><h3 className="text-sm font-semibold">Paid Orders</h3></div>
+        <div className="px-4 py-3 border-b flex flex-wrap items-center gap-2">
+          <h3 className="text-sm font-semibold">Paid Orders</h3>
+          {searching && (
+            <span className="text-xs text-muted-foreground">
+              {matchedOrders.length} bills · PKR {matchedOrders.reduce((sum, o) => sum + (o.grandTotal || 0), 0).toLocaleString()}
+            </span>
+          )}
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -389,8 +514,8 @@ export default function ReportsPage() {
               </tr>
             </thead>
             <tbody>
-              {paidOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(order => (
-                <>
+              {[...matchedOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(order => (
+                <Fragment key={order.id}>
                   <tr key={order.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => setExpandedId(expandedId === order.id ? null : order.id)}>
                     <td className="px-4 py-2 font-bold">#{order.orderNumber}</td>
                     <td className="px-4 py-2">{order.customer?.name || '—'}</td>
@@ -439,8 +564,9 @@ export default function ReportsPage() {
                             <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Bill Summary</p>
                             <div className="space-y-0.5 text-xs">
                               <div className="flex justify-between"><span>Subtotal</span><span>{order.subtotal.toLocaleString()}</span></div>
-                              {order.discount > 0 && <div className="flex justify-between"><span>Discount</span><span>-{order.discount.toLocaleString()}</span></div>}
+                              {order.discount > 0 && <div className="flex justify-between"><span>{discountLabel(order)}</span><span>-{order.discount.toLocaleString()}</span></div>}
                               {order.tax > 0 && <div className="flex justify-between"><span>Tax</span><span>{order.tax.toLocaleString()}</span></div>}
+                              {(order.serviceCharge || 0) > 0 && <div className="flex justify-between"><span>{serviceChargeLabel(order)}</span><span>{order.serviceCharge.toLocaleString()}</span></div>}
                               <div className="flex justify-between font-bold border-t pt-1"><span>Grand Total</span><span>PKR {order.grandTotal.toLocaleString()}</span></div>
                                <div className="flex justify-between text-muted-foreground"><span>Payment</span><span className="capitalize">{order.paymentMethod || 'cash'}</span></div>
                                <div className="flex justify-between text-muted-foreground"><span>Account</span><span>{order.paymentAccountName || (order.paymentMethod === 'cash' || !order.paymentMethod ? 'Cash Drawer' : '—')}</span></div>
@@ -450,15 +576,17 @@ export default function ReportsPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
-              {paidOrders.length === 0 && (
-                <tr><td colSpan={10} className="px-4 py-6 text-center text-muted-foreground">No paid orders</td></tr>
+              {matchedOrders.length === 0 && (
+                <tr><td colSpan={10} className="px-4 py-6 text-center text-muted-foreground">{searching ? 'No paid bills match this search' : 'No paid orders'}</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+      </>
+      )}
 
       {/* Reprint Dialog */}
       <Dialog open={!!reprintOrder} onOpenChange={() => setReprintOrder(null)}>

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { parseReceiptRef } from '@/lib/receiptCodes';
 import { computeBillTotals } from '@/lib/billTotals';
-import { Search, Plus, Minus, Trash2, CreditCard, Pause, Weight, Edit3, ShoppingCart, RotateCcw, Delete, User, Phone, Ban, Gift, XCircle, ChefHat, MessageCircle, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
+import { overrideFromOrder, serviceChargeFields, serviceChargeLabel, type ServiceChargeOverride } from '@/lib/serviceCharge';
+import { Search, Plus, Minus, Trash2, CreditCard, Pause, Weight, Edit3, ShoppingCart, RotateCcw, Delete, User, Phone, Ban, Gift, XCircle, ChefHat, MessageCircle, ChevronLeft, ChevronRight, MoreVertical, Pencil } from 'lucide-react';
 import { normalizePhone, buildPaidMessage, buildDeliveryMessage, openWhatsApp } from '@/lib/whatsapp';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -192,6 +193,11 @@ export default function POSScreen() {
   const [discount, setDiscount] = useState(0);
   const [discountMode, setDiscountMode] = useState<'pkr' | 'percent'>('pkr');
   const [discountPercentInput, setDiscountPercentInput] = useState(0);
+  // A service charge typed in by hand on this bill (replaces the automatic one). null = automatic.
+  const [scOverride, setScOverride] = useState<ServiceChargeOverride | null>(null);
+  const [scEditing, setScEditing] = useState(false);
+  const [scDraftMode, setScDraftMode] = useState<'percent' | 'pkr'>('percent');
+  const [scDraftValue, setScDraftValue] = useState('');
   const [promoCodeInput, setPromoCodeInput] = useState('');
   const [promoApplied, setPromoApplied] = useState<{ code: string; discount: number } | null>(null);
   const [showCustomerReceipt, setShowCustomerReceipt] = useState(false);
@@ -334,6 +340,7 @@ export default function POSScreen() {
       if (order) {
         setCart(order.items);
         setDiscount(order.discount);
+        setScOverride(overrideFromOrder(order));
         setOrderType(order.orderType);
         setOrderTypePicked(true);
         setEditingOrderId(order.id);
@@ -806,7 +813,8 @@ export default function POSScreen() {
     discountPercent: discountPercentInput,
     promoDiscount: promoApplied?.discount || 0,
     orderType,
-  }), [cart, menuItems, settings, discountMode, discount, discountPercentInput, promoApplied, orderType]);
+    serviceChargeOverride: scOverride,
+  }), [cart, menuItems, settings, discountMode, discount, discountPercentInput, promoApplied, orderType, scOverride]);
 
   const subtotal = totals.subtotal;
   const discountableSubtotal = totals.discountableSubtotal;
@@ -830,7 +838,11 @@ export default function POSScreen() {
     (evtType === 'percent' && (settings.eventDiscountPercent || 0) > 0) ||
     (evtType === 'pkr' && (settings.eventDiscountAmount || 0) > 0)
   );
-  const scPercent = settings.serviceChargePercent || 0;
+  // What is stored on the order so every screen and slip words the charge the same way.
+  const scFields = serviceChargeFields(
+    { mode: totals.serviceChargeMode, value: totals.serviceChargeRate, applies: true, manual: totals.serviceChargeManual },
+    serviceCharge,
+  );
   const taxPct = Number((settings as any).taxPercent) || 0;
 
   const paymentReceivedNum = parseFloat(paymentReceived) || 0;
@@ -843,8 +855,8 @@ export default function POSScreen() {
         ? `${settings.eventDiscountTitle || 'Event Discount'} ${eventPct}%`
         : `${settings.eventDiscountTitle || 'Event Discount'} Rs.${settings.eventDiscountAmount || 0}`);
     }
-    if (discountMode === 'percent' && discountPercentInput > 0) parts.push(`Manual ${discountPercentInput}%`);
-    else if (discountMode === 'pkr' && (discount || 0) > 0) parts.push(`Manual PKR`);
+    if (discountMode === 'percent' && discountPercentInput > 0) parts.push(`Discount ${discountPercentInput}%`);
+    else if (discountMode === 'pkr' && (discount || 0) > 0) parts.push('Discount');
     if (promoApplied) parts.push(`Promo ${promoApplied.code}`);
     return parts.length ? parts.join(' + ') : undefined;
   };
@@ -876,6 +888,8 @@ export default function POSScreen() {
     setDiscount(0);
     setDiscountPercentInput(0);
     setDiscountMode('pkr');
+    setScOverride(null);
+    setScEditing(false);
     setPromoApplied(null);
     setPromoCodeInput('');
     setSelectedTable('');
@@ -983,7 +997,7 @@ export default function POSScreen() {
           promoCodeDiscount: promoApplied?.discount,
           tax: taxAmount,
           serviceCharge,
-          serviceChargePercent: scPercent,
+          ...scFields,
           deliveryChargeAmount: deliveryChargeAmt,
           roundingAdjust: roundingAdjust,
           grandTotal,
@@ -1139,7 +1153,7 @@ export default function POSScreen() {
       promoCodeDiscount: promoApplied?.discount,
       tax: taxAmount,
       serviceCharge,
-      serviceChargePercent: scPercent,
+      ...scFields,
       deliveryChargeAmount: deliveryChargeAmt,
       roundingAdjust: roundingAdjust,
       grandTotal,
@@ -1322,6 +1336,7 @@ export default function POSScreen() {
   const retrieveOrder = (order: Order) => {
     setCart(order.items);
     setDiscount(order.discount);
+    setScOverride(overrideFromOrder(order));
     setOrderType(order.orderType);
     setOrderTypePicked(true);
     setEditingOrderId(order.id);
@@ -2145,12 +2160,66 @@ export default function POSScreen() {
               <span>PKR {taxAmount.toLocaleString()}</span>
             </div>
           )}
-          {serviceCharge > 0 && (
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground font-medium">Service ({scPercent}%)</span>
-              <span>PKR {serviceCharge.toLocaleString()}</span>
-            </div>
-          )}
+          {(() => {
+            // Service charge: added automatically for the order types switched on in Settings;
+            // a manager (or a cashier, when allowed) can add, change or remove it on this bill.
+            const role = (localStorage.getItem('pos-user-role') || '').toLowerCase();
+            const canEditSc = !isOrderTaker && cart.length > 0 && settings.serviceChargeEditable !== false
+              && !(role === 'cashier' && !!settings.cashierDiscountRequiresApproval);
+            if (serviceCharge <= 0 && !canEditSc && !scOverride) return null;
+            const openEditor = () => {
+              setScDraftMode(totals.serviceChargeMode);
+              setScDraftValue(totals.serviceChargeRate > 0 ? String(totals.serviceChargeRate) : '');
+              setScEditing(true);
+            };
+            const applyEditor = () => {
+              const v = Math.max(0, Number(scDraftValue) || 0);
+              setScOverride({ mode: scDraftMode, value: scDraftMode === 'percent' ? Math.min(100, v) : v });
+              setScEditing(false);
+            };
+            const label = serviceChargeLabel({ serviceChargePercent: scFields.serviceChargePercent, serviceChargeType: scFields.serviceChargeType }, 'Service');
+            return (
+              <div data-pos-service className="flex items-center justify-between gap-1 text-xs">
+                <span className="flex items-center gap-1 text-muted-foreground font-medium">
+                  {serviceCharge > 0 || scOverride ? label : 'Service'}
+                  {totals.serviceChargeManual && <span className="rounded bg-primary/10 px-1 text-[9px] font-bold text-primary">{serviceCharge > 0 ? 'manual' : 'waived'}</span>}
+                </span>
+                {scEditing ? (
+                  <span className="flex items-center gap-1">
+                    <span className="flex overflow-hidden rounded border">
+                      <button type="button" onClick={() => setScDraftMode('pkr')}
+                        className={`px-1.5 text-[10px] font-bold ${scDraftMode === 'pkr' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>Rs</button>
+                      <button type="button" onClick={() => setScDraftMode('percent')}
+                        className={`px-1.5 text-[10px] font-bold ${scDraftMode === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>%</button>
+                    </span>
+                    <Input
+                      type="number" autoFocus min={0} value={scDraftValue}
+                      onChange={e => setScDraftValue(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') applyEditor(); if (e.key === 'Escape') setScEditing(false); }}
+                      className="h-5 w-16 border-primary/30 text-right text-[10px]" placeholder="0" aria-label="Service charge"
+                    />
+                    <button type="button" onClick={applyEditor} className="rounded bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">OK</button>
+                    {scOverride && (
+                      <button type="button" onClick={() => { setScOverride(null); setScEditing(false); }}
+                        className="rounded border px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground" title="Go back to the automatic service charge">Auto</button>
+                    )}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    {serviceCharge > 0 || scOverride ? <span>PKR {serviceCharge.toLocaleString()}</span> : null}
+                    {canEditSc && (
+                      serviceCharge > 0 || scOverride ? (
+                        <button type="button" onClick={openEditor} className="grid h-4 w-4 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                          aria-label="Edit service charge" title="Edit service charge"><Pencil className="h-3 w-3" /></button>
+                      ) : (
+                        <button type="button" onClick={openEditor} className="text-[10px] font-bold text-primary hover:underline">+ Add</button>
+                      )
+                    )}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
           <div data-pos-grand className="flex justify-between items-center pt-2 border-t-2 border-primary/30">
             <span className="text-sm font-extrabold tracking-tight">{modern ? 'Total' : 'GRAND TOTAL'}</span>
             <span className="text-primary text-xl font-black tracking-tight">PKR {grandTotal.toLocaleString()}</span>
@@ -2468,7 +2537,7 @@ export default function POSScreen() {
                     discountTitle: buildDiscountTitle(),
                     tax: taxAmount,
                     serviceCharge,
-                    serviceChargePercent: scPercent,
+                    ...scFields,
                     grandTotal,
                     cashReceived: paymentReceivedNum > 0 ? paymentReceivedNum : undefined,
                     changeReturned: paymentReceivedNum > 0 ? Math.max(0, paymentReceivedNum - grandTotal) : undefined,
