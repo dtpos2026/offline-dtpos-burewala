@@ -27,6 +27,8 @@
 import type { Order, RestaurantSettings } from '@/lib/types';
 import { sanitizeForFormat, type BarcodeFormat } from '@/lib/linearBarcode';
 import { BAR_DOTS, qrByteBudget } from '@/lib/codeGeometry';
+import { discountPercentShown } from '@/lib/billLabels';
+import { serviceChargeSuffix } from '@/lib/serviceCharge';
 
 export type CodePosition = 'above' | 'footer' | 'below';
 export type QrMode = 'auto' | 'multi' | 'single';
@@ -417,9 +419,9 @@ export function receiptText(order: Order, settings: RestaurantSettings, _ref?: s
   const bytes = (t: string) => new TextEncoder().encode(t).length;
   const head = [String(s.name || '').slice(0, 40), `Bill #${order.orderNumber} | ${dmyStamp(order.paidAt || order.createdAt)}`].filter(Boolean);
   const sums: string[] = [];
-  if (num(order.discount)) sums.push(`Discount -${cash(num(order.discount))}`);
+  if (num(order.discount)) { const pct = discountPercentShown(order); sums.push(`Discount${pct ? ` (${pct}%)` : ''} -${cash(num(order.discount))}`); }
   if (num(order.tax)) sums.push(`Tax ${cash(num(order.tax))}`);
-  if (num(order.serviceCharge)) sums.push(`Service ${cash(num(order.serviceCharge))}`);
+  if (num(order.serviceCharge)) sums.push(`Service${serviceChargeSuffix(order)} ${cash(num(order.serviceCharge))}`);
   if (num((order as any).deliveryChargeAmount)) sums.push(`Delivery ${cash(num((order as any).deliveryChargeAmount))}`);
   const tail = [
     ...(sums.length ? [sums.join(' | ')] : []),

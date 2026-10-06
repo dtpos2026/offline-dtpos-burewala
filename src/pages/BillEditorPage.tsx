@@ -142,7 +142,8 @@ export default function BillEditorPage() {
     if (o.serviceChargeType !== 'pkr' && (o.serviceChargePercent || 0) > 0) {
       o.serviceCharge = Math.round(Math.max(0, o.subtotal - (o.discount || 0)) * (o.serviceChargePercent || 0) / 100);
     }
-    o.grandTotal = Math.max(0, o.subtotal - (o.discount || 0)) + (o.tax || 0) + (o.serviceCharge || 0);
+    // Delivery is neither discounted nor taxed, and stays on the bill as it was charged.
+    o.grandTotal = Math.max(0, o.subtotal - (o.discount || 0)) + (o.tax || 0) + (o.serviceCharge || 0) + (o.deliveryChargeAmount || 0);
   }
 
   const setServiceCharge = (raw: string) => {
@@ -162,7 +163,14 @@ export default function BillEditorPage() {
   const setDiscount = (raw: string) => {
     if (!draft) return;
     const v = Math.max(0, Math.min(draft.subtotal, Number(raw) || 0));
-    const next: Order = { ...draft, discount: v, discountTitle: v > 0 ? (draft.discountTitle || 'Manager discount') : undefined };
+    // An amount typed here is a flat discount: the old percentage and its title no longer describe it.
+    const changed = v !== (draft.discount || 0);
+    const next: Order = {
+      ...draft,
+      discount: v,
+      discountPercent: changed ? undefined : draft.discountPercent,
+      discountTitle: v <= 0 ? undefined : changed ? 'Manager discount' : (draft.discountTitle || 'Manager discount'),
+    };
     recalcTotals(next);
     setDraft(next); setDirty(true);
   };

@@ -15,7 +15,7 @@ import { StandardInfoGrid, StandardInfoRows, getOrderTypeLabel } from '@/lib/sta
 import PremiumReceipt from '@/components/PremiumReceipt';
 import { isPremiumTemplateId } from '@/lib/premiumReceiptTemplates';
 import { serviceChargeLabel } from '@/lib/serviceCharge';
-import { discountLabel, discountLineTitle } from '@/lib/billLabels';
+import { discountLabel, discountLineTitle, discountPercentShown, taxLabel } from '@/lib/billLabels';
 import StandardReceipt from '@/components/StandardReceipt';
 import { spacingNodeProps } from '@/lib/textSpacing';
 import { ReceiptCodesProvider, ReceiptCodesSlot, useReceiptCodes } from '@/components/ReceiptCodes';
@@ -839,8 +839,10 @@ function CompactReceipt({ order, settings }: { order: Order; settings: Restauran
         </div>
       ))}
       <div style={{ borderTop: '1px solid #000', marginTop: '2px', paddingTop: '2px' }}>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 600 }}><span>Disc</span><span>-{order.discount.toFixed(0)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 600 }}><span>{discountLabel(order, 'Disc')}</span><span>-{order.discount.toFixed(0)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 600 }}><span>{serviceChargeLabel(order)}</span><span>{order.serviceCharge.toFixed(0)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 600 }}><span>Tax</span><span>{order.tax.toFixed(0)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 600 }}><span>Delivery</span><span>{order.deliveryChargeAmount.toFixed(0)}</span></div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 800, borderTop: '2px solid #000', padding: '3px 0', color: '#000' }}>
           <span>TOTAL ({totalQty})</span><span>Rs.{order.grandTotal.toFixed(0)}</span>
         </div>
@@ -995,6 +997,7 @@ function ExecutiveReceipt({ order, settings }: { order: Order; settings: Restaur
         {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 600 }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 600 }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
         {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 600 }}><span>{serviceChargeLabel(order, 'Service')}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 600 }}><span>Delivery</span><span>{order.deliveryChargeAmount.toFixed(2)}</span></div>}
       </div>
       <div className="dt-reverse" style={{ background: '#000', color: '#fff', padding: '6px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
         <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px' }}>GRAND TOTAL</span>
@@ -1054,6 +1057,7 @@ function RoyalReceipt({ order, settings }: { order: Order; settings: RestaurantS
         {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
         {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{serviceChargeLabel(order, 'Service')}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Delivery</span><span>{order.deliveryChargeAmount.toFixed(2)}</span></div>}
       </div>
       <div style={{ textAlign: 'center', border: '3px double #000', padding: '8px', margin: '4px 0', fontFamily: 'Georgia, serif' }}>
         <div style={{ fontSize: '9px', letterSpacing: '4px', color: '#555' }}>✦ GRAND TOTAL ✦</div>
@@ -1119,6 +1123,7 @@ function BistroReceipt({ order, settings }: { order: Order; settings: Restaurant
         {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>♥ {discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
         {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{serviceChargeLabel(order, 'Service')}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Delivery</span><span>{order.deliveryChargeAmount.toFixed(2)}</span></div>}
       </div>
       <div style={{ border: '2px dashed #000', padding: '6px', textAlign: 'center', borderRadius: '8px' }}>
         <div style={{ fontSize: '10px', fontWeight: 700, color: '#444' }}>YOUR TOTAL</div>
@@ -1182,6 +1187,7 @@ function HeritageReceipt({ order, settings }: { order: Order; settings: Restaura
         {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
         {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{serviceChargeLabel(order, 'Service')}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Delivery</span><span>{order.deliveryChargeAmount.toFixed(2)}</span></div>}
       </div>
       <div style={{ border: '2px solid #000', padding: '6px', textAlign: 'center', fontFamily: 'Georgia, serif', margin: '4px 0' }}>
         <div style={{ fontSize: '9px', letterSpacing: '3px', color: '#444', textTransform: 'uppercase' }}>Sum Total</div>
@@ -1245,6 +1251,7 @@ function MetroReceipt({ order, settings }: { order: Order; settings: RestaurantS
         {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
         {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>{serviceChargeLabel(order, 'Service')}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>Delivery</span><span>{order.deliveryChargeAmount.toFixed(2)}</span></div>}
       </div>
       <div className="dt-reverse" style={{ background: '#000', color: '#fff', padding: '6px 8px', display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
         <span style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '3px', textTransform: 'uppercase' }}>Total Fare</span>
@@ -1350,6 +1357,7 @@ function ShahenshahReceipt({ order, settings }: { order: Order; settings: Restau
           {order.discount > 0 && <tr><td colSpan={2} style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>{discountLabel(order)}</td><td style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>-{order.discount.toFixed(2)}</td></tr>}
           {order.tax > 0 && <tr><td colSpan={2} style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>Tax</td><td style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>{order.tax.toFixed(2)}</td></tr>}
           {order.serviceCharge > 0 && <tr><td colSpan={2} style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>{serviceChargeLabel(order, 'Service')}</td><td style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>{order.serviceCharge.toFixed(2)}</td></tr>}
+          {!!order.deliveryChargeAmount && <tr><td colSpan={2} style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>Delivery</td><td style={{ ...cellStyle, textAlign: 'right', fontWeight: 700 }}>{order.deliveryChargeAmount.toFixed(2)}</td></tr>}
           <tr>
             <td colSpan={2} style={{ ...cellStyle, textAlign: 'right', fontWeight: 900, fontSize: '14px' }}>Grand Total</td>
             <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 900, fontSize: '14px' }}>{order.grandTotal.toFixed(2)}</td>
@@ -1416,6 +1424,7 @@ function TasteBistroReceipt({ order, settings }: { order: Order; settings: Resta
         {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
         {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{serviceChargeLabel(order)}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Delivery</span><span>{order.deliveryChargeAmount.toFixed(2)}</span></div>}
       </div>
 
       <div className="dt-reverse" style={{ background: '#000', color: '#fff', display: 'flex', justifyContent: 'space-between', padding: '6px 8px', margin: '4px 0', fontSize: '16px', fontWeight: 900 }}>
@@ -1478,6 +1487,7 @@ function FoodPalaceReceipt({ order, settings }: { order: Order; settings: Restau
         {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
         {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{serviceChargeLabel(order)}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Delivery</span><span>{order.deliveryChargeAmount.toFixed(2)}</span></div>}
       </div>
 
       <div style={{ borderTop: '2px solid #000', display: 'flex', justifyContent: 'space-between', padding: '6px 2px', marginTop: '4px', fontSize: '18px', fontWeight: 900, color: '#000' }}>
@@ -1544,6 +1554,7 @@ function SpiceHouseReceipt({ order, settings }: { order: Order; settings: Restau
         {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
         {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{serviceChargeLabel(order)}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Delivery</span><span>{order.deliveryChargeAmount.toFixed(2)}</span></div>}
       </div>
 
       <div style={{ border: '2px solid #000', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', padding: '6px 10px', margin: '6px 0', fontSize: '17px', fontWeight: 900, color: '#000' }}>
@@ -1659,8 +1670,13 @@ function TaimoorReceipt({ order, settings }: { order: Order; settings: Restauran
         )}
         {order.tax > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-            <span>Sales Tax{(order as any).taxPercent ? ` (${(order as any).taxPercent}%)` : ''}</span>
+            <span>{taxLabel(settings, 'Sales Tax')}</span>
             <span>{order.tax.toFixed(2)}</span>
+          </div>
+        )}
+        {!!order.deliveryChargeAmount && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+            <span>Delivery</span><span>{order.deliveryChargeAmount.toFixed(2)}</span>
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0 2px', borderTop: '1px solid #000', marginTop: '3px', fontSize: '13px', fontWeight: 900 }}>
@@ -1737,7 +1753,9 @@ function Design1TableReceipt({ order, settings }: { order: Order; settings: Rest
       <div style={{ borderTop: '1px solid #000', marginTop: '4px', paddingTop: '4px', fontSize: '11px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Subtotal</span><span>{order.subtotal.toFixed(2)}</span></div>
         {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
-        {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Tax (5%)</span><span>{order.tax.toFixed(2)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{serviceChargeLabel(order)}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{taxLabel(settings)}</span><span>{order.tax.toFixed(2)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Delivery</span><span>{order.deliveryChargeAmount.toFixed(2)}</span></div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderTop: '1px solid #000', marginTop: '2px', fontSize: '13px', fontWeight: 900 }}><span>TOTAL</span><span>{order.grandTotal.toFixed(2)}</span></div>
       </div>
       <div style={{ borderTop: dashed, margin: '4px 0' }} />
@@ -1796,7 +1814,9 @@ function Design2BoxReceipt({ order, settings }: { order: Order; settings: Restau
       <div style={{ borderTop: '1px solid #000', marginTop: '4px', paddingTop: '4px', fontSize: '11px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Subtotal</span><span>{order.subtotal.toFixed(2)}</span></div>
         {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
-        {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Tax (5%)</span><span>{order.tax.toFixed(2)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{serviceChargeLabel(order)}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{taxLabel(settings)}</span><span>{order.tax.toFixed(2)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Delivery</span><span>{order.deliveryChargeAmount.toFixed(2)}</span></div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderTop: '1px solid #000', marginTop: '2px', fontSize: '13px', fontWeight: 900 }}><span>TOTAL</span><span>{order.grandTotal.toFixed(2)}</span></div>
       </div>
       <div style={{ fontSize: '11px', marginTop: '4px' }}>
@@ -1856,9 +1876,11 @@ function Design3ModernReceipt({ order, settings }: { order: Order; settings: Res
       {(() => {
         // Only the amounts this bill actually has: no "DISCOUNT 0.00" or an invented tax rate.
         const boxes: Array<[string, string]> = [['SUBTOTAL', order.subtotal.toFixed(2)]];
-        if (order.discount > 0) boxes.push(['DISCOUNT', `-${order.discount.toFixed(2)}`]);
+        const discPct = discountPercentShown(order);
+        if (order.discount > 0) boxes.push([discPct ? `DISCOUNT (${discPct}%)` : 'DISCOUNT', `-${order.discount.toFixed(2)}`]);
         if (order.serviceCharge > 0) boxes.push([serviceChargeLabel(order, 'SERVICE').toUpperCase(), order.serviceCharge.toFixed(2)]);
         if (order.tax > 0) boxes.push(['TAX', order.tax.toFixed(2)]);
+        if (order.deliveryChargeAmount) boxes.push(['DELIVERY', order.deliveryChargeAmount.toFixed(2)]);
         // Up to three in a row; four go two by two so a 58 mm slip never has to shrink to fit them.
         const cols = boxes.length <= 3 ? boxes.length : 2;
         return (
@@ -1939,8 +1961,10 @@ function Design4CompactReceipt({ order, settings }: { order: Order; settings: Re
       </table>
       <div style={{ borderTop: '1px solid #000', marginTop: '3px', paddingTop: '3px', fontSize: '10px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 0' }}><span>Sub Total</span><span>{order.subtotal.toFixed(2)}</span></div>
-        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 0' }}><span>Disc</span><span>-{order.discount.toFixed(2)}</span></div>}
+        {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 0' }}><span>{discountLabel(order, 'Disc')}</span><span>-{order.discount.toFixed(2)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 0' }}><span>{serviceChargeLabel(order)}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 0' }}><span>Tax</span><span>{order.tax.toFixed(2)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 0' }}><span>Delivery</span><span>{order.deliveryChargeAmount.toFixed(2)}</span></div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderTop: '1px solid #000', marginTop: '2px', fontSize: '12px', fontWeight: 900 }}><span>TOTAL</span><span>{order.grandTotal.toFixed(2)}</span></div>
       </div>
       <div style={{ fontSize: '10px', marginTop: '3px' }}>
@@ -1997,8 +2021,9 @@ function Design5DeliveryReceipt({ order, settings }: { order: Order; settings: R
       <div style={{ borderTop: '1px solid #000', marginTop: '4px', paddingTop: '4px', fontSize: '11px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Subtotal</span><span>{order.subtotal.toFixed(2)}</span></div>
         {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{discountLabel(order)}</span><span>-{order.discount.toFixed(2)}</span></div>}
-        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Delivery Charge</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
-        {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Tax (5%)</span><span>{order.tax.toFixed(2)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{serviceChargeLabel(order)}</span><span>{order.serviceCharge.toFixed(2)}</span></div>}
+        {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{taxLabel(settings)}</span><span>{order.tax.toFixed(2)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Delivery Charge</span><span>{order.deliveryChargeAmount.toFixed(2)}</span></div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderTop: '1px solid #000', marginTop: '2px', fontSize: '13px', fontWeight: 900 }}><span>TOTAL</span><span>{order.grandTotal.toFixed(2)}</span></div>
       </div>
       <div style={{ fontSize: '11px', marginTop: '4px' }}>
@@ -2061,7 +2086,9 @@ function SeroReceipt({ order, settings }: { order: Order; settings: RestaurantSe
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Items / Qty</span><span>{order.items.length} / {totalQty}</span></div>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Subtotal</span><span>Rs. {order.subtotal.toFixed(0)}</span></div>
         {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{discountLabel(order)}</span><span>- Rs. {order.discount.toFixed(0)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{serviceChargeLabel(order)}</span><span>Rs. {order.serviceCharge.toFixed(0)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Tax</span><span>Rs. {order.tax.toFixed(0)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Delivery</span><span>Rs. {order.deliveryChargeAmount.toFixed(0)}</span></div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', marginTop: '4px', border: '2px solid #000', fontSize: '15px', fontWeight: 900, letterSpacing: '1px' }}>
           <span>TOTAL</span><span>Rs. {order.grandTotal.toFixed(0)}</span>
         </div>
@@ -2125,7 +2152,9 @@ function BeroReceipt({ order, settings }: { order: Order; settings: RestaurantSe
         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Total Items</span><span>{order.items.length} ({totalQty} qty)</span></div>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal</span><span>Rs. {order.subtotal.toFixed(0)}</span></div>
         {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{discountLabel(order)}</span><span>- Rs. {order.discount.toFixed(0)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{serviceChargeLabel(order)}</span><span>Rs. {order.serviceCharge.toFixed(0)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tax</span><span>Rs. {order.tax.toFixed(0)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Delivery</span><span>Rs. {order.deliveryChargeAmount.toFixed(0)}</span></div>}
       </div>
       <div style={{ border: '2px solid #000', padding: '8px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: '13px', fontWeight: 900, letterSpacing: '2px' }}>GRAND TOTAL</span>
@@ -2208,7 +2237,9 @@ function KotStyleReceipt({ order, settings }: { order: Order; settings: Restaura
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Items / Qty</span><span>{order.items.length} / {totalQty}</span></div>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Subtotal</span><span>Rs. {order.subtotal.toFixed(0)}</span></div>
         {order.discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{discountLabel(order)}</span><span>- Rs. {order.discount.toFixed(0)}</span></div>}
+        {order.serviceCharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>{serviceChargeLabel(order)}</span><span>Rs. {order.serviceCharge.toFixed(0)}</span></div>}
         {order.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Tax</span><span>Rs. {order.tax.toFixed(0)}</span></div>}
+        {!!order.deliveryChargeAmount && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}><span>Delivery</span><span>Rs. {order.deliveryChargeAmount.toFixed(0)}</span></div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', marginTop: '4px', border: '2px solid #000', fontSize: '14px', fontWeight: 900, letterSpacing: '1px' }}>
           <span>GRAND TOTAL</span><span>Rs. {order.grandTotal.toFixed(0)}</span>
         </div>
@@ -2349,8 +2380,13 @@ function KotClassicReceipt({ order, settings }: { order: Order; settings: Restau
         )}
         {order.tax > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-            <span>Sales Tax {settings.taxAmount ? `(${settings.taxAmount}%)` : ''}</span>
+            <span>{taxLabel(settings, 'Sales Tax')}</span>
             <span>{order.tax.toFixed(2)}</span>
+          </div>
+        )}
+        {!!order.deliveryChargeAmount && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+            <span>Delivery</span><span>{order.deliveryChargeAmount.toFixed(2)}</span>
           </div>
         )}
         {order.discount > 0 && (

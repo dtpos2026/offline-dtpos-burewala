@@ -67,7 +67,7 @@ export default function StandardReceipt({ order, settings: rawSettings }: Props)
   const showAddress  = s.receiptShowAddress  !== false && !!settings.address;
   const showPhone    = s.receiptShowPhone    !== false && (!!settings.phone1 || !!settings.phone2);
   const showDiscount = (s.receiptShowDiscount !== false) && (order.discount > 0);
-  const showTax      = (s.receiptShowTax !== false) && ((order.tax || 0) > 0 || (order.serviceCharge || 0) > 0);
+  const showTax      = (s.receiptShowTax !== false) && (order.tax || 0) > 0;
   const showFooter   = s.receiptShowFooter   !== false;
   const showPowered  = s.receiptShowPoweredBy !== false;
   const compact      = !!s.receiptCompactMode;
@@ -177,10 +177,16 @@ export default function StandardReceipt({ order, settings: rawSettings }: Props)
             <span>Tax</span><span>Rs. {fmt(order.tax)}</span>
           </div>
         )}
-        {showTax && (order.serviceCharge || 0) > 0 && (
+        {/* A charge that is in the total is always on the slip, whatever the tax switch says. */}
+        {(order.serviceCharge || 0) > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>{serviceChargeLabel(order)}</span>
             <span>Rs. {fmt(order.serviceCharge)}</span>
+          </div>
+        )}
+        {(order.deliveryChargeAmount || 0) > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Delivery</span><span>Rs. {fmt(order.deliveryChargeAmount)}</span>
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #000', borderBottom: '1px solid #000', padding: '3px 0', margin: '3px 0', fontSize: `${compact ? 12 : 14}px`, fontWeight: 900 }}>

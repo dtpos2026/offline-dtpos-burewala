@@ -7,6 +7,8 @@ import { Printer, History, ChefHat, Receipt, Clock, ShieldCheck, FileText } from
 import { enqueueKot, enqueueKotUpdate } from '@/lib/printQueue';
 import { logOrderReprint } from '@/lib/store';
 import { toast } from 'sonner';
+import { discountLabel } from '@/lib/billLabels';
+import { serviceChargeLabel } from '@/lib/serviceCharge';
 
 interface Props {
   order: Order | null;
@@ -193,7 +195,8 @@ export default function OrderDetailDialog({ order, onClose }: Props) {
               <div><span className="text-muted-foreground">Paid At:</span> {fmtTime(order.paidAt)}</div>
               <div><span className="text-muted-foreground">Cash Received:</span> {order.cashReceived ?? '—'}</div>
               <div><span className="text-muted-foreground">Change:</span> {order.changeReturned ?? '—'}</div>
-              <div><span className="text-muted-foreground">Discount:</span> {order.discount || 0}{order.discountTitle ? ` (${order.discountTitle})` : ''}</div>
+              <div><span className="text-muted-foreground">{discountLabel(order)}:</span> {order.discount || 0}</div>
+              {(order.serviceCharge || 0) > 0 && <div><span className="text-muted-foreground">{serviceChargeLabel(order)}:</span> {order.serviceCharge}</div>}
               <div><span className="text-muted-foreground">Grand Total:</span> PKR {order.grandTotal.toLocaleString()}</div>
             </div>
             {(order.reprintLog && order.reprintLog.length > 0) && (

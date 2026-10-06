@@ -89,7 +89,7 @@ describe('what the codes carry', () => {
       '2 x Chicken Biryani = 900',
       '1 x Zinger Burger = 550',
       '2 x Cold Drink 500ml = 240',
-      'Discount -100 | Tax 152 | Service 85',
+      'Discount -100 | Tax 152 | Service (5%) 85',
       'TOTAL Rs 1,827',
       'PAID (CASH)',
     ]);
