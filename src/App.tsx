@@ -329,6 +329,8 @@ const App = () => {
         const { startCloudLink } = await import('@/lib/cloudLink');
         const { loadLicense } = await import('@/licensing/licenseService');
         const { getInstalledVersion } = await import('@/lib/version');
+        const { todaySales } = await import('@/lib/todaySales');
+        const { getOrders } = await import('@/lib/store');
         if (cancelled) return;
         stop = startCloudLink(async () => {
           const lic = await loadLicense();
@@ -348,6 +350,8 @@ const App = () => {
             lastActivationAt: lic.lastActivationAt || lic.activatedAt,
             installationId: lic.installationId,
             slot: lic.slot || 'legacy',
+            // One figure for the Super Admin, worked out from this computer's own bills.
+            sales: (() => { try { return todaySales(getOrders()); } catch { return null; } })(),
           };
         });
       } catch { /* offline build — ignore */ }

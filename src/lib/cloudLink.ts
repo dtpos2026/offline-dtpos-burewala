@@ -14,6 +14,8 @@
 // desktop app stays small and fully usable offline.
 // ============================================================
 
+import type { TodaySales } from './todaySales';
+
 const PROJECT_ID = 'dtpos-offline';
 // Public web API key — Firebase is secured by Firestore rules, not by hiding it.
 const API_KEY = 'AIzaSyCgLRlvTaXyuk13vWCQ1vCKUbAmC5IY9cU';
@@ -385,6 +387,8 @@ export interface HeartbeatInput {
   lastActivationAt?: number;
   installationId?: string;
   slot?: string;
+  /** This computer's sales for the current business day (lib/todaySales.ts), for the Super Admin. */
+  sales?: TodaySales | null;
 }
 
 export async function sendHeartbeat(input: HeartbeatInput): Promise<boolean> {
@@ -429,6 +433,13 @@ export async function sendHeartbeat(input: HeartbeatInput): Promise<boolean> {
       locationUpdatedAt: loc?.at || 0,
       locationAccuracyM: loc?.accuracyM || 0,
       locationSource: loc?.source || 'network',
+      // Today's sales: four small values, well inside the device document's size rule.
+      ...(input.sales ? {
+        salesDay: input.sales.day,
+        salesToday: input.sales.total,
+        salesBills: input.sales.bills,
+        salesDayEnd: input.sales.dayEnd,
+      } : {}),
     }),
   };
 

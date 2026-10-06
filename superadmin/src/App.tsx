@@ -30,7 +30,8 @@ import {
   watchAdmin, adminSignOut, watchClients, pushClient, removeClient, watchDevices, watchMessages,
   watchLicenseStatuses, setLicenseStatus, docIdFor, type StatusDoc, type LicenceAction, type DeviceDoc,
 } from './cloud';
-import { isOnline } from './deviceState';
+import { isOnline, lastSeenLabel } from './deviceState';
+import { restaurantSales, formatSales } from './todaySales';
 import { UI_THEMES, setTheme, useThemeId } from '@pos/lib/uiStyle';
 import {
   ACCENT, ACCENT_TEXT, INK, INK_2, TEXT, STRONG, MUTED, LINE, LINE_STRONG, TINT, TINT_2, STATUS,
@@ -43,7 +44,7 @@ import {
 } from './ui';
 import {
   LayoutDashboard, KeyRound, Users, Monitor, MapPin, Receipt, LifeBuoy, ShieldCheck, LogOut, Plus,
-  CheckCircle2, Clock, XCircle, PauseCircle, Wifi, TriangleAlert, Palette, type LucideIcon,
+  CheckCircle2, Clock, XCircle, PauseCircle, Wifi, TriangleAlert, Palette, Banknote, type LucideIcon,
 } from 'lucide-react';
 
 type Tab = 'dashboard' | 'issue' | 'clients' | 'devices' | 'map' | 'billing' | 'support' | 'verify';
@@ -318,6 +319,14 @@ function Dashboard({ stats, clients, onGo }: {
   useEffect(() => watchDevices(setLive, () => setLive(null)), []);
   const online = live ? live.filter(d => isOnline(d)).length : null;
 
+  // Today's sales per restaurant, from those same reports: no extra request.
+  const sales = useMemo(() => {
+    if (!live) return null;
+    const names = new Map(clients.map(c => [c.key, c.business] as [string, string]));
+    return restaurantSales(live, names);
+  }, [live, clients]);
+  const salesTotal = sales ? sales.reduce((n, r) => n + r.total, 0) : 0;
+
   const expiring = useMemo(
     () => clients
       .filter(c => statusOf(c) === 'active' && daysLeft(c) !== null && (daysLeft(c) as number) <= 30)
@@ -381,6 +390,47 @@ function Dashboard({ stats, clients, onGo }: {
           <Stat label="Online now" value={online} Icon={Wifi} tone={{ fg: 'var(--ui-info-text)', bg: 'var(--ui-info-soft)', bd: 'var(--ui-info-border)' }} />
         )}
       </div>
+
+      {sales !== null && (
+        <Section
+          title="Today's sales"
+          hint="Each restaurant's sales for its current business day, as its POS reports them (every 5 minutes while it is online). Bills stay on the shop's computer; only this total is sent."
+          right={sales.some(r => r.reporting > 0) ? (
+            <span data-today-sales-total style={{ fontSize: 13, color: MUTED }}>
+              All restaurants: <b style={{ color: STRONG, fontSize: 15 }}>{formatSales(salesTotal)}</b>
+            </span>
+          ) : undefined}
+        >
+          {sales.length === 0 ? (
+            <Empty icon={Banknote}>No restaurant has reported yet. A POS reports once it is activated and online.</Empty>
+          ) : (
+            <div data-today-sales style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))' }}>
+              {sales.map(r => (
+                <div key={r.key} data-today-sales-row className="sa-row" style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
+                  borderRadius: 'var(--ui-radius-control)', border: `1px solid ${LINE}`,
+                }}>
+                  <Avatar name={r.name} size={34} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13.5, overflowWrap: 'anywhere' }}>{r.name}</div>
+                    {r.reporting > 0 ? (
+                      <div style={{ fontSize: 11.5, color: MUTED }}>
+                        Today's Sales · {r.bills} bill{r.bills === 1 ? '' : 's'} · {lastSeenLabel(r.updatedAt).toLowerCase()}
+                        {r.devices > 1 ? ` · ${r.reporting} of ${r.devices} computers` : ''}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 11.5, color: MUTED }}>Not reported today</div>
+                    )}
+                  </div>
+                  <b style={{ fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', color: r.reporting > 0 ? STRONG : MUTED }}>
+                    {r.reporting > 0 ? formatSales(r.total) : '—'}
+                  </b>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
 
       <div style={{ display: 'grid', gap: 18, gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))' }}>
         <Section title="Licence health" hint="How every licence you have issued stands today.">

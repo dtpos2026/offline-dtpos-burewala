@@ -414,6 +414,11 @@ Rules of behaviour (all in `cloudLink.ts` / `licenseSync.ts`):
   diagnostics). The panel labels network positions as approximate and never guesses a point.
 * Timing constants on the panel side (`deviceState.ts`): `HEARTBEAT_MS = 5 min`,
   `ONLINE_WINDOW_MS = 12 min` (two missed reports plus margin = offline).
+* **Today's sales (v1.19).** The heartbeat also carries four values worked out by `src/lib/todaySales.ts`:
+  `salesDay` (business-day label), `salesToday` (paid bills of the current business day, same rule as
+  the POS dashboard), `salesBills` and `salesDayEnd` (when that business day ends). No bill, item or
+  customer detail is sent, and there is no extra request. The device document stays under the
+  `size() < 45` rule.
 
 ---
 
@@ -435,6 +440,10 @@ Every number is computed from the registry — nothing invented.
 * Licence health bar + legend (Active = active minus expiring, Expiring, Expired, Suspended) and
   "By plan" chips.
 * Renewals — next 90 days (5 windows: ≤7, 8–14, 15–30, 31–60, 61–90 days).
+* **Today's sales** (`todaySales.ts`): one row per restaurant ("Restaurant A — Today's Sales:
+  Rs. 125,000"), its computers added together, plus an all-restaurants total. A figure whose business
+  day has ended (`salesDayEnd` passed) reads "Not reported today", never as today's. It reads the
+  same `devices` snapshot as "Online now", so it adds no subscription.
 * Renewals coming up (≤ 30 days, soonest first, max 8) and Recent activations (newest 6 devices).
 * "How this works" 4-step guide with shortcuts to Issue License and Device Map.
 

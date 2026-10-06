@@ -15,6 +15,8 @@ export interface DeviceDoc {
   country?: string; region?: string; city?: string; locationUpdatedAt?: number;
   latitude?: number; longitude?: number;
   locationAccuracyM?: number; locationSource?: string;
+  /** Today's sales as this computer reports them (src/lib/todaySales.ts): business day, total, bills, when the day ends. */
+  salesDay?: string; salesToday?: number; salesBills?: number; salesDayEnd?: number;
 }
 
 /** The POS reports every 5 minutes while it is open and connected. */
