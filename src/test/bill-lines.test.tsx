@@ -20,7 +20,8 @@ import ReceiptPreview from '@/components/ReceiptPreview';
 import { ALL_PREMIUM_TEMPLATES } from '@/lib/premiumReceiptTemplates';
 import { buildReceiptBytes } from '@/printing/escposBuilder';
 import { receiptText } from '@/lib/receiptCodes';
-import { discountLabel, discountPercentShown, taxLabel } from '@/lib/billLabels';
+import { discountLabel, discountPercentShown, taxLabel, variantNote } from '@/lib/billLabels';
+import { toLiveBill } from '@/lib/liveBill';
 import { buildSampleOrder } from '@/lib/sampleOrder';
 
 const CLASSIC_DESIGNS = [
@@ -147,5 +148,23 @@ describe('the bill editor keeps the bill honest', () => {
   });
   it('an amount typed by the manager drops the old percentage', () => {
     expect(src).toMatch(/discountPercent: changed \? undefined : draft\.discountPercent/);
+  });
+});
+
+describe('a sized item prints its size once', () => {
+  // The POS names the line "Pepperoni Feast - Large" and keeps "Large" as its variant too.
+  const sized = base({ items: [{ id: 'p', menuItemId: 'p', name: 'Pepperoni Feast - Large', variantName: 'Large', variantType: 'size', pricingType: 'fixed', price: 1600, quantity: 1, lineTotal: 1600, note: '' }], subtotal: 1600, grandTotal: 1600 });
+  it('the rule', () => {
+    expect(variantNote({ name: 'Pepperoni Feast - Large', variantName: 'Large' })).toBe('');
+    expect(variantNote({ name: 'Zinger Burger', variantName: 'Large' })).toBe('Large');
+    expect(variantNote({ name: 'Zinger Burger' })).toBe('');
+  });
+  it.each(['dtr-modern', 'dtr-restaurant', 'dtr-classic', ...ALL_PREMIUM_TEMPLATES.filter(t => !t.id.startsWith('dtr-')).slice(0, 3).map(t => t.id)])('%s', design => {
+    expect(textOf(sized, design)).not.toMatch(/Large\s*\(Large\)/);
+  });
+  it('raw slip, QR text and the Customer Display', () => {
+    expect(Buffer.from(buildReceiptBytes(sized as any, settings)).toString('latin1')).not.toMatch(/Large \(Large\)/);
+    expect(receiptText(sized as any, settings)).not.toMatch(/Large \(Large\)/);
+    expect(toLiveBill({ lines: [{ name: 'Pepperoni Feast - Large', variantName: 'Large', quantity: 1, lineTotal: 1600 }], total: 1600 })!.lines[0].name).toBe('Pepperoni Feast - Large');
   });
 });

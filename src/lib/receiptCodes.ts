@@ -27,8 +27,8 @@
 import type { Order, RestaurantSettings } from '@/lib/types';
 import { sanitizeForFormat, type BarcodeFormat } from '@/lib/linearBarcode';
 import { BAR_DOTS, qrByteBudget } from '@/lib/codeGeometry';
-import { discountPercentShown } from '@/lib/billLabels';
 import { serviceChargeSuffix } from '@/lib/serviceCharge';
+import { discountPercentShown, variantNote } from '@/lib/billLabels';
 
 export type CodePosition = 'above' | 'footer' | 'below';
 export type QrMode = 'auto' | 'multi' | 'single';
@@ -379,7 +379,8 @@ export function receiptPayload(order: Order, settings: RestaurantSettings, opts:
     i: [] as unknown[],
   };
   const items = (order.items || []).map(it => {
-    const name = `${String(it.name || '').slice(0, 40)}${(it as any).variantName ? ` (${String((it as any).variantName).slice(0, 20)})` : ''}`;
+    const size = variantNote(it as any);
+    const name = `${String(it.name || '').slice(0, 40)}${size ? ` (${size.slice(0, 20)})` : ''}`;
     const qty = it.pricingType === 'weight' && it.weightGrams ? Math.round(it.weightGrams) / 1000 : Number(it.quantity) || 1;
     return [name, qty, num(it.lineTotal ?? (Number(it.quantity) || 0) * (Number(it.price) || 0))];
   });

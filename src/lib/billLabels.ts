@@ -52,3 +52,15 @@ export function taxLabel(settings: { taxPercent?: number } | null | undefined, b
   const pct = Number(settings?.taxPercent) || 0;
   return pct > 0 && pct <= 100 ? `${base} (${+pct.toFixed(2)}%)` : base;
 }
+
+/**
+ * The size to print after an item's name, or '' when the name already says it.
+ * The POS names a sized line "Pepperoni Feast - Large" and keeps "Large" as its
+ * variant too; printing both read "Pepperoni Feast - Large (Large)".
+ */
+export function variantNote(item: { name?: string; variantName?: string }): string {
+  const v = (item.variantName || '').trim();
+  if (!v) return '';
+  const name = (item.name || '').trim().toLowerCase();
+  return name.endsWith(v.toLowerCase()) ? '' : v;
+}

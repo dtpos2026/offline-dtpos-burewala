@@ -23,7 +23,7 @@
 // ============================================================
 import React from 'react';
 import { serviceChargeLabel } from '@/lib/serviceCharge';
-import { discountLineTitle } from '@/lib/billLabels';
+import { discountLineTitle, variantNote } from '@/lib/billLabels';
 import { ReceiptCodesSlot } from '@/components/ReceiptCodes';
 import { FONT_STACKS, ITEM_TABLE_CSS } from '@/components/premiumShared';
 import type { CartItem, Order, RestaurantSettings } from '@/lib/types';
@@ -168,7 +168,7 @@ function prepare(order: Order, settings: RestaurantSettings, c: PremiumCustomiza
       : (Number.isFinite(qtyNum) && qtyNum > 0 ? String(qtyNum) : '1');
     return {
       name: it.name,
-      variant: c.showVariants ? (it.variantName || '') : '',
+      variant: c.showVariants ? variantNote(it) : '',
       note: c.showItemNotes ? (it.note || '') : '',
       qty,
       qtyNum: weighed ? 1 : (Number.isFinite(qtyNum) && qtyNum > 0 ? qtyNum : 1),

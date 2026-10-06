@@ -18,6 +18,8 @@
 // is on.
 // ============================================================
 
+import { variantNote } from './billLabels';
+
 export const LIVE_BILL_KEY = 'dtpos-live-bill';
 const CHANNEL = 'dtpos-live-bill';
 /** A bill older than this is treated as left over from a crash, not shown. */
@@ -72,7 +74,7 @@ const MAX_LINES = 80;
 export function toLiveBill(src: LiveBillSource, now = Date.now()): LiveBill | null {
   const lines = (src.lines || [])
     .map(l => ({
-      name: text(`${l.name || ''}${l.variantName ? ` (${l.variantName})` : ''}`) || 'Item',
+      name: text(`${l.name || ''}${variantNote(l) ? ` (${variantNote(l)})` : ''}`) || 'Item',
       qty: num(l.quantity),
       amount: num(l.lineTotal),
     }))

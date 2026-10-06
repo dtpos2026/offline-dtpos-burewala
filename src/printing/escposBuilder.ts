@@ -6,7 +6,7 @@
 // ============================================================
 import type { Order, RestaurantSettings } from '@/lib/types';
 import { serviceChargeLabel } from '@/lib/serviceCharge';
-import { discountLineTitle } from '@/lib/billLabels';
+import { discountLineTitle, variantNote } from '@/lib/billLabels';
 import { resolveReceiptLayout, type ReceiptLayout } from './receiptLayout';
 import { columnsOf } from './paperProfile';
 import { DEVELOPER_CREDIT } from '@/lib/displayTemplates';
@@ -443,7 +443,8 @@ export function buildReceiptBytes(order: Order, settings: RestaurantSettings, ge
   const amountW = 10;
   for (const it of order.items || []) {
     const qty = it.quantity || 0;
-    const label = `${qty} x ${it.name}${(it as any).variantName ? ` (${(it as any).variantName})` : ''}`;
+    const size = variantNote(it as any);
+    const label = `${qty} x ${it.name}${size ? ` (${size})` : ''}`;
     d.itemLine(label, money(it.lineTotal ?? qty * (it.price || 0), sym), amountW, itemSize);
     if (!compact && it.note) d.line(`   * ${it.note}`);
   }

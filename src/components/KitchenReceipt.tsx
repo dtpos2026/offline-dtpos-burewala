@@ -12,6 +12,7 @@ import { resolvePrintMode } from '@/printing/printMode';
 import { resolveSlipMargin } from '@/lib/slipMargins';
 import { beginThermalPrintDomSession, getEffectiveReceiptMargins, getThermalPaperWidthMicrons, getThermalPrintJobHeightMm, shouldUsePrinterDefaultPageSize, waitForThermalPrintLayout } from '@/lib/thermal-print';
 import { StandardInfoGrid, StandardInfoRows, getOrderTypeLabel } from '@/lib/standardOrderInfo';
+import { variantNote } from '@/lib/billLabels';
 
 interface Props {
   order: Order;
@@ -837,7 +838,7 @@ export default function KitchenReceipt({ order: rawOrder, settings, showPrintBut
           }}>
             <span style={{ width: '1.8em', flex: 'none', fontWeight: 900, fontSize: 22, lineHeight: 1 }}>{kotQtyLabel(item)}</span>
             <span style={{ flex: 1, minWidth: 0, fontWeight: 800, fontSize: 14, lineHeight: 1.2, wordBreak: 'break-word' }}>
-              {item.name}{(item as any).variantName ? ` (${(item as any).variantName})` : ''}
+              {item.name}{variantNote(item as any) ? ` (${variantNote(item as any)})` : ''}
               {showNotes && item.note && (
                 <span style={{ display: 'inline-block', marginLeft: 6, border: '1px solid #000', padding: '0 4px', fontWeight: 400, fontSize: 11 }}>* {item.note}</span>
               )}

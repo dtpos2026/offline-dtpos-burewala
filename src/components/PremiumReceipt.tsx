@@ -13,7 +13,7 @@
 // ============================================================
 import React, { useMemo } from 'react';
 import { serviceChargeLabel } from '@/lib/serviceCharge';
-import { discountLineTitle } from '@/lib/billLabels';
+import { discountLineTitle, variantNote } from '@/lib/billLabels';
 import { ReceiptCodesSlot } from '@/components/ReceiptCodes';
 import DtRetailReceipt from '@/components/DtRetailReceipt';
 import { FONT_STACKS, ITEM_TABLE_CSS } from '@/components/premiumShared';
@@ -392,8 +392,8 @@ export default function PremiumReceipt({ order, settings, templateId, customizat
           {col === 'name' && c.showItemNotes && item.note
             ? <div style={{ fontSize: `${base - 2}px`, fontWeight: 400 }}>» {item.note}</div>
             : null}
-          {col === 'name' && !c.showVariants && item.variantName
-            ? <span style={{ fontWeight: 400 }}> ({item.variantName})</span>
+          {col === 'name' && !c.showVariants && variantNote(item)
+            ? <span style={{ fontWeight: 400 }}> ({variantNote(item)})</span>
             : null}
         </td>
       ))}
@@ -456,7 +456,7 @@ export default function PremiumReceipt({ order, settings, templateId, customizat
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontWeight: 800 }}>
                     <span style={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
                       {showSr ? `${i + 1}. ` : ''}{qty} × {item.name}
-                      {item.variantName ? <span style={{ fontWeight: 400 }}> ({item.variantName})</span> : null}
+                      {variantNote(item) ? <span style={{ fontWeight: 400 }}> ({variantNote(item)})</span> : null}
                     </span>
                     <span className="premium-num" style={{ textAlign: 'right' }}>
                       {money(item.lineTotal ?? item.quantity * item.price, false)}
