@@ -457,13 +457,16 @@ export default function PaymentDialog({ open, onClose, grandTotal, onConfirm, cu
           </div>
         )}
 
-        <Button
-          className={`w-full h-12 text-base font-extrabold ${isPartial ? 'bg-amber-500 hover:bg-amber-600' : 'bg-status-success hover:bg-status-success/90'}`}
-          onClick={confirm}
-          disabled={confirmDisabled}
-        >
-          {btnLabel}
-        </Button>
+        {/* Pinned to the bottom of the popup: on a short screen the options scroll, the confirm button never does. */}
+        <div data-pay-confirm className="sticky -bottom-6 z-10 -mx-6 -mb-6 border-t bg-[hsl(var(--ui-dialog-bg,var(--background)))] px-6 pb-6 pt-3">
+          <Button
+            className={`w-full h-12 text-base font-extrabold ${isPartial ? 'bg-amber-500 hover:bg-amber-600' : 'bg-status-success hover:bg-status-success/90'}`}
+            onClick={confirm}
+            disabled={confirmDisabled}
+          >
+            {btnLabel}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

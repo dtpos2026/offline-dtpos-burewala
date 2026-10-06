@@ -217,6 +217,7 @@ html[data-ui="modern"][data-look="retail"] .cat-pill[data-active="true"] {
   color: hsl(var(--background));
   border-color: hsl(var(--foreground));
 }
+html[data-ui="modern"][data-look="retail"] .cat-pill.cat-pill-side { border-radius: 12px; }
 
 /* ---------------------------------------------------------------- motion */
 @keyframes dtrPageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -227,13 +228,18 @@ html[data-ui="modern"][data-look="retail"] .cat-pill[data-active="true"] {
 @keyframes dtrShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 @keyframes dtrStreak { 0% { transform: translateX(-120%); } 100% { transform: translateX(320%); } }
 @keyframes dtrFadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes dtrDialogIn { from { opacity: 0; scale: 0.97; } to { opacity: 1; scale: 1; } }
 
 /* every page change: 0.22 s. `backwards` keeps the element transform-free once it has arrived. */
 html:not([data-anim="off"])[data-ui="modern"][data-look="retail"] main > .dtr-page,
 html:not([data-anim="off"])[data-ui="modern"][data-look="retail"] main > div:first-child {
   animation: dtrPageIn 0.22s var(--dtr-ease) backwards;
 }
-html:not([data-anim="off"])[data-ui="modern"][data-look="retail"] [data-slot="dialog-content"] { animation: dtrRiseIn 0.18s var(--dtr-ease) both; }
+/* Dialogs are centred with transform: translate(-50%, -50%). The entry motion must never touch
+   `transform` (an animation that ends on transform:none, held by fill-mode, pushed every dialog
+   half its size to the bottom-right). It uses opacity and the separate `scale` property only,
+   and holds nothing after it ends. */
+html:not([data-anim="off"])[data-ui="modern"][data-look="retail"] [data-slot="dialog-content"] { animation: dtrDialogIn 0.18s var(--dtr-ease) backwards; }
 html:not([data-anim="off"])[data-ui="modern"][data-look="retail"] [data-dtr="hero"] { animation: dtrRiseIn 0.45s var(--dtr-ease) backwards; }
 html:not([data-anim="off"])[data-ui="modern"][data-look="retail"] [data-dtr-kpis] > [data-stat-card] { animation: dtrRiseIn 0.4s var(--dtr-ease) backwards; }
 html:not([data-anim="off"])[data-ui="modern"][data-look="retail"] [data-dtr-kpis] > [data-stat-card]:nth-child(2) { animation-delay: 0.05s; }

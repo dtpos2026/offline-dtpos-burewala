@@ -3,7 +3,8 @@ import { parseReceiptRef } from '@/lib/receiptCodes';
 import { computeBillTotals } from '@/lib/billTotals';
 import { overrideFromOrder, serviceChargeFields, serviceChargeLabel, type ServiceChargeOverride } from '@/lib/serviceCharge';
 import { publishLiveBill, toLiveBill } from '@/lib/liveBill';
-import { Search, Plus, Minus, Trash2, CreditCard, Pause, Weight, Edit3, ShoppingCart, RotateCcw, Delete, User, Phone, Ban, Gift, XCircle, ChefHat, MessageCircle, ChevronLeft, ChevronRight, MoreVertical, Pencil } from 'lucide-react';
+import CategoryGridDialog from '@/components/pos/CategoryGridDialog';
+import { Search, Plus, Minus, Trash2, CreditCard, Pause, Weight, Edit3, ShoppingCart, RotateCcw, Delete, User, Phone, Ban, Gift, XCircle, ChefHat, MessageCircle, ChevronLeft, ChevronRight, MoreVertical, Pencil, LayoutGrid } from 'lucide-react';
 import { normalizePhone, buildPaidMessage, buildDeliveryMessage, openWhatsApp } from '@/lib/whatsapp';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -238,6 +239,8 @@ export default function POSScreen() {
   const [selectedFlavor, setSelectedFlavor] = useState<string | null>(null);
   /** Item currently being configured in the Size/Inch picker. */
   const [variantPickerItem, setVariantPickerItem] = useState<MenuItem | null>(null);
+  // "All Categories" grid picker (4-box button next to All).
+  const [showCatGrid, setShowCatGrid] = useState(false);
 
 
 
@@ -1642,6 +1645,16 @@ export default function POSScreen() {
             style={{ scrollbarWidth: 'thin' }}
           >
             <button
+              type="button"
+              onClick={() => setShowCatGrid(true)}
+              data-pos-cat-grid
+              aria-label="All categories"
+              title="All categories"
+              className="cat-pill cat-grid-btn inline-flex items-center justify-center"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button
               onClick={() => setSelectedCat('all')}
               data-active={selectedCat === 'all'}
               className="cat-pill"
@@ -1695,13 +1708,25 @@ export default function POSScreen() {
               style={{ width: layout.categoryWidth, order: layout.categoryPlacement === 'right' ? 2 : 0 }}
               className={`shrink-0 ${layout.categoryPlacement === 'right' ? 'border-l-2' : 'border-r-2'} border-border/60 bg-card/40 overflow-y-auto pos-scrollbar py-2`}
             >
-              <button
-                onClick={() => setSelectedCat('all')}
-                data-active={selectedCat === 'all'}
-                className="cat-pill w-[calc(100%-12px)] mx-1.5 mb-1.5 justify-start"
-              >
-                📋 All{modern && <span data-cat-count>{catCounts.all}</span>}
-              </button>
+              <div className="mx-1.5 mb-1.5 flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowCatGrid(true)}
+                  data-pos-cat-grid
+                  aria-label="All categories"
+                  title="All categories"
+                  className="cat-pill cat-pill-side cat-grid-btn inline-flex shrink-0 items-center justify-center"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setSelectedCat('all')}
+                  data-active={selectedCat === 'all'}
+                  className="cat-pill cat-pill-side whitespace-nowrap min-w-0 flex-1 flex items-center gap-1.5 justify-start"
+                >
+                  📋 All{modern && <span data-cat-count className="ml-auto">{catCounts.all}</span>}
+                </button>
+              </div>
               {categories.map(cat => {
                 const catFont = settings.categoryStyle;
                 const catFontStyle: React.CSSProperties = catFont && catFont.font !== 'default' ? {
@@ -1715,16 +1740,18 @@ export default function POSScreen() {
                     key={cat.id}
                     onClick={() => setSelectedCat(cat.id)}
                     data-active={selectedCat === cat.id}
-                    className="cat-pill w-[calc(100%-12px)] mx-1.5 mb-1.5 flex items-center gap-1.5 justify-start"
+                    className="cat-pill cat-pill-side w-[calc(100%-12px)] mx-1.5 mb-1.5 flex items-center gap-1.5 justify-start"
                     style={catFontStyle}
+                    title={cat.name}
                   >
                     {cat.image ? (
                       <img src={cat.image} alt={cat.name} className="h-5 w-5 rounded-full object-cover shrink-0" />
                     ) : (
                       <span className="text-sm shrink-0">{cat.icon}</span>
                     )}
-                    <span className="truncate text-left">{cat.name}</span>
-                    {modern && <span data-cat-count className="ml-auto">{catCounts.byCat.get(cat.id) || 0}</span>}
+                    {/* The whole name, wrapped onto a second line when needed — never cut short. */}
+                    <span data-cat-name className="min-w-0 text-left leading-snug break-words [overflow-wrap:anywhere]">{cat.name}</span>
+                    {modern && <span data-cat-count className="ml-auto shrink-0 self-center">{catCounts.byCat.get(cat.id) || 0}</span>}
                   </button>
                 );
               })}
@@ -3169,6 +3196,22 @@ export default function POSScreen() {
       </Dialog>
 
       {/* ===== Size / Inch Variant Picker (Advanced Menu Flow) ===== */}
+      <CategoryGridDialog
+        open={showCatGrid}
+        onOpenChange={setShowCatGrid}
+        categories={categories}
+        counts={catCounts}
+        selected={selectedCat}
+        onSelect={id => setSelectedCat(id)}
+        fontStyle={(() => {
+          const f = settings.categoryStyle;
+          return f && f.font !== 'default' ? {
+            fontFamily: `'${f.font}', serif`,
+            direction: ['Aseer Unicode', 'AA Sameer Armaa', 'Jameel Noori Nastaleeq', 'Jameel Noori Nastaleeq Regular'].includes(f.font) ? 'rtl' as const : 'ltr' as const,
+          } : undefined;
+        })()}
+      />
+
       <Dialog open={!!variantPickerItem} onOpenChange={(v) => { if (!v) setVariantPickerItem(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
