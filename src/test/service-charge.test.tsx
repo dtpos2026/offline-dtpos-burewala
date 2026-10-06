@@ -293,3 +293,9 @@ describe('what the customer receipt shows', () => {
     }
   });
 });
+
+describe('a new shop', () => {
+  it('starts with the category panel on the right, next to the bill', () => {
+    expect((seedData() as any).settings.categoryLayout).toBe('right');
+  });
+});

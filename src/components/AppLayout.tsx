@@ -502,17 +502,18 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
           >
             <Menu className="h-4 w-4" />
           </button>
-          <div className="flex items-center gap-2">
-            <div className="h-5 w-1 rounded-full bg-gradient-gold shadow-[0_0_8px_rgba(255,215,0,0.6)]" />
-            <h1 className="text-sm font-bold text-sidebar-foreground tracking-tight">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="h-5 w-1 shrink-0 rounded-full bg-gradient-gold shadow-[0_0_8px_rgba(255,215,0,0.6)]" />
+            <h1 className="min-w-0 truncate whitespace-nowrap text-sm font-bold text-sidebar-foreground tracking-tight">
               {isPremiumThemeActive() ? PREMIUM_BRAND_NAME : (settings.name || 'DT POS')} <span className="text-sidebar-foreground/70 font-medium">— {currentTitle}</span>
             </h1>
-            <div className="ml-1 flex items-center gap-2">
+            <div className="ml-1 flex shrink-0 items-center gap-2">
               <HeaderNotificationBar />
-              <BillingStatusBar />
+              {/* The connection / setup / version pills wrap a small screen's header; they return from 1024 px. */}
+              <div className="hidden lg:flex items-center gap-2"><BillingStatusBar /></div>
             </div>
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <BranchSelector />
 
             {/* Live clock pill — sits left of zoom controls */}

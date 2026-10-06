@@ -23,10 +23,11 @@ export default function HeaderClock({ variant = 'classic' }: { variant?: 'classi
     );
   }
   return (
-    <div className="hidden md:flex items-center gap-2 bg-sidebar-foreground/10 border border-sidebar-foreground/20 rounded-md px-2.5 py-1 shadow-inner">
+    <div className="hidden md:flex items-center gap-2 whitespace-nowrap bg-sidebar-foreground/10 border border-sidebar-foreground/20 rounded-md px-2.5 py-1 shadow-inner" title={now.toLocaleString()}>
       <span className="text-[11px] font-bold font-mono text-sidebar-foreground tabular-nums tracking-wider">{time}</span>
-      <span className="h-3 w-px bg-sidebar-foreground/30" />
-      <span className="text-[10px] font-semibold text-sidebar-foreground/85 tracking-wide">{date}</span>
+      {/* On a small screen the date gives way rather than wrapping the header onto three lines. */}
+      <span className="hidden lg:block h-3 w-px bg-sidebar-foreground/30" />
+      <span className="hidden lg:inline text-[10px] font-semibold text-sidebar-foreground/85 tracking-wide">{date}</span>
     </div>
   );
 }

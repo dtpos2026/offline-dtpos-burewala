@@ -32,7 +32,8 @@ export interface ScreenLayoutConfig {
   cardSize: 'auto' | CardSize;
   /** Cart column width in px (260–600), or auto. */
   cartWidth: 'auto' | number;
-  categoryPlacement: 'auto' | 'top' | 'side';
+  /** 'side' = a panel on the left of the products, 'right' = between the products and the bill. */
+  categoryPlacement: 'auto' | 'top' | 'side' | 'right';
   /** Side category panel width in px (104–240), or auto. */
   categoryWidth: 'auto' | number;
   density: 'auto' | 'comfortable' | 'compact';
@@ -62,7 +63,7 @@ export interface LayoutInput {
   /** Coarse pointer (touchscreen) detected. */
   touch: boolean;
   /** The restaurant-wide category setting (Settings → POS display). */
-  categoryLayoutSetting: 'top' | 'side';
+  categoryLayoutSetting: 'top' | 'side' | 'right';
   /** The restaurant-wide "Menu items per row" (3–6): the most columns auto mode uses. */
   preferredColumns?: number;
   config: ScreenLayoutConfig;
@@ -73,7 +74,7 @@ export interface PosLayout {
   cartPlacement: 'side' | 'bottom' | 'drawer';
   cartWidth: number;
   cartHeight: number;
-  categoryPlacement: 'top' | 'side';
+  categoryPlacement: 'top' | 'side' | 'right';
   categoryWidth: number;
   productColumns: number;
   /** True when a fixed column count had to be lowered to keep cards usable. */
@@ -88,7 +89,15 @@ export interface PosLayout {
   /** Minimum height for tappable controls, px. */
   touchTarget: number;
   productAreaWidth: number;
+  /**
+   * A short screen (800×600, 1280×600 …): the bill keeps its rows visible by tucking
+   * Discount / Promo behind one line and dropping the keyboard-shortcut strip.
+   */
+  short: boolean;
 }
+
+/** Below this POS height (after the header) the bill area is compacted. */
+export const SHORT_HEIGHT = 680;
 
 export const RESIZE_HANDLE = 6;
 const SCROLLBAR = 8;
@@ -154,7 +163,7 @@ export function computePosLayout(input: LayoutInput): PosLayout {
 
   const area = () => width
     - (cartPlacement === 'side' ? cartWidth + RESIZE_HANDLE : 0)
-    - (categoryPlacement === 'side' ? categoryWidth : 0)
+    - (categoryPlacement !== 'top' ? categoryWidth : 0)
     - 2 * padding - SCROLLBAR;
 
   // Give side panels back to the products before giving up columns.
@@ -162,7 +171,7 @@ export function computePosLayout(input: LayoutInput): PosLayout {
   const target = typeof cfg.productColumns === 'number' ? cfg.productColumns : Math.min(TARGET_COLUMNS[mode], preferred);
   if (columnsFor(area(), cardMin, gap) < target) {
     if (cartPlacement === 'side' && cfg.cartWidth === 'auto') cartWidth = cartSpec.floor;
-    if (categoryPlacement === 'side' && cfg.categoryWidth === 'auto') categoryWidth = CATEGORY_FLOOR;
+    if (categoryPlacement !== 'top' && cfg.categoryWidth === 'auto') categoryWidth = CATEGORY_FLOOR;
   }
   const productAreaWidth = Math.max(0, area());
 
@@ -187,6 +196,7 @@ export function computePosLayout(input: LayoutInput): PosLayout {
     touch: input.touch,
     touchTarget: input.touch ? 48 : density === 'compact' ? 36 : 40,
     productAreaWidth,
+    short: height < SHORT_HEIGHT,
   };
 }
 
@@ -281,7 +291,7 @@ export function sanitizeConfig(c: Partial<ScreenLayoutConfig> | null | undefined
   };
   pick('mode', ['auto', 'wide', 'standard', 'narrow', 'square', 'portrait']);
   pick('cardSize', ['auto', 'small', 'medium', 'large']);
-  pick('categoryPlacement', ['auto', 'top', 'side']);
+  pick('categoryPlacement', ['auto', 'top', 'side', 'right']);
   pick('density', ['auto', 'comfortable', 'compact']);
   pick('menuCollapse', ['auto', 'collapsed', 'expanded']);
   pick('keypad', ['auto', 'show', 'hide']);

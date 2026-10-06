@@ -34,6 +34,8 @@ export function seedData(): AppData {
       serviceChargeAmount: 0,
       serviceChargeOrderTypes: { dining: true, takeaway: false, delivery: false },
       serviceChargeEditable: true,
+      // New shops pick categories from a panel on the right, next to the bill (square screens use the top ribbon).
+      categoryLayout: 'right',
       qrMode: 'auto',
       customQrImage: '',
       bankName: '',

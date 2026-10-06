@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } fro
 import { parseReceiptRef } from '@/lib/receiptCodes';
 import { computeBillTotals } from '@/lib/billTotals';
 import { overrideFromOrder, serviceChargeFields, serviceChargeLabel, type ServiceChargeOverride } from '@/lib/serviceCharge';
+import { publishLiveBill, toLiveBill } from '@/lib/liveBill';
 import { Search, Plus, Minus, Trash2, CreditCard, Pause, Weight, Edit3, ShoppingCart, RotateCcw, Delete, User, Phone, Ban, Gift, XCircle, ChefHat, MessageCircle, ChevronLeft, ChevronRight, MoreVertical, Pencil } from 'lucide-react';
 import { normalizePhone, buildPaidMessage, buildDeliveryMessage, openWhatsApp } from '@/lib/whatsapp';
 import { Button } from '@/components/ui/button';
@@ -196,6 +197,10 @@ export default function POSScreen() {
   // A service charge typed in by hand on this bill (replaces the automatic one). null = automatic.
   const [scOverride, setScOverride] = useState<ServiceChargeOverride | null>(null);
   const [scEditing, setScEditing] = useState(false);
+  // Short screens: Discount / Promo sit behind one line until opened (or in use).
+  const [adjOpen, setAdjOpen] = useState(false);
+  // Short screens: the optional customer name / phone row folds into a button until needed.
+  const [custOpen, setCustOpen] = useState(false);
   const [scDraftMode, setScDraftMode] = useState<'percent' | 'pkr'>('percent');
   const [scDraftValue, setScDraftValue] = useState('');
   const [promoCodeInput, setPromoCodeInput] = useState('');
@@ -284,7 +289,7 @@ export default function POSScreen() {
   // ===== Responsive layout (v1.12) — see lib/posLayout.ts =====
   const posRootRef = useRef<HTMLDivElement | null>(null);
   const { layout, config: screenConfig, facts: screenFacts } = usePosLayout(posRootRef, {
-    categoryLayoutSetting: settings.categoryLayout === 'side' ? 'side' : 'top',
+    categoryLayoutSetting: settings.categoryLayout === 'side' || settings.categoryLayout === 'right' ? settings.categoryLayout : 'top',
     preferredColumns: settings.menuGridColumns || 6,
   });
   const screenSigRef = useRef(screenFacts.signature);
@@ -295,6 +300,9 @@ export default function POSScreen() {
   cartWidthRef.current = cartWidth;
   const cartDrawer = layout.cartPlacement === 'drawer';
   const cartBottom = layout.cartPlacement === 'bottom';
+  // A narrow bill (small screens, the pop-up cart): the unit price moves under the item name
+  // so the name keeps its room instead of being cut to four letters.
+  const narrowCart = cartDrawer || (layout.cartPlacement === 'side' && cartWidth < 330);
   // The keypad is a module the screen profile can hide; a price or weight
   // entry still opens it, because that entry has nowhere else to go.
   const keypadHidden = screenConfig.keypad === 'hide' && !numpadTarget;
@@ -861,6 +869,33 @@ export default function POSScreen() {
     return parts.length ? parts.join(' + ') : undefined;
   };
 
+  // Customer Display: the bill as it is rung up — customer-facing fields only (lib/liveBill.ts).
+  // Runs only when Settings → Display → "Enable Display Screen" is on.
+  const liveBillOn = !!settings.displayEnabled && !isOrderTaker;
+  useEffect(() => {
+    if (!liveBillOn) return;
+    const t = window.setTimeout(() => {
+      publishLiveBill(toLiveBill({
+        orderType,
+        lines: cart,
+        subtotal,
+        discount: totalDiscount,
+        discountLabel: buildDiscountTitle() || 'Discount',
+        serviceCharge,
+        serviceChargeLabel: serviceChargeLabel({ serviceChargePercent: scFields.serviceChargePercent, serviceChargeType: scFields.serviceChargeType }),
+        tax: taxAmount,
+        delivery: deliveryChargeAmt,
+        total: grandTotal,
+        received: paymentReceivedNum,
+      }));
+    }, 150);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveBillOn, cart, orderType, subtotal, totalDiscount, serviceCharge, taxAmount, deliveryChargeAmt, grandTotal, paymentReceivedNum]);
+  // Leaving the POS (or switching the display off) takes the bill off the customer's screen.
+  useEffect(() => () => publishLiveBill(null), []);
+  useEffect(() => { if (!liveBillOn) publishLiveBill(null); }, [liveBillOn]);
+
   // Re-validate promo whenever cart subtotal changes (in case cart shrinks below min)
   useEffect(() => {
     if (!promoApplied) return;
@@ -890,6 +925,8 @@ export default function POSScreen() {
     setDiscountMode('pkr');
     setScOverride(null);
     setScEditing(false);
+    setAdjOpen(false);
+    setCustOpen(false);
     setPromoApplied(null);
     setPromoCodeInput('');
     setSelectedTable('');
@@ -1651,8 +1688,13 @@ export default function POSScreen() {
 
         {/* ITEMS AREA — optional left sidebar (SIDE layout) + grid */}
         <div className="flex-1 flex overflow-hidden">
-          {layout.categoryPlacement === 'side' && (
-            <aside style={{ width: layout.categoryWidth }} className="shrink-0 border-r-2 border-border/60 bg-card/40 overflow-y-auto pos-scrollbar py-2">
+          {layout.categoryPlacement !== 'top' && (
+            // 'side' = left of the products; 'right' = between the products and the bill (CSS order, same panel).
+            <aside
+              data-pos-categories={layout.categoryPlacement === 'right' ? 'right' : 'left'}
+              style={{ width: layout.categoryWidth, order: layout.categoryPlacement === 'right' ? 2 : 0 }}
+              className={`shrink-0 ${layout.categoryPlacement === 'right' ? 'border-l-2' : 'border-r-2'} border-border/60 bg-card/40 overflow-y-auto pos-scrollbar py-2`}
+            >
               <button
                 onClick={() => setSelectedCat('all')}
                 data-active={selectedCat === 'all'}
@@ -1889,6 +1931,7 @@ export default function POSScreen() {
         style={cartDrawer ? undefined : cartBottom ? { height: layout.cartHeight } : { width: cartWidth }}
         ref={cartColRef}
         data-pos-cart
+        data-short={layout.short ? 'true' : undefined}
         className={`${cartDrawer
           ? (mobileCartOpen ? 'fixed inset-y-0 right-0 w-[88%] max-w-[340px] z-50 flex' : 'hidden')
           : cartBottom ? 'relative flex w-full border-t-2' : 'relative flex border-l'} bg-pos-cart flex-col shrink-0 shadow-lg min-h-0 overflow-y-auto overflow-x-hidden pos-scrollbar`}
@@ -1898,7 +1941,13 @@ export default function POSScreen() {
           <h2 data-pos-cart-title className="text-sm font-extrabold flex items-center gap-2">
             <ShoppingCart className="h-4 w-4 text-primary" />
             {modern ? 'Order' : 'CART'}
-            <Badge variant="secondary" className="ml-auto text-[10px] font-bold">{cart.length} items</Badge>
+            {layout.short && !custOpen && !custName && !custPhone && orderType !== 'delivery' && (
+              <button type="button" data-pos-cust-toggle onClick={() => setCustOpen(true)}
+                className="ml-auto inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground hover:bg-accent hover:text-foreground">
+                <User className="h-3 w-3" /> Customer
+              </button>
+            )}
+            <Badge variant="secondary" className={`${layout.short && !custOpen && !custName && !custPhone && orderType !== 'delivery' ? '' : 'ml-auto'} text-[10px] font-bold`}>{cart.length} items</Badge>
             {/* v1.0.40: the cart-width -/+ buttons used to sit here, right next
                 to the per-line quantity -/+ controls. Staff hit them by
                 mistake while changing a quantity and the whole billing column
@@ -1928,6 +1977,7 @@ export default function POSScreen() {
               </button>
             ))}
           </div>
+          {(!layout.short || custOpen || !!custName || !!custPhone || orderType === 'delivery') && (
           <div className="flex gap-1.5">
             <div data-pos-cust className="relative flex-1">
               <User className="absolute left-1.5 top-1.5 h-3 w-3 text-muted-foreground" />
@@ -1948,6 +1998,7 @@ export default function POSScreen() {
               />
             </div>
           </div>
+          )}
         </div>
 
 
@@ -1963,7 +2014,7 @@ export default function POSScreen() {
             <span className="w-5 text-center opacity-70">#</span>
             <span className="flex-1 pl-1">Item</span>
             <span className="w-12 text-center">Qty</span>
-            <span className="w-14 text-right">Price</span>
+            {!narrowCart && <span className="w-14 text-right">Price</span>}
             <span className="w-16 text-right">Total</span>
             <span className="w-5" />
           </div>
@@ -1983,7 +2034,7 @@ export default function POSScreen() {
                 <span data-pos-line-idx className="w-5 text-center text-[10px] text-muted-foreground/70 font-bold">{idx + 1}</span>
                 <div data-pos-line-name className="flex-1 pl-1.5 min-w-0">
                   <p className="text-[11px] font-extrabold text-foreground truncate leading-tight">{item.name}</p>
-                  {modern && <p data-pos-line-unit>{item.quantity} × {item.price.toLocaleString()}</p>}
+                  {(modern || narrowCart) && <p data-pos-line-unit className={modern ? undefined : 'text-[9px] text-muted-foreground leading-tight'}>{item.quantity} × {item.price.toLocaleString()}</p>}
                   {item.note && <p className="text-[8px] text-muted-foreground italic mt-0.5">📝 {item.note}</p>}
                 </div>
                 <div data-pos-line-qty className="w-12 flex items-center justify-center gap-0.5">
@@ -1995,7 +2046,7 @@ export default function POSScreen() {
                     <Plus className="h-2.5 w-2.5" />
                   </button>
                 </div>
-                <span data-pos-line-price className="w-14 text-right text-[10px] text-muted-foreground font-medium">{item.price.toLocaleString()}</span>
+                {!narrowCart && <span data-pos-line-price className="w-14 text-right text-[10px] text-muted-foreground font-medium">{item.price.toLocaleString()}</span>}
                 <span data-pos-line-total className="w-16 text-right text-[11px] font-extrabold text-primary">{item.lineTotal.toLocaleString()}</span>
                 <button data-pos-line-del onClick={(e) => { e.stopPropagation(); removeItem(item.id); }} className="w-5 text-destructive/60 hover:text-destructive ml-0.5 transition-colors">
                   <Trash2 className="h-3 w-3" />
@@ -2028,11 +2079,32 @@ export default function POSScreen() {
 
         {/* Billing Summary - Luxury */}
         {/* Totals / discounts / payment — hamesha nazar aata hai (scroll nahi hota) */}
-        <div data-pos-totals className="sticky bottom-[var(--dt-cart-actions-h,0px)] z-20 border-t-2 border-primary/20 bg-card bg-gradient-to-b from-card to-accent/10 px-3 py-2.5 space-y-1 shrink-0">
+        <div data-pos-totals data-short={layout.short ? 'true' : undefined} className={`sticky bottom-[var(--dt-cart-actions-h,0px)] z-20 border-t-2 border-primary/20 bg-card bg-gradient-to-b from-card to-accent/10 px-3 ${layout.short ? 'py-1.5 space-y-0.5' : 'py-2.5 space-y-1'} shrink-0`}>
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground font-medium">Subtotal</span>
             <span className="font-bold">PKR {subtotal.toLocaleString()}</span>
           </div>
+          {eventActive && eventDiscountAmt > 0 && (
+            <div className="flex justify-between text-xs text-green-700">
+              <span className="font-medium">{settings.eventDiscountTitle || 'Event Discount'} {evtType === 'percent' ? `${eventPct}%` : ''}</span>
+              <span>- PKR {eventDiscountAmt.toLocaleString()}</span>
+            </div>
+          )}
+          {(() => {
+            // On a short screen the bill keeps its rows: Discount / Promo wait behind one line
+            // until the cashier opens it — or stay open while a discount or promo is in use.
+            const adjActive = discount > 0 || discountPercentInput > 0 || !!promoApplied;
+            if (!layout.short || adjOpen || adjActive) return null;
+            if (isOrderTaker || cart.length === 0) return null;
+            return (
+              <button type="button" data-pos-adj-toggle onClick={() => setAdjOpen(true)} className="flex w-full items-center justify-between text-xs">
+                <span className="text-muted-foreground font-medium">Discount / Promo{serviceCharge <= 0 && !scOverride ? ' / Service' : ''}</span>
+                <span className="text-[10px] font-bold text-primary">+ Add</span>
+              </button>
+            );
+          })()}
+          {(!layout.short || adjOpen || discount > 0 || discountPercentInput > 0 || !!promoApplied) && (
+          <>
           {/* Quick discount buttons — percent + amount. Dono OPTIONAL:
               leave it empty in settings and no button will appear. */}
           {cart.length > 0 && (() => {
@@ -2058,12 +2130,6 @@ export default function POSScreen() {
               </div>
             );
           })()}
-          {eventActive && eventDiscountAmt > 0 && (
-            <div className="flex justify-between text-xs text-green-700">
-              <span className="font-medium">{settings.eventDiscountTitle || 'Event Discount'} {evtType === 'percent' ? `${eventPct}%` : ''}</span>
-              <span>- PKR {eventDiscountAmt.toLocaleString()}</span>
-            </div>
-          )}
           {!isOrderTaker && (() => {
             const currentRole = (localStorage.getItem('pos-user-role') || '').toLowerCase();
             const isCashierRole = currentRole === 'cashier';
@@ -2154,6 +2220,8 @@ export default function POSScreen() {
             </div>
           </div>
           )}
+          </>
+          )}
           {taxAmount > 0 && (
             <div className="flex justify-between text-xs">
               <span className="text-muted-foreground font-medium">Tax</span>
@@ -2167,6 +2235,8 @@ export default function POSScreen() {
             const canEditSc = !isOrderTaker && cart.length > 0 && settings.serviceChargeEditable !== false
               && !(role === 'cashier' && !!settings.cashierDiscountRequiresApproval);
             if (serviceCharge <= 0 && !canEditSc && !scOverride) return null;
+            // Short screens: a zero charge waits in the folded "Discount / Promo / Service" line.
+            if (serviceCharge <= 0 && !scOverride && !scEditing && layout.short && !(adjOpen || discount > 0 || discountPercentInput > 0 || !!promoApplied)) return null;
             const openEditor = () => {
               setScDraftMode(totals.serviceChargeMode);
               setScDraftValue(totals.serviceChargeRate > 0 ? String(totals.serviceChargeRate) : '');
@@ -2408,7 +2478,7 @@ export default function POSScreen() {
             every window size, item count and keypad state. */}
         <div ref={cartActionsRef} data-pos-actions className="sticky bottom-0 z-30 border-t-2 border-primary/25 bg-card bg-gradient-to-b from-card to-accent/10 px-2 py-1.5 space-y-1 shrink-0 relative">
           {/* Keyboard shortcut hint — professional POS feel */}
-          <div data-pos-hints className="hidden sm:flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-semibold text-muted-foreground">
+          <div data-pos-hints className={`${layout.short ? 'hidden' : 'hidden sm:flex'} flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-semibold text-muted-foreground`}>
             <span><kbd className="px-1 rounded bg-muted">F1</kbd> Search</span>
             <span><kbd className="px-1 rounded bg-muted">F2</kbd> Hold</span>
             <span><kbd className="px-1 rounded bg-muted">F3</kbd> Running</span>

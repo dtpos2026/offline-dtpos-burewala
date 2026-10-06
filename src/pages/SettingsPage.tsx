@@ -1711,12 +1711,13 @@ export default function SettingsPage() {
                 <select
                   className="w-full sm:w-auto h-9 rounded-md border bg-background px-2 text-sm"
                   value={settings.categoryLayout || 'top'}
-                  onChange={e => setSettings({ ...settings, categoryLayout: e.target.value as 'top' | 'side' })}
+                  onChange={e => setSettings({ ...settings, categoryLayout: e.target.value as 'top' | 'side' | 'right' })}
                 >
                   <option value="top">Top — horizontal ribbon (default)</option>
-                  <option value="side">Side — left vertical sidebar</option>
+                  <option value="side">Left — vertical panel beside the menu</option>
+                  <option value="right">Right — vertical panel next to the bill</option>
                 </select>
-                <p className="text-[10px] text-muted-foreground mt-1">Admin can select the position of categories according to their restaurant — on top (ribbon) or beside the menu (sidebar).</p>
+                <p className="text-[10px] text-muted-foreground mt-1">Where the cashier picks a category: on top (ribbon), or in a vertical panel on the left or on the right, next to the bill. Square and very small screens use the top ribbon automatically.</p>
               </div>
             </div>
           </div>
@@ -1927,6 +1928,11 @@ export default function SettingsPage() {
           <div className="border rounded-lg p-4 space-y-4">
             <h3 className="text-sm font-bold">📺 Customer Display / Kitchen Screen</h3>
             <p className="text-xs text-muted-foreground">سیکنڈری سکرین پر کسٹمر کو آرڈر اور ٹوٹل دکھائیں یا پروموشنل ویڈیو/امیجز چلائیں۔</p>
+            <p className="text-xs text-muted-foreground" data-testid="display-live-bill-note">
+              When this is on, the Customer Display shows <b>“Your order”</b> beside the order board while the cashier rings up a bill — item names,
+              quantities, amounts, discount, service charge and the total, exactly as on the receipt. Nothing internal is shown: no cashier, waiter,
+              rider, kitchen notes, customer phone or address. It disappears when the bill is paid or cleared.
+            </p>
 
             {/* Enable Toggle */}
             <div className="flex items-center justify-between bg-card border rounded-lg p-3">

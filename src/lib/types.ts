@@ -833,7 +833,7 @@ export interface RestaurantSettings {
   // POS menu grid columns per row (3-6)
   menuGridColumns?: number;
   // POS category display: 'top' (horizontal ribbon) or 'side' (left vertical sidebar)
-  categoryLayout?: 'top' | 'side';
+  categoryLayout?: 'top' | 'side' | 'right';
 
   // ============ DISCOUNT MANAGEMENT ============
   pkrDiscountEnabled?: boolean;         // manual PKR discount allowed (default true)

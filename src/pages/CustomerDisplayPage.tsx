@@ -47,6 +47,8 @@ import { templateVars, scaledFont, fitNumberFont, DEVELOPER_CREDIT } from '@/lib
 import { playAnnounceChime } from '@/lib/announceAudio';
 import { warmUpVoices } from '@/lib/speech';
 import { Volume2, VolumeX, Maximize2, ChefHat, CheckCircle2, Megaphone } from 'lucide-react';
+import LiveBillPanel from '@/components/LiveBillPanel';
+import { subscribeLiveBill, type LiveBill } from '@/lib/liveBill';
 
 /** Orders the kitchen is still working on. */
 function isPreparing(o: Order): boolean {
@@ -120,6 +122,10 @@ export default function CustomerDisplayPage() {
     return () => { unsub(); clearInterval(poll); clearInterval(clock); };
   }, []);
 
+  // The bill being rung up at the counter (Settings → Display → Enable Display Screen).
+  const [liveBill, setLiveBill] = useState<LiveBill | null>(null);
+  useEffect(() => subscribeLiveBill(setLiveBill), []);
+
   useEffect(() => {
     const onCfg = () => setCfg(loadDisplayConfig());
     window.addEventListener('dtpos-customer-display-changed', onCfg);
@@ -192,6 +198,7 @@ export default function CustomerDisplayPage() {
   // Below this the screen is too narrow to run orders and banners side by
   // side; the banners move under the orders instead of squeezing both.
   const narrow = w < 1100;
+  const showBill = !!liveBill && !!settings.displayEnabled;
 
   const cardsPerColumn = template.density === 'compact' ? 16 : 12;
   const numberScale = template.numberScale;
@@ -267,13 +274,17 @@ export default function CustomerDisplayPage() {
         </div>
       </div>
 
+      {/* The board, with the customer's own bill beside it while it is being rung up. */}
+      <div className="flex-1 flex min-h-0">
+      {!(showBill && narrow) && (
+      <>
       {/* ===== BOARD =====
           The split is a grid template built from the shop's ratio, so 70/30,
           50/50 and 30/70 are the same mechanism rather than three layouts. On
           a narrow screen it becomes rows, because two columns at 900px wide
           gives neither the orders nor the banners enough room. */}
       <div
-        className="flex-1 grid gap-[1.2vw] p-[1.2vw] min-h-0"
+        className="flex-1 grid gap-[1.2vw] p-[1.2vw] min-h-0 min-w-0"
         style={
           hasMedia
             ? narrow
@@ -335,6 +346,19 @@ export default function CustomerDisplayPage() {
         )}
 
         {hasMedia && <MediaPanel media={cfg.media} defaultSeconds={cfg.mediaSeconds} template={template} />}
+      </div>
+      </>
+      )}
+      {showBill && liveBill && (
+        <LiveBillPanel
+          bill={liveBill}
+          showItems={settings.displayShowItems !== false}
+          showTotal={settings.displayShowTotal !== false}
+          currency={(settings as any).currencySymbol || 'Rs'}
+          template={template}
+          full={narrow}
+        />
+      )}
       </div>
     </div>
   );

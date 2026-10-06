@@ -167,3 +167,59 @@ describe('the POS screen uses the engine', () => {
     expect(src).toMatch(/gridTemplateColumns: `repeat\(\$\{layout\.productColumns\}/);
   });
 });
+
+describe('categories on the right, next to the bill (v1.18)', () => {
+  const right = (w: number, h: number, config: Partial<ScreenLayoutConfig> = {}) => {
+    const cfg = { ...AUTO_CONFIG, ...config };
+    const c = containerFor(w, h, cfg);
+    return computePosLayout({ width: c.width, height: c.height, touch: false, categoryLayoutSetting: 'right', preferredColumns: 6, config: cfg });
+  };
+
+  it.each([[1920, 1080], [1366, 768], [1280, 720]] as const)('%i×%i: a right panel takes the same room as a left one', (w, h) => {
+    const r = right(w, h);
+    const { l } = layoutFor(w, h, { cat: 'side' });
+    expect(r.categoryPlacement).toBe('right');
+    expect(r.categoryWidth).toBe(l.categoryWidth);
+    expect(r.productAreaWidth).toBe(l.productAreaWidth);
+    expect(r.productColumns).toBe(l.productColumns);
+    expect(r.cardWidth).toBeGreaterThanOrEqual(110);
+  });
+
+  it('square and very small screens still use the top ribbon', () => {
+    expect(right(1024, 768).categoryPlacement).toBe('top');
+    expect(right(600, 700).categoryPlacement).toBe('top');
+  });
+
+  it('a screen can choose it, and the choice is kept', () => {
+    expect(right(1366, 768, { categoryPlacement: 'side' }).categoryPlacement).toBe('side');
+    expect(computePosLayout({ width: 1300, height: 700, touch: false, categoryLayoutSetting: 'top', config: { ...AUTO_CONFIG, categoryPlacement: 'right' } }).categoryPlacement).toBe('right');
+    expect(sanitizeConfig({ categoryPlacement: 'right' } as any).categoryPlacement).toBe('right');
+    expect(sanitizeConfig({ categoryPlacement: 'middle' } as any).categoryPlacement).toBe('auto');
+  });
+
+  it('the POS, the Settings and the preview all offer it', () => {
+    const src = (f: string) => fs.readFileSync(path.resolve(__dirname, '..', f), 'utf8');
+    expect(src('pages/SettingsPage.tsx')).toMatch(/<option value="right">Right — vertical panel next to the bill<\/option>/);
+    expect(src('components/settings/ScreenLayoutTab.tsx')).toMatch(/<option value="right">Right panel \(next to the bill\)<\/option>/);
+    expect(src('pages/POSScreen.tsx')).toMatch(/data-pos-categories=\{layout\.categoryPlacement === 'right' \? 'right' : 'left'\}/);
+    expect(src('components/settings/PosLayoutPreview.tsx')).toMatch(/data-preview-categories/);
+  });
+});
+
+describe('short screens keep the bill readable (v1.18)', () => {
+  it.each([[800, 600, true], [1024, 600, true], [1280, 720, true], [1366, 768, false], [1024, 768, false], [1920, 1080, false]] as const)(
+    '%i×%i → short %s', (w, h, short) => {
+      expect(layoutFor(w, h).l.short).toBe(short);
+    },
+  );
+  it('on a short screen the POS folds the optional rows and drops the shortcut strip', () => {
+    const pos = fs.readFileSync(path.resolve(__dirname, '..', 'pages/POSScreen.tsx'), 'utf8');
+    expect(pos).toMatch(/data-pos-hints className=\{`\$\{layout\.short \? 'hidden' : 'hidden sm:flex'\}/);
+    expect(pos).toMatch(/data-pos-adj-toggle/);
+    expect(pos).toMatch(/data-pos-cust-toggle/);
+    // A discount or promo in use is never hidden.
+    expect(pos).toMatch(/\(!layout\.short \|\| adjOpen \|\| discount > 0 \|\| discountPercentInput > 0 \|\| !!promoApplied\)/);
+    // Delivery always shows the customer fields.
+    expect(pos).toMatch(/\(!layout\.short \|\| custOpen \|\| !!custName \|\| !!custPhone \|\| orderType === 'delivery'\)/);
+  });
+});

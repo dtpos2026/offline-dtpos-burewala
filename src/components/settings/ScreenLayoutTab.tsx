@@ -60,7 +60,7 @@ export default function ScreenLayoutTab({ settings }: { settings: RestaurantSett
     const c = containerFor(facts.windowW, facts.windowH, config);
     return computePosLayout({
       width: c.width, height: c.height, touch: facts.touch,
-      categoryLayoutSetting: settings.categoryLayout === 'side' ? 'side' : 'top',
+      categoryLayoutSetting: settings.categoryLayout === 'side' || settings.categoryLayout === 'right' ? settings.categoryLayout : 'top',
       preferredColumns: settings.menuGridColumns || 6, config,
     });
   }, [facts, config, settings.categoryLayout, settings.menuGridColumns]);
@@ -144,9 +144,10 @@ export default function ScreenLayoutTab({ settings }: { settings: RestaurantSett
           </label>
           <label><span className={lbl}>Categories</span>
             <select className={field} value={draft.categoryPlacement} onChange={e => set('categoryPlacement', e.target.value as ScreenLayoutConfig['categoryPlacement'])}>
-              <option value="auto">Automatic ({settings.categoryLayout === 'side' ? 'side panel' : 'top ribbon'}; top on square screens)</option>
+              <option value="auto">Automatic ({settings.categoryLayout === 'side' ? 'left panel' : settings.categoryLayout === 'right' ? 'right panel' : 'top ribbon'}; top on square screens)</option>
               <option value="top">Top ribbon</option>
-              <option value="side">Side panel</option>
+              <option value="side">Left panel</option>
+              <option value="right">Right panel (next to the bill)</option>
             </select>
           </label>
           <label><span className={lbl}>Category panel width {typeof draft.categoryWidth === 'number' ? `— ${draft.categoryWidth} px` : ''}</span>
@@ -200,7 +201,7 @@ export default function ScreenLayoutTab({ settings }: { settings: RestaurantSett
             <span className="text-[11px] text-muted-foreground">
               {MODE_LABEL[shown.mode]} · {shown.productColumns} product columns ({shown.cardWidth} px cards)
               {' · '}Cart {shown.cartPlacement === 'side' ? `${shown.cartWidth} px` : shown.cartPlacement === 'bottom' ? 'at the bottom' : 'as a pop-up panel'}
-              {' · '}Categories {shown.categoryPlacement === 'side' ? `side ${shown.categoryWidth} px` : 'on top'}
+              {' · '}Categories {shown.categoryPlacement === 'top' ? 'on top' : `${shown.categoryPlacement === 'right' ? 'right' : 'left'} panel ${shown.categoryWidth} px`}
               {shown.columnsLimited ? ' · fewer columns than chosen fit on this screen' : ''}
             </span>
           )}
@@ -210,7 +211,7 @@ export default function ScreenLayoutTab({ settings }: { settings: RestaurantSett
           windowH={previewH}
           touch={previewTouch}
           config={draft}
-          categoryLayoutSetting={settings.categoryLayout === 'side' ? 'side' : 'top'}
+          categoryLayoutSetting={settings.categoryLayout === 'side' || settings.categoryLayout === 'right' ? settings.categoryLayout : 'top'}
           preferredColumns={settings.menuGridColumns || 6}
           items={items}
           categories={categories}

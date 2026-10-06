@@ -20,7 +20,7 @@ interface Props {
   windowH: number;
   touch: boolean;
   config: ScreenLayoutConfig;
-  categoryLayoutSetting: 'top' | 'side';
+  categoryLayoutSetting: 'top' | 'side' | 'right';
   preferredColumns: number;
   items: PreviewItem[];
   categories: string[];
@@ -103,8 +103,12 @@ export default function PosLayoutPreview({
                   </div>
                 )}
                 <div className="flex-1 flex min-h-0">
-                  {layout.categoryPlacement === 'side' && (
-                    <div style={{ width: layout.categoryWidth }} className="shrink-0 border-r-2 bg-card/40 py-2 overflow-hidden">
+                  {layout.categoryPlacement !== 'top' && (
+                    <div
+                      data-preview-categories={layout.categoryPlacement === 'right' ? 'right' : 'left'}
+                      style={{ width: layout.categoryWidth, order: layout.categoryPlacement === 'right' ? 2 : 0 }}
+                      className={`shrink-0 ${layout.categoryPlacement === 'right' ? 'border-l-2' : 'border-r-2'} bg-card/40 py-2 overflow-hidden`}
+                    >
                       {cats.slice(0, 16).map((c, i) => (
                         <div key={c + i} className="cat-pill mx-1.5 mb-1.5 truncate" data-active={i === 0} style={{ width: layout.categoryWidth - 12 }}>{c}</div>
                       ))}

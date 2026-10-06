@@ -47,7 +47,7 @@ export function useScreenConfig(): { facts: ScreenFacts; config: ScreenLayoutCon
 
 export function usePosLayout(
   ref: RefObject<HTMLElement | null>,
-  opts: { categoryLayoutSetting: 'top' | 'side'; preferredColumns?: number },
+  opts: { categoryLayoutSetting: 'top' | 'side' | 'right'; preferredColumns?: number },
 ): { layout: PosLayout; config: ScreenLayoutConfig; facts: ScreenFacts } {
   const { facts, config } = useScreenConfig();
   const [size, setSize] = useState<{ w: number; h: number }>(() => ({ w: facts.windowW, h: facts.windowH }));
