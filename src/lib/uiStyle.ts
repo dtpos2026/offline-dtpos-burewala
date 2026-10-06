@@ -206,6 +206,17 @@ export function resolveLook(themeId: string = getThemeId(), override: string | n
   };
 }
 
+const CUSTOM_STYLE_ID = 'dtpos-custom-theme';
+
+/** Puts the active custom theme's stylesheet block on the page, or takes it off when none is active. */
+function syncCustomThemeStyle(css: string | undefined): void {
+  const existing = document.getElementById(CUSTOM_STYLE_ID);
+  if (!css) { existing?.remove(); return; }
+  const el = (existing as HTMLStyleElement | null) || document.createElement('style');
+  if (!existing) { el.id = CUSTOM_STYLE_ID; document.head.appendChild(el); }
+  if (el.textContent !== css) el.textContent = css;
+}
+
 /** Sets the attributes and variables of the Modern look, or removes them all for Classic. Safe to call any number of times. */
 export function applyUiStyle(style: UiStyle = getUiStyle()): void {
   if (typeof document === 'undefined') return;
@@ -215,6 +226,7 @@ export function applyUiStyle(style: UiStyle = getUiStyle()): void {
       const look = resolveLook();
       root.setAttribute('data-ui', 'modern');
       root.setAttribute('data-ui-theme', look.theme.id);
+      syncCustomThemeStyle(look.theme.custom ? look.theme.css : undefined);
       root.setAttribute('data-sidebar', look.theme.sidebar);
       root.setAttribute('data-on-accent', look.darkOnAccent ? 'dark' : 'light');
       // DT Retail: one more attribute switches on its extra rules (ui-retail.css);
@@ -235,12 +247,19 @@ export function applyUiStyle(style: UiStyle = getUiStyle()): void {
     } else {
       MODERN_ATTRS.forEach(a => root.removeAttribute(a));
       MODERN_VARS.forEach(v => root.style.removeProperty(v));
+      syncCustomThemeStyle(undefined);
     }
   } catch { /* a locked-down webview must never stop the app from starting */ }
 }
 
 function announce(): void {
   try { window.dispatchEvent(new CustomEvent(UI_STYLE_EVENT)); } catch { /* no window */ }
+}
+
+/** Re-applies the look after a custom theme was saved or removed (so the screen follows without a reload). */
+export function refreshUiStyle(): void {
+  applyUiStyle();
+  announce();
 }
 
 export function setUiStyle(style: UiStyle): void {

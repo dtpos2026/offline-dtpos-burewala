@@ -33,6 +33,8 @@ import "./styles/ui-modern.css";
 import "./styles/ui-pos.css";
 import "./styles/ui-retail.css";
 import { applyUiStyle } from "./lib/uiStyle";
+import { loadCustomThemes } from "./lib/customTheme";
+loadCustomThemes(); // themes designed in Settings → Appearance → Custom must be known before the first apply
 applyUiStyle();
 
 // ============================================================

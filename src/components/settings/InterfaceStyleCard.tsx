@@ -7,7 +7,7 @@
 // the licence, users, permissions, orders, inventory, reports or printer
 // configuration, and the card says so.
 // ============================================================
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Check, History, Palette, RotateCcw, RotateCw, ShieldCheck, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,12 @@ import {
 import type { UiTheme } from '@/lib/uiThemes';
 import { INK_ON_ACCENT } from '@/lib/uiThemes';
 import { canRestartApp, restartApp } from '@/lib/appRestart';
+import { ThemePreview } from '@/components/settings/ThemePreview';
+import CustomThemeManager from '@/components/settings/CustomThemeManager';
+import { getCustomThemeDefs } from '@/lib/customTheme';
+import { isCustomTheme } from '@/lib/uiThemes';
+
+export { ThemePreview };
 
 const STYLES: { id: UiStyle; name: string; blurb: string }[] = [
   { id: 'modern', name: 'Modern', blurb: 'Light, calm and quick to scan. Short menu with a “More” launcher. Thirteen themes, plus the seven DT Retail looks. Recommended.' },
@@ -39,44 +45,6 @@ function ClassicPreview() {
       <div className="flex-1 space-y-2 bg-[#f7f3fc] p-2.5">
         <div className="h-2 w-1/2 rounded-full bg-[#3c096c]/70" />
         <div className="grid grid-cols-3 gap-1.5">{[0, 1, 2].map(i => <div key={i} className="h-8 rounded bg-white ring-1 ring-[#3c096c]/15" />)}</div>
-      </div>
-    </div>
-  );
-}
-
-/** The whole POS in miniature, in one theme's colours: sidebar, page, tiles, and an accent button. */
-export function ThemePreview({ theme, accent, onAccent }: { theme: UiTheme; accent?: string; onAccent?: string }) {
-  const s = theme.surface;
-  const a = accent || `hsl(${theme.accent.h} ${theme.accent.s}% ${theme.accent.l}%)`;
-  const on = onAccent || (theme.onAccent === 'dark' ? hsl(INK_ON_ACCENT) : '#fff');
-  const dark = theme.sidebar === 'dark';
-  const sb = dark ? hsl(theme.sidebarColor || '24 15% 11%') : '#fff';
-  const retail = theme.family === 'retail';
-  const panel = s.card ? hsl(s.card) : '#fff';
-  const sbBg = retail && theme.sidebarGradient ? `linear-gradient(180deg, ${hsl(theme.sidebarGradient[0])}, ${hsl(theme.sidebarGradient[1])})` : sb;
-  return (
-    <div className="flex h-[88px] overflow-hidden rounded-lg border" style={{ borderColor: hsl(s.border) }} aria-hidden>
-      <div className="flex w-9 shrink-0 flex-col gap-1.5 p-1.5" style={{ background: sbBg, borderRight: `1px solid ${dark ? 'transparent' : hsl(s.border)}` }}>
-        {[0, 1, 2, 3].map(i => (
-          <div key={i} className="h-1.5 rounded-full" style={{ background: i === 0 ? a : dark ? 'rgba(255,255,255,.28)' : hsl(s.border) }} />
-        ))}
-      </div>
-      <div className="flex flex-1 flex-col gap-1.5 p-2" style={{ background: hsl(s.background) }}>
-        {retail && theme.hero && (
-          <div className="h-3 rounded-md" style={{ background: `linear-gradient(100deg, ${hsl(theme.hero[0])}, ${hsl(theme.hero[1])})` }} />
-        )}
-        <div className="flex items-center gap-1.5">
-          <div className="h-1.5 w-1/3 rounded-full" style={{ background: hsl(s.foreground), opacity: 0.7 }} />
-          <div className="ml-auto grid h-3 w-8 place-items-center rounded-full text-[6px] font-bold" style={{ background: a, color: on }}>PAY</div>
-        </div>
-        <div className="grid flex-1 grid-cols-3 gap-1.5">
-          {[0, 1, 2].map(i => (
-            <div key={i} className="flex flex-col justify-end gap-0.5 rounded-md p-1 shadow-sm" style={{ background: panel, border: `1px solid ${hsl(s.border)}` }}>
-              <div className="h-1 rounded-full" style={{ background: hsl(s.mutedForeground), opacity: 0.5 }} />
-              <div className="h-1 w-1/2 rounded-full" style={{ background: a }} />
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );
@@ -137,6 +105,9 @@ export default function InterfaceStyleCard() {
   const animations = useAnimations();
   const previous = usePreviousLook();
   const look = resolveLook(themeId, override);
+  // Theme families: Modern themes, DT Retail themes and Custom (designed in Settings). Classic is the other style above.
+  const [family, setFamily] = useState<'modern' | 'retail' | 'custom'>(() => (isCustomTheme(themeId) ? 'custom' : uiLook === 'retail' ? 'retail' : 'modern'));
+  const customCount = useMemo(() => getCustomThemeDefs().length, [themeId, family]); // eslint-disable-line react-hooks/exhaustive-deps
   const [custom, setCustom] = useState(() => (override && override.startsWith('#') ? override : ''));
   const customHsl = hexToHsl(custom);
   const customContrast = customHsl ? contrastWithWhite(customHsl) : null;
@@ -195,43 +166,70 @@ export default function InterfaceStyleCard() {
 
       {style === 'modern' && (
         <div className="space-y-5 border-t pt-4">
-          <div className="space-y-3">
-            <div>
-              <div className="text-[13px] font-bold">Theme</div>
-              <p className="text-[12.5px] text-muted-foreground">
-                Pick the look that suits your restaurant — red, orange, green, yellow, white, coffee brown and more. A theme sets the colours of the whole screen.
-              </p>
-            </div>
-            <ThemeGrid themes={UI_THEMES} label="Theme" themeId={themeId} override={override} onPick={pickTheme} />
+          <div>
+            <div className="text-[13px] font-bold">Theme manager</div>
+            <p className="text-[12.5px] text-muted-foreground">
+              Every theme runs the same software — only the look changes. Pick a family, then a theme. You can also design your own.
+            </p>
+          </div>
+          <div role="tablist" aria-label="Theme family" className="flex flex-wrap gap-1 rounded-xl bg-muted/50 p-1">
+            {([
+              ['modern', 'Modern themes', UI_THEMES.length],
+              ['retail', 'DT Retail', RETAIL_THEMES.length],
+              ['custom', 'Custom', customCount],
+            ] as const).map(([id, name, count]) => (
+              <button
+                key={id} type="button" role="tab" aria-selected={family === id} onClick={() => setFamily(id)}
+                className={cn('flex-1 rounded-lg px-3 py-2 text-[13px] font-bold transition-colors sm:flex-none', family === id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
+              >
+                {name} <span className="font-medium text-muted-foreground">· {count}</span>
+              </button>
+            ))}
           </div>
 
-          <div className="space-y-3 border-t pt-4" data-testid="dt-retail-section">
-            <div className="flex flex-wrap items-start justify-between gap-2">
+          {family === 'modern' && (
+            <div className="space-y-3">
               <div>
-                <div className="flex items-center gap-2 text-[13px] font-bold"><Sparkles className="h-4 w-4 text-primary" /> DT Retail themes</div>
+                <div className="text-[13px] font-bold">Theme</div>
                 <p className="text-[12.5px] text-muted-foreground">
-                  The look of the DT Retail design guide: a gradient sidebar, a greeting banner on the dashboard, colour tiles on the sale screen and smooth motion.
-                  Two of them (Black &amp; Gold, Night) are dark.
+                  Pick the look that suits your restaurant — red, orange, green, yellow, white, coffee brown and more. A theme sets the colours of the whole screen.
                 </p>
               </div>
-              {uiLook === 'retail' && previous && (
-                <Button
-                  type="button" size="sm" variant="outline"
-                  onClick={() => { if (restorePreviousLook()) toast.success('Your previous look is back'); }}
-                >
-                  <History className="h-4 w-4" /> Back to my previous look
-                </Button>
-              )}
+              <ThemeGrid themes={UI_THEMES} label="Theme" themeId={themeId} override={override} onPick={pickTheme} />
             </div>
-            <ThemeGrid themes={RETAIL_THEMES} label="DT Retail theme" themeId={themeId} override={override} onPick={pickTheme} />
-            <label className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
-              <span>
-                <span className="block text-[13px] font-bold">Smooth animations</span>
-                <span className="block text-[12px] text-muted-foreground">Page and dialog transitions, the welcome screen and the login. Turn off on slow computers.</span>
-              </span>
-              <Switch checked={animations} onCheckedChange={v => setAnimations(!!v)} aria-label="Smooth animations" />
-            </label>
-          </div>
+          )}
+
+          {family === 'retail' && (
+            <div className="space-y-3" data-testid="dt-retail-section">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2 text-[13px] font-bold"><Sparkles className="h-4 w-4 text-primary" /> DT Retail themes</div>
+                  <p className="text-[12.5px] text-muted-foreground">
+                    The look of the DT Retail design guide: a gradient sidebar, a greeting banner on the dashboard, colour tiles on the sale screen and smooth motion.
+                    Two of them (Black &amp; Gold, Night) are dark.
+                  </p>
+                </div>
+                {uiLook === 'retail' && previous && (
+                  <Button
+                    type="button" size="sm" variant="outline"
+                    onClick={() => { if (restorePreviousLook()) toast.success('Your previous look is back'); }}
+                  >
+                    <History className="h-4 w-4" /> Back to my previous look
+                  </Button>
+                )}
+              </div>
+              <ThemeGrid themes={RETAIL_THEMES} label="DT Retail theme" themeId={themeId} override={override} onPick={pickTheme} />
+              <label className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+                <span>
+                  <span className="block text-[13px] font-bold">Smooth animations</span>
+                  <span className="block text-[12px] text-muted-foreground">Page and dialog transitions, the welcome screen and the login. Turn off on slow computers.</span>
+                </span>
+                <Switch checked={animations} onCheckedChange={v => setAnimations(!!v)} aria-label="Smooth animations" />
+              </label>
+            </div>
+          )}
+
+          {family === 'custom' && <CustomThemeManager />}
 
           <details className="group rounded-lg border bg-muted/30 p-3" open={!!override}>
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-[13px] font-bold">
