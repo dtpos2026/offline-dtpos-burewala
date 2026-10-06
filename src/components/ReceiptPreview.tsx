@@ -1859,10 +1859,17 @@ function Design3ModernReceipt({ order, settings }: { order: Order; settings: Res
         if (order.discount > 0) boxes.push(['DISCOUNT', `-${order.discount.toFixed(2)}`]);
         if (order.serviceCharge > 0) boxes.push([serviceChargeLabel(order, 'SERVICE').toUpperCase(), order.serviceCharge.toFixed(2)]);
         if (order.tax > 0) boxes.push(['TAX', order.tax.toFixed(2)]);
+        // Up to three in a row; four go two by two so a 58 mm slip never has to shrink to fit them.
+        const cols = boxes.length <= 3 ? boxes.length : 2;
         return (
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${boxes.length}, 1fr)`, gap: '4px', margin: '6px 0', border: '1px solid #000', padding: '6px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: '4px', margin: '6px 0', border: '1px solid #000', padding: '6px' }}>
             {boxes.map(([label, value], k) => (
-              <div key={label} style={{ textAlign: 'center', borderLeft: k > 0 ? '1px solid #000' : undefined }}>
+              <div key={label} style={{
+                textAlign: 'center', minWidth: 0,
+                borderLeft: k % cols > 0 ? '1px solid #000' : undefined,
+                borderTop: k >= cols ? '1px solid #000' : undefined,
+                paddingTop: k >= cols ? '4px' : undefined,
+              }}>
                 <div style={{ fontSize: '10px', fontWeight: 700 }}>{label}</div>
                 <div style={{ fontSize: '12px', fontWeight: 900 }}>{value}</div>
               </div>

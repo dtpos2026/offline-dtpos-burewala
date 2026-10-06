@@ -12,6 +12,8 @@
 //   • the Settings card writes explicit switches; the words on a slip match the charge.
 // ============================================================
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { computeBillTotals, type BillInput } from '@/lib/billTotals';
 import {
@@ -297,5 +299,31 @@ describe('what the customer receipt shows', () => {
 describe('a new shop', () => {
   it('starts with the category panel on the right, next to the bill', () => {
     expect((seedData() as any).settings.categoryLayout).toBe('right');
+  });
+});
+
+describe('Design 3 (Modern) totals boxes', () => {
+  const settings: any = { name: 'Lotus Café', currencySymbol: 'Rs ', paperSize: '58mm', receiptDesign: 'design3-modern' };
+  const order = (over: any) => ({ ...buildSampleOrder(), ...over });
+  it('shows every charge the bill has — service charge included — and no invented tax rate', () => {
+    const { container, unmount } = render(<ReceiptPreview order={order({ discount: 100, serviceCharge: 85, serviceChargePercent: 5, serviceChargeType: 'percent', tax: 152 }) as any} settings={settings} />);
+    const t = (container.textContent || '').replace(/\s+/g, ' ');
+    unmount();
+    expect(t).toMatch(/SUBTOTAL/);
+    expect(t).toMatch(/DISCOUNT\s*-100\.00/);
+    expect(t).toMatch(/SERVICE \(5%\)\s*85\.00/);
+    expect(t).toMatch(/TAX\s*152\.00/);
+    expect(t).not.toMatch(/TAX \(5%\)/);
+  });
+  it('leaves out what the bill does not have', () => {
+    const { container, unmount } = render(<ReceiptPreview order={order({ discount: 0, serviceCharge: 0, tax: 0 }) as any} settings={settings} />);
+    const t = (container.textContent || '').replace(/\s+/g, ' ');
+    unmount();
+    expect(t).toMatch(/SUBTOTAL/);
+    expect(t).not.toMatch(/DISCOUNT|SERVICE|TAX/);
+  });
+  it('four boxes go two by two, so a 58 mm slip never shrinks to fit them', () => {
+    const src = readFileSync(resolve(__dirname, '..', 'components', 'ReceiptPreview.tsx'), 'utf8');
+    expect(src).toMatch(/const cols = boxes\.length <= 3 \? boxes\.length : 2;/);
   });
 });

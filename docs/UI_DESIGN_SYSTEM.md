@@ -1,4 +1,4 @@
-# DT POS — UI design system (v1.17)
+# DT POS — UI design system (v1.18)
 
 One set of design tokens drives **both** the POS and the Super Admin panel.
 This page is the map for anyone changing how the product looks.
@@ -20,6 +20,36 @@ printer / receipt / KOT / token code.
 Settings → Theme → **Interface style** switches between them. The choice is
 stored per device and applies at once, with no restart. Nothing else is read or
 written.
+
+### Custom themes and the theme manager (v1.18)
+
+Settings → Appearance shows the **style** (Classic / Modern) and, under Modern, three **families**:
+Modern themes, DT Retail and Custom.
+
+- `src/lib/customTheme.ts` turns a designer's choice — look (`modern` / `retail`), dark page, and five
+  `#rrggbb` colours — into a full `UiTheme` plus one stylesheet block
+  `:root[data-ui="modern"][data-ui-theme="custom-…"] { … }`. Text, quiet text, the accent as text and the
+  sidebar text are moved until they read (body ≥ 7 : 1, the rest ≥ 4.5 : 1); a pale accent gets dark text on it.
+- The block is built from computed numbers only (never from the file's text) and injected as
+  `<style id="dtpos-custom-theme">` by `applyUiStyle()` only while that theme is active; Classic or any other
+  theme removes it. Custom themes are registered in `uiThemes.ts` (`registerCustomThemes`) by
+  `loadCustomThemes()` in `main.tsx`, before the first paint.
+- Stored per computer in `dtpos-custom-themes` (max 12). Theme files: `{ format: "dtpos-theme", version: 1, theme }`;
+  an import always gets a fresh id. Tests: `src/test/custom-theme.test.tsx`.
+
+### Short screens (v1.18)
+
+`lib/posLayout.ts` sets `short` when the POS area is under 680 px tall; the cart carries `data-short`.
+The POS then folds Discount / Promo / Service and the optional customer row (never while in use), hides the
+shortcut strip, and `ui-pos.css` tightens Modern rows (`[data-pos-cart][data-short]`). A narrow cart moves the
+unit price under the item name. Categories can also sit on the **right** (`categoryPlacement: 'right'`).
+
+### Customer Display live bill (v1.18)
+
+`lib/liveBill.ts` defines the only fields the customer screen can receive (names, quantities, amounts,
+totals) and builds them from an allow-list; `components/LiveBillPanel.tsx` draws them with the display
+template's colours. Published to `dtpos-live-bill` (storage event + BroadcastChannel) only when
+Settings → Display → Enable Display Screen is on.
 
 ### DT Retail look (v1.17)
 
@@ -105,6 +135,8 @@ stylesheet and the theme list agree; and that Classic removes every trace.
 | `src/styles/ui-modern.css` | What a token cannot say: focus, table and dialog finish, flat replacements for the old gradients, badge tints. Every selector starts with `html[data-ui="modern"]`. |
 | `src/styles/ui-pos.css` | The POS order screen: product tiles, the Order panel, lines, totals, the Pay bar. It hooks onto `data-pos-*` attributes that `POSScreen.tsx` carries in both styles, so Classic never matches it. |
 | `src/lib/uiThemes.ts` | The thirteen Modern themes and the seven DT Retail ones. |
+| `src/lib/customTheme.ts` | Custom themes: derive, check, store, import / export. |
+| `src/components/settings/CustomThemeManager.tsx` | The designer and the list of custom themes. |
 | `src/styles/ui-retail.css` | The DT Retail look: gradient shell, dashboard banner and cards, tiles, motion, dark-page fixes, splash and sign-in. Scoped to `data-look="retail"`. |
 | `src/lib/uiStyle.ts` | Applies the style and the accent, keeps the accent readable (`safeAccent` darkens a pale colour until white text on it reaches contrast 4.6). |
 | `src/lib/navPrefs.ts` | Module visibility (Settings → Modules): what is in the sidebar, under **More**, or hidden. Navigation only. |

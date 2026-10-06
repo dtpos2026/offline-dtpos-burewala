@@ -1,5 +1,103 @@
 # DT POS Enterprise — Release Notes
 
+## v1.18.0 — Service charge per order type, report search, theme manager, live bill on the Customer Display, small screens
+
+- **Reported:** "Discount and service charge (percent or PKR, per Dine-In / Takeaway / Delivery);
+  receipts clean; report search A to Z and category-wise; a theme system; receipt / kitchen /
+  customer display kept separate; categories on the right; work properly on small PCs."
+
+### Service charge
+- **Settings → General → Service charge:** choose **Percentage** or **Fixed amount (PKR)**, and switch it
+  on separately for **Dine-In**, **Takeaway** and **Delivery**. The card says in one sentence what will
+  happen (e.g. "10% is added automatically to Dine-In bills").
+- On the POS the charge is added **automatically** as soon as the order type has it switched on, and
+  disappears when the cashier changes to a type that does not. Example: Subtotal PKR 2,000 → Service
+  Charge (10%) PKR 200 → Total PKR 2,200. It is worked out after any discount, and tax (if used) is
+  charged on the bill plus the service charge, as before.
+- **Add / change / remove it on one bill:** the pencil next to the service charge (or "+ Add" where there
+  is none) takes a percentage or a PKR amount; **Auto** goes back to the setting; 0 removes it ("waived").
+  A cashier can do this unless "discounts need approval" is on; the switch "Allow adding or editing it on a
+  bill" turns it off for everyone.
+- **Existing shops:** a shop that already had "Service Charge (%)" was charging it on every order type.
+  Nothing changes for it until the owner switches a type off in the new card. **New shops** start with
+  Dine-In only.
+- **Bill Editor** now has a service charge row (managers can change or remove it), and a percentage
+  charge follows the bill when items or the discount are edited. Table merge / split keep a flat charge
+  as it was and work a percentage out after the discount, like the POS.
+
+### Discount and the receipt
+- Manual discount works as before (PKR or %). The bill and receipt now say **"Discount (10%)"** for a
+  percentage and **"Service Charge (10%)"** / **"Service Charge"** for a percentage / flat charge.
+- A discount, service charge or tax line is printed **only when the bill has one** — on every design.
+- **Fixed in "Design 3 (Modern)":** it printed "DISCOUNT 0.00", a made-up "TAX (5%)" label, and **left the
+  service charge off the slip altogether** (the total included it). It now prints only the amounts the bill
+  has, two by two when there are four, at full size on 58 mm as well.
+- **Tables → a table's bill → "Print Receipt (this bill)"** opens that bill's customer receipt.
+
+### Reports
+- **Search box + filters** (Reports page, top): one box finds a bill by number, customer, phone, product,
+  category, cashier, table or payment; **Filters** adds Bill number, Category, Product, Customer / phone,
+  Payment method, Dine-In / Takeaway / Delivery, User / cashier, Product quantity (min–max) and Sales
+  amount (min–max). The Paid Orders list and its count follow the search.
+- **"Category & Product wise"** view: pick a category (or all) and see every item sold with **quantity,
+  sales, discount, service charge and net amount**, sortable, with category totals, **Excel / CSV** and
+  **Print 80mm**. Searching "Chicken" totals the chicken lines, not the whole bills they were on.
+- Discount and service charge are stored on the whole bill, so in this view they are shared across the
+  bill's items in proportion to price; the totals match the bills exactly. Tax and delivery are not in it.
+
+### Theme manager
+- **Settings → Appearance:** the **Classic** / **Modern** style as before; under Modern, three families:
+  **Modern themes** (13), **DT Retail** (7) and **Custom**.
+- **Custom:** design a theme — Modern or DT Retail look, light or dark page, and five colours (accent, page,
+  panels, text, sidebar), or start from any built-in theme. The rest is derived and checked for readability;
+  anything adjusted is explained. Save, use, copy, edit, delete (up to 12), and **Export / Import** a theme as
+  a small `.json` file to give to another shop. An imported theme never overwrites an existing one.
+- A theme changes appearance only — the same POS, billing, kitchen, printing and reports run under all of
+  them. Kept on this computer only.
+
+### Receipt, kitchen and customer display
+- **Customer Display — "Your order":** with **Settings → Display → Enable Display Screen** on, the Customer
+  Display shows the bill being rung up beside the order board: items, quantities, amounts, discount, service
+  charge and the total in the receipt's words (the existing "Show Live Order Items" / "Show Total Amount"
+  switches now work). It carries **nothing internal** — no cashier, waiter, rider, kitchen notes, customer
+  phone or address — and disappears when the bill is paid or cleared. On a small display it takes the whole
+  screen while a customer is being served.
+- Kitchen screens and the kitchen slip keep kitchen information only (checked: no prices, payment or customer
+  phone on the kitchen screens). Receipt and kitchen-slip designs are chosen in their own settings and do not
+  change with the screen theme.
+
+### Categories and small screens
+- **Category panel on the right** (next to the bill): **Settings → POS display → Category Layout → Right**, or
+  per screen in **Screen & Layout**. New shops start with it. Square and very small screens use the top
+  ribbon automatically.
+- **Short screens** (POS area under 680 px — 800×600, 1024×600, 1280×720): the bill keeps its rows. Discount
+  / Promo / Service wait behind one line until used (never hidden while in use), the optional customer
+  name / phone fold into a **Customer** button (always open for Delivery or when filled), the shortcut strip
+  is hidden, and a narrow bill shows the unit price under the item name instead of cutting the name to four
+  letters. At 800×600 the bill shows 3–4 rows instead of 1.
+- The Classic header no longer wraps onto three lines on a small screen (the status pills and the date return
+  from 1024 px).
+
+### Verified
+- Type-check (app and Super Admin), the full test suite (75 files, 1,186 tests) including new tests for service charge,
+  report search, custom themes, the live bill and the layout, and both builds.
+- POS checked at 800×600, 1024×600, 1024×768, 1280×720, 1366×768 and 1920×1080 in Classic, Modern and DT Retail
+  with top / left / right categories (54 combinations): PAY, Hold, Kitchen, Customer Receipt, Running, the total,
+  the categories and the search are all on screen and not covered; no sideways scrolling.
+- Every receipt design printed through the real dot-matrix conversion at 80 mm and 58 mm and compared with
+  v1.17.0: identical except the Design 3 fix above.
+- The live bill tested with the POS and the Customer Display in two windows sharing storage (the way the two
+  desktop windows do).
+
+### Known limits
+- Not tested on a physical printer, a real second monitor or a touch screen.
+- Report search covers paid bills in the chosen period; the category / product shares of discount and service
+  charge are proportional (see above).
+- On a 1366×768 screen in the Modern look the bill shows about three rows with six items; the list scrolls.
+- "Selecting a customer / order opens the wrong layout in Classic" — I could not reproduce a wrong layout:
+  Customer Receipt and Kitchen Slip open in their own dialog with their own designs in every style. Please
+  send the exact steps or a photo if it still happens.
+
 ## v1.17.0 — DT Retail look: seven themes, animated welcome, and the matching receipts, tokens and kitchen slip
 
 - **Reported:** "Add this design guide — the UI, the themes, the print and token
