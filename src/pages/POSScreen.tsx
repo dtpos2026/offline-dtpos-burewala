@@ -1722,6 +1722,7 @@ export default function POSScreen() {
                 <button
                   onClick={() => setSelectedCat('all')}
                   data-active={selectedCat === 'all'}
+                  data-cat-all
                   className="cat-pill cat-pill-side whitespace-nowrap min-w-0 flex-1 flex items-center gap-1.5 justify-start"
                 >
                   📋 All{modern && <span data-cat-count className="ml-auto">{catCounts.all}</span>}
@@ -1750,7 +1751,7 @@ export default function POSScreen() {
                       <span className="text-sm shrink-0">{cat.icon}</span>
                     )}
                     {/* The whole name, wrapped onto a second line when needed — never cut short. */}
-                    <span data-cat-name className="min-w-0 text-left leading-snug break-words [overflow-wrap:anywhere]">{cat.name}</span>
+                    <span data-cat-name className="min-w-0 text-left leading-snug break-words">{cat.name}</span>
                     {modern && <span data-cat-count className="ml-auto shrink-0 self-center">{catCounts.byCat.get(cat.id) || 0}</span>}
                   </button>
                 );

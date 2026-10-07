@@ -42,7 +42,7 @@ export default function CategoryGridDialog({ open, onOpenChange, categories, cou
       >
         {active && <Check className="absolute right-1.5 top-1.5 h-4 w-4 text-primary" aria-hidden />}
         {visual}
-        <span className="w-full break-words text-[13px] font-bold leading-tight [overflow-wrap:anywhere]" style={id === 'all' ? undefined : fontStyle}>{name}</span>
+        <span className="w-full break-words text-[13px] font-bold leading-tight" style={id === 'all' ? undefined : fontStyle}>{name}</span>
         <span className="text-[11px] font-semibold text-muted-foreground">{count} item{count === 1 ? '' : 's'}</span>
       </button>
     );

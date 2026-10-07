@@ -8,8 +8,10 @@
   sales for today only; keep it fast and light."
 
 ### Categories
-- The **side and right category panels** now show every category's **full name** (long names wrap onto a
-  second line instead of being cut off). The top ribbon still scrolls sideways.
+- The **side and right category panels** now show every category's **full name** (long names wrap onto
+  more lines, between words, instead of being cut off). On a small screen, where the panel is narrow, the
+  name gets a line of its own under the icon and count, so it is never squeezed or split mid-word. The
+  top ribbon still scrolls sideways.
 - A new **4-box button next to "All"** opens **All Categories**: every category as a box with its picture
   or icon, its full name and how many items it has, plus "All items". Picking one shows its items at once
   and closes the picker. It is the same kind of popup as the size picker, so it opens centred and scrolls
@@ -66,6 +68,9 @@
   → automatic 10% service charge → Payment Receive → paid → bill on screen. Every popup centred and
   on screen; bill printed "Discount 10%  -285.00", "Service Charge (10%)  257.00", **TOTAL Rs 2,822.00**;
   saved order matches.
+- Category panels on all 9 looks (Classic, Modern, 7 DT Retail) × top / left / right × 1920×1080,
+  1366×768, 1024×768 and 800×600 (108 runs, all pass): no name cut off or split mid-word, nothing
+  overflows, the All Categories picker opens centred and filters the items.
 - Print simulator (real raster conversion), 78 slips at 80 mm and 58 mm compared with v1.18.0: the only
   changes are the new service-charge lines (3–5 mm longer) on the seven designs above, and a clock time
   on one kitchen slip.

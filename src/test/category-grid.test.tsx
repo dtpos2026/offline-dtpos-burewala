@@ -75,9 +75,14 @@ describe('the POS category controls', () => {
     expect(pos).toMatch(/cat-ribbon flex gap-2 overflow-x-auto/);
   });
   it('never truncates a side-panel category name', () => {
-    expect(pos).toMatch(/<span data-cat-name className="min-w-0 text-left leading-snug break-words \[overflow-wrap:anywhere\]">\{cat\.name\}<\/span>/);
+    // Wraps between words; a word is split only when it cannot fit a whole line.
+    expect(pos).toMatch(/<span data-cat-name className="min-w-0 text-left leading-snug break-words">\{cat\.name\}<\/span>/);
+    expect(pos).not.toMatch(/data-cat-name[^>]*overflow-wrap:anywhere/);
     expect(pos).not.toMatch(/<span className="truncate text-left">\{cat\.name\}<\/span>/);
     const css = read('index.css');
     expect(css).toMatch(/\.cat-pill\.cat-pill-side \{\s*white-space: normal;/);
+    // A narrow panel puts the name on its own line instead of squeezing it next to the icon and count.
+    expect(css).toMatch(/\[data-pos-categories\] \{\s*container-type: inline-size;/);
+    expect(css).toMatch(/@container \(max-width: 170px\) \{[\s\S]*> \[data-cat-name\] \{\s*order: 3;\s*flex-basis: 100%;/);
   });
 });

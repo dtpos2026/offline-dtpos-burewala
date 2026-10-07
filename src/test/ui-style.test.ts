@@ -177,7 +177,7 @@ describe('the new stylesheets cannot leak', () => {
           depth--;
           if (depth === 0) {
             const body = chunk.slice(start, i);
-            if (/^@(media|supports)/.test(header)) walk(body);
+            if (/^@(media|supports|container)/.test(header)) walk(body);
             else if (!/^@(keyframes|font-face)/.test(header)) splitTop(header).forEach(s => out.push(s));
             start = i + 1;
           }

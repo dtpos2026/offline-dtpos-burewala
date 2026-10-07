@@ -292,6 +292,21 @@
     height: auto;
     min-height: 2.25rem;
   }
+  /* A narrow panel (small screens) gives the name a line of its own under the icon and count, so it
+     wraps between words instead of being squeezed into a sliver and split letter by letter. */
+  [data-pos-categories] {
+    container-type: inline-size;
+  }
+  @container (max-width: 170px) {
+    .cat-pill.cat-pill-side:has(> [data-cat-name]) {
+      flex-wrap: wrap;
+      row-gap: 0.125rem;
+    }
+    .cat-pill.cat-pill-side > [data-cat-name] {
+      order: 3;
+      flex-basis: 100%;
+    }
+  }
   /* The 4-box "All categories" button next to All. */
   .cat-pill.cat-grid-btn {
     padding-left: 0.625rem;

@@ -60,6 +60,16 @@ html[data-ui="modern"] .cat-pill[data-active="true"] [data-cat-count] {
   background: hsl(0 0% 100% / 0.22);
   color: inherit;
 }
+/* A narrow category panel (small screens, index.css puts the name on its own line): the count sits at
+   the right of the icon line, and "All" drops its total so it fits beside the 4-box button. */
+@container (max-width: 170px) {
+  html[data-ui="modern"] .cat-pill.cat-pill-side > [data-cat-count] {
+    margin-left: auto;
+  }
+  html[data-ui="modern"] .cat-pill.cat-pill-side[data-cat-all] > [data-cat-count] {
+    display: none;
+  }
+}
 
 /* ---------- product tiles ---------- */
 html[data-ui="modern"] [data-pos-card] {
