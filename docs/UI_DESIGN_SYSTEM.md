@@ -37,6 +37,22 @@ Modern themes, DT Retail and Custom.
 - Stored per computer in `dtpos-custom-themes` (max 12). Theme files: `{ format: "dtpos-theme", version: 1, theme }`;
   an import always gets a fresh id. Tests: `src/test/custom-theme.test.tsx`.
 
+### Popups and the category picker (v1.19)
+
+- **Popups stay centred.** shadcn/Radix dialogs centre with `transform: translate(-50%,-50%)`. An entrance
+  animation must never set `transform` (nor hold one with `animation-fill-mode: both/forwards`): the DT Retail
+  `dtrDialogIn` animates only `opacity` and the separate `scale` property. `components/ui/dialog.tsx` and
+  `alert-dialog.tsx` cap content at `100dvh − 1.5rem` and scroll inside it. A popup with a primary action at
+  the bottom keeps it in a sticky footer (`data-pay-confirm` in `PaymentDialog.tsx`).
+  Tests: `src/test/modal-position.test.ts`.
+- **Categories.** Side and right panels wrap long names (`.cat-pill-side`, `data-cat-name`); the top ribbon
+  scrolls. The 4-box button (`data-pos-cat-grid`) opens `components/pos/CategoryGridDialog.tsx`, a grid of
+  every category with its picture or icon, full name and item count. Tests: `src/test/category-grid.test.tsx`.
+- **Bill words.** `lib/billLabels.ts` (`discountLabel`, `taxLabel`, `variantNote`) and
+  `lib/serviceCharge.ts` (`serviceChargeLabel`) are the only place the words for discount, tax, service charge
+  and size are made; every receipt, the raw slip, the QR text and the Customer Display use them.
+  Tests: `src/test/bill-lines.test.tsx`.
+
 ### Short screens (v1.18)
 
 `lib/posLayout.ts` sets `short` when the POS area is under 680 px tall; the cart carries `data-short`.

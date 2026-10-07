@@ -1,5 +1,77 @@
 # DT POS Enterprise — Release Notes
 
+## v1.19.0 — All Categories picker, centred popups in DT Retail, service charge and discount on every bill, today's sales in Super Admin
+
+- **Reported:** "Category names cut off; an All Categories grid like the variant popup; in DT Retail the
+  size popup and the Payment Receive popup open low or off the screen; print Service Charge % and Discount
+  % with their amounts on the final bill, and no empty lines; Super Admin should show each restaurant's
+  sales for today only; keep it fast and light."
+
+### Categories
+- The **side and right category panels** now show every category's **full name** (long names wrap onto a
+  second line instead of being cut off). The top ribbon still scrolls sideways.
+- A new **4-box button next to "All"** opens **All Categories**: every category as a box with its picture
+  or icon, its full name and how many items it has, plus "All items". Picking one shows its items at once
+  and closes the picker. It is the same kind of popup as the size picker, so it opens centred and scrolls
+  on a small screen, in every look and theme.
+
+### Popups in DT Retail (size / variant, Payment Receive, and every other popup)
+- **Fixed:** in the DT Retail look, popups opened off-centre (lower and to the right), and on small
+  screens the Payment Receive popup ran below the bottom of the screen. The entrance animation was
+  overriding the centring; it now only fades and scales.
+- Every popup now fits inside the window and **scrolls inside itself** when it is taller than the
+  screen. In **Payment Receive** the **Confirm Payment** button stays in view at the bottom while the
+  rest scrolls.
+- Checked on all 7 DT Retail themes (Royal Purple, Crimson, Black & Gold, Emerald, Sunset, Ocean,
+  Night) and in Modern and Classic, at 1920×1080, 1366×768, 1024×768 and 800×600.
+
+### Service charge and discount on the bill
+- Every customer receipt design, the raw (Fast Billing) slip, the QR text, the Customer Display and the
+  order details now say the same thing:
+  - percentage discount: **"Discount (10%)   -285"** (or the shop's own title, e.g. "Eid Discount (10%)");
+  - flat discount: **"Discount   -300"**;
+  - percentage service charge: **"Service Charge (10%)   257"**; flat: **"Service Charge   250"**.
+  A line appears **only when the bill has it**.
+- **Fixed, totals that did not add up:** v1.18 said every design printed the service charge, but seven
+  designs (Compact, Design 1 Table, Design 2 Box, Design 4 Compact, Sero, Bero, KOT Style) left it off
+  while the total included it. They print it now, and the delivery charge too, which more than 20
+  designs also left out.
+- **Fixed:** Design 5 (Delivery) called the service charge "Delivery Charge"; Designs 1, 2 and 5
+  printed a made-up "Tax (5%)" whatever the shop's rate; KOT Classic showed the old flat tax amount as a
+  percentage. They now print the real rate from Settings, or just "Tax".
+- **Fixed:** the Standard receipt dropped the service charge when "Show tax" was off.
+- A stacked discount (event 10% + manual 5%) no longer prints just "5%" next to the whole amount: the
+  rate is printed only when it explains the amount.
+- **Bill Editor:** an amount typed by the manager is a flat discount, so the old percentage is no
+  longer printed next to it; editing a delivery bill **keeps the delivery charge in the total** (it was
+  dropped before).
+- **Fixed:** a sized item printed its size twice ("Pepperoni Feast - Large (Large)") on the DT Retail,
+  premium, raw and kitchen slips, the QR text and the Customer Display. It prints once now.
+
+### Super Admin — today's sales per restaurant
+- The dashboard has a new **Today's sales** panel: one row per restaurant, e.g. **"Restaurant A —
+  Today's Sales: Rs. 125,000"**, with the number of bills and when it was last updated, plus the
+  total for all restaurants. A restaurant with more than one computer is added up.
+- **Light and private:** the POS adds four small values (business day, total, bill count, when the
+  day ends) to the status report it **already** sends every 5 minutes while online. No new request,
+  and no bill, item or customer detail leaves the shop. Everything else stays offline on the POS.
+- The figure follows the POS's own business day (e.g. 8 am to 3 am) and the same rule as the POS
+  dashboard (paid bills; credit, void and cancelled are not sales). A figure from a business day that
+  has ended shows "Not reported today", never as today's.
+- The POS must be on v1.19.0 to report the figure; older versions show "Not reported today".
+
+### Checked
+- Full flow in a real browser on **all 7 DT Retail themes × 1366×768, 1024×768 and 800×600**
+  (21 runs, all pass): All Categories → pick Pizza → size popup (Large) → second item → 10% discount
+  → automatic 10% service charge → Payment Receive → paid → bill on screen. Every popup centred and
+  on screen; bill printed "Discount 10%  -285.00", "Service Charge (10%)  257.00", **TOTAL Rs 2,822.00**;
+  saved order matches.
+- Print simulator (real raster conversion), 78 slips at 80 mm and 58 mm compared with v1.18.0: the only
+  changes are the new service-charge lines (3–5 mm longer) on the seven designs above, and a clock time
+  on one kitchen slip.
+- 1,381 automated tests pass (new: category picker, popup position, bill lines on all 52 receipt designs,
+  today's sales, the Super Admin panel); both type checks and both builds are clean.
+
 ## v1.18.0 — Service charge per order type, report search, theme manager, live bill on the Customer Display, small screens
 
 - **Reported:** "Discount and service charge (percent or PKR, per Dine-In / Takeaway / Delivery);
