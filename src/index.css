@@ -806,3 +806,15 @@
 [data-dt-line] * {
   line-height: var(--dt-line-height) !important;
 }
+
+/* Weight item panel (components/pos/WeightEntrySheet.tsx): slides in from the right.
+   `translate`, not `transform`, and never when animations are switched off. */
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-anim="off"]) .dt-weight-sheet {
+    animation: dtWeightSheetIn 0.2s ease-out backwards;
+  }
+}
+@keyframes dtWeightSheetIn {
+  from { translate: 24px 0; opacity: 0; }
+  to { translate: 0 0; opacity: 1; }
+}

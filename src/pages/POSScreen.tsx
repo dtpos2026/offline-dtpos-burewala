@@ -4,6 +4,8 @@ import { computeBillTotals } from '@/lib/billTotals';
 import { overrideFromOrder, serviceChargeFields, serviceChargeLabel, type ServiceChargeOverride } from '@/lib/serviceCharge';
 import { publishLiveBill, toLiveBill } from '@/lib/liveBill';
 import CategoryGridDialog from '@/components/pos/CategoryGridDialog';
+import WeightEntrySheet from '@/components/pos/WeightEntrySheet';
+import { DEFAULT_AMOUNT_PRESETS, DEFAULT_KG_PRESETS, presetsFrom, type WeightLine } from '@/lib/weightEntry';
 import { Search, Plus, Minus, Trash2, CreditCard, Pause, Weight, Edit3, ShoppingCart, RotateCcw, Delete, User, Phone, Ban, Gift, XCircle, ChefHat, MessageCircle, ChevronLeft, ChevronRight, MoreVertical, Pencil, LayoutGrid } from 'lucide-react';
 import { normalizePhone, buildPaidMessage, buildDeliveryMessage, openWhatsApp } from '@/lib/whatsapp';
 import { Button } from '@/components/ui/button';
@@ -249,6 +251,9 @@ export default function POSScreen() {
   const [numpadValue, setNumpadValue] = useState('');
   const [numpadTarget, setNumpadTarget] = useState<'price' | 'weight' | null>(null);
   const [numpadItem, setNumpadItem] = useState<MenuItem | null>(null);
+  // Weight items (kg): the side panel — By weight / By amount (Settings → POS → Weight items).
+  const [weightSheet, setWeightSheet] = useState<{ item: MenuItem; seq: number } | null>(null);
+  const [weightSheetScale, setWeightSheetScale] = useState<{ kg: number; at: number } | null>(null);
   const [weightUnit, setWeightUnit] = useState<'KG' | 'Gram' | 'Pao'>('KG');
 
   // Payment - integrated (no separate dialog)
@@ -523,14 +528,15 @@ export default function POSScreen() {
   }, [orderTypePicked, editingOrderId]);
 
   // ===== MINIMART: barcode lookup + add weighed items straight to cart =====
-  const addWeighedToCart = useCallback((item: MenuItem, kg: number) => {
+  const addWeighedToCart = useCallback((item: MenuItem, kg: number, exactPrice?: number) => {
     const grams = Math.round(kg * 1000);
     const rate = Number((item as any).ratePerKg) || Number(item.price) || 0;
     if (rate <= 0) {
       toast.error(`${item.name} has no "Rate per KG" set — set it in the Menu Manager`);
       return;
     }
-    const price = computeWeightPrice(kg, rate);
+    // "Rs. 500 worth" (the panel's By amount) is sold at exactly that amount.
+    const price = exactPrice && exactPrice > 0 ? exactPrice : computeWeightPrice(kg, rate);
     setCart(prev => [...prev, {
       id: genId(), menuItemId: item.id, name: item.name,
       pricingType: 'weight', price, quantity: 1,
@@ -577,30 +583,44 @@ export default function POSScreen() {
     return () => { off(); };
   }, []);
 
-  const captureFromScale = useCallback(async () => {
+  /** Reads one stable weight from the scale (connecting first if needed). Null = nothing usable; the cashier was told why. */
+  const readScaleKg = useCallback(async (): Promise<number | null> => {
     const sc = loadScaleConfig();
     if (!weightScale.portOpen) {
       const r = await weightScale.connect(sc);
-      // Never a dead end: the numpad is already open in weight mode, so the
-      // cashier types the weight and carries on.
+      // Never a dead end: the weight can always be typed on the keypad instead.
       if (!r.ok) {
         toast.error(r.error || 'Could not connect to the scale — check the COM port in Settings', {
-          description: 'You can type the weight on the keypad and press Apply.',
+          description: 'You can type the weight on the keypad instead.',
           duration: 8000,
         });
-        return;
+        return null;
       }
     }
     const r = await weightScale.captureStable(4000, sc.stableOnly);
     if (!r || r.kg <= 0) {
       toast.error('No weight received — place the item on the scale, or type the weight on the keypad');
-      return;
+      return null;
     }
-    if (sc.stableOnly && !r.stable) { toast.warning('Weight is still fluctuating — please wait'); return; }
-    setWeightUnit('KG');
-    setNumpadValue(String(r.kg));
-    toast.success(`⚖️ ${r.kg.toFixed(3)} kg`);
+    if (sc.stableOnly && !r.stable) { toast.warning('Weight is still fluctuating — please wait'); return null; }
+    return r.kg;
   }, []);
+
+  const captureFromScale = useCallback(async () => {
+    const kg = await readScaleKg();
+    if (kg == null) return;
+    setWeightUnit('KG');
+    setNumpadValue(String(kg));
+    toast.success(`⚖️ ${kg.toFixed(3)} kg`);
+  }, [readScaleKg]);
+
+  // The weight panel's "Scale · F9": the reading is written into the panel.
+  const captureForWeightSheet = useCallback(async () => {
+    const kg = await readScaleKg();
+    if (kg == null) return;
+    setWeightSheetScale({ kg, at: Date.now() });
+    toast.success(`⚖️ ${kg.toFixed(3)} kg`);
+  }, [readScaleKg]);
 
   // F9 = when the weight dialog is open, read weight from the scale
   useEffect(() => {
@@ -621,6 +641,7 @@ export default function POSScreen() {
     // backwards at the counter. Now: (1) selected line, else (2) the weight
     // item open in the numpad, else (3) the last weight item in the cart.
     let weightItem = target && target.pricingType === 'weight' ? target : undefined;
+    if (!weightItem && weightSheet?.item) weightItem = weightSheet.item;
     if (!weightItem && numpadItem?.pricingType === 'weight') weightItem = numpadItem;
     if (!weightItem) {
       const lastWeighed = [...cart].reverse().find(c => c.pricingType === 'weight');
@@ -628,7 +649,7 @@ export default function POSScreen() {
     }
     if (!weightItem) { toast.error('First tap a weight item (or scan a barcode)'); return; }
     addWeighedToCart(weightItem, kg);
-  }, [selectedCartItem, cart, addWeighedToCart, numpadItem]);
+  }, [selectedCartItem, cart, addWeighedToCart, numpadItem, weightSheet]);
 
   // Keyboard-wedge scanner (USB scanner types like a keyboard)
   useEffect(() => {
@@ -640,8 +661,26 @@ export default function POSScreen() {
     return off;
   }, [(settings as any).minimartMode, (settings as any).embeddedBarcodeMode, handleScan]);
 
+  const weightPanelOn = (settings as any).weightEntryPanel !== false;
   const addToCart = useCallback((item: MenuItem) => {
     if (gatePromptOn && !orderTypePicked && !editingOrderId) { setShowOrderTypeGate(true); return; }
+    if (item.pricingType === 'weight' && weightPanelOn) {
+      // The side panel: By weight / By amount. Tapping another weight item switches it to that item.
+      const rate = Number(item.ratePerKg) || Number(item.price) || 0;
+      if (rate <= 0) { toast.error(`${item.name} has no "Rate per KG" set — set it in the Menu Manager`); return; }
+      setWeightSheet({ item, seq: Date.now() });
+      setWeightSheetScale(null);
+      const sc = loadScaleConfig();
+      if (sc.autoCapture && weightScale.portOpen) {
+        void (async () => {
+          const r = await weightScale.captureStable(4000, sc.stableOnly);
+          if (r && r.kg > 0) setWeightSheetScale({ kg: r.kg, at: Date.now() });
+        })();
+      }
+      return;
+    }
+    // Any other item: an open weight panel closes, so the cart is in view again.
+    setWeightSheet(null);
     if (item.pricingType === 'weight') {
       setNumpadItem(item);
       setNumpadTarget('weight');
@@ -707,7 +746,15 @@ export default function POSScreen() {
         note: item.categoryId === DEALS_CATEGORY_ID ? buildDealNote(item.id, menuItems) : ''
       }];
     });
-  }, [menuItems, orderTypePicked, editingOrderId]);
+  }, [menuItems, orderTypePicked, editingOrderId, weightPanelOn]);
+
+  const addFromWeightSheet = useCallback((line: WeightLine) => {
+    const it = weightSheet?.item;
+    if (!it) return;
+    addWeighedToCart(it, line.kg, line.price);
+    setWeightSheet(null);
+    setWeightSheetScale(null);
+  }, [weightSheet, addWeighedToCart]);
 
   // Numpad mode for selected cart item
   const [numpadCartMode, setNumpadCartMode] = useState<'qty' | 'price'>('qty');
@@ -3195,6 +3242,24 @@ export default function POSScreen() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ===== Weight item panel (kg): By weight / By amount ===== */}
+      {weightSheet && (
+        <WeightEntrySheet
+          key={`${weightSheet.item.id}-${weightSheet.seq}`}
+          item={weightSheet.item}
+          rate={Number(weightSheet.item.ratePerKg) || Number(weightSheet.item.price) || 0}
+          currency={(() => { const c = String((settings as any).currencySymbol ?? 'Rs').trim() || 'Rs'; return c === 'Rs' ? 'Rs.' : c; })()}
+          rounding={loadScaleConfig().priceRounding}
+          kgPresets={presetsFrom((settings as any).weightPresetsKg, DEFAULT_KG_PRESETS)}
+          amountPresets={presetsFrom((settings as any).weightPresetsAmount, DEFAULT_AMOUNT_PRESETS)}
+          scaleReading={weightSheetScale}
+          scaleConnected={scaleConnected}
+          onReadScale={() => { void captureForWeightSheet(); }}
+          onAdd={addFromWeightSheet}
+          onClose={() => { setWeightSheet(null); setWeightSheetScale(null); }}
+        />
+      )}
 
       {/* ===== Size / Inch Variant Picker (Advanced Menu Flow) ===== */}
       <CategoryGridDialog

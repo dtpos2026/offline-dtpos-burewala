@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import ReceiptSettingsTab from '@/components/settings/ReceiptSettingsTab';
 import ServiceChargeCard from '@/components/settings/ServiceChargeCard';
+import PosEntryCard from '@/components/settings/PosEntryCard';
 import PrinterSettingsTab from '@/components/settings/PrinterSettingsTab';
 import ScreenLayoutTab from '@/components/settings/ScreenLayoutTab';
 import KotSettingsTab from '@/components/settings/KotSettingsTab';
@@ -891,6 +892,7 @@ export default function SettingsPage() {
               <Input type="number" value={settings.taxAmount} onChange={e => setSettings({ ...settings, taxAmount: Number(e.target.value) })} />
             </div>
             <ServiceChargeCard settings={settings} onChange={patch => setSettings(prev => ({ ...prev, ...patch }))} />
+            <PosEntryCard settings={settings} onChange={patch => setSettings(prev => ({ ...prev, ...patch }))} />
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">GST / VAT %</label>
               <Input type="number" value={(settings as any).taxPercent ?? 0}

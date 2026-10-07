@@ -554,6 +554,14 @@ export interface RestaurantSettings {
   serviceChargeOrderTypes?: { dining?: boolean; takeaway?: boolean; delivery?: boolean };
   /** Allow adding / editing the service charge by hand on a bill (default on; cashiers follow the discount approval rule). */
   serviceChargeEditable?: boolean;
+  /** Weight items (kg) open the side panel — By weight / By amount (default on). Off = the cart keypad, as before. */
+  weightEntryPanel?: boolean;
+  /** The weight panel's preset buttons, in kg (default 0.25, 0.5, 1, 1.5, 2, 5). */
+  weightPresetsKg?: number[];
+  /** The weight panel's preset buttons in its "By amount" tab (default 100, 200, 500, 1000, 2000). */
+  weightPresetsAmount?: number[];
+  /** Payment screen design: 'premium' (default) or 'classic' (the earlier compact popup). */
+  paymentDialogStyle?: 'premium' | 'classic';
   qrMode: 'auto' | 'custom';
   customQrImage: string;
   customQrWidth?: number; // px, default 80
