@@ -1,5 +1,49 @@
 # DT POS Enterprise — Release Notes
 
+## v1.19.1 — Support messages go only to the restaurant they are for
+
+- **Reported:** "A support message I send from Super Admin to one restaurant shows in every restaurant's
+  message box. It should reach only that restaurant."
+
+### What was wrong
+- **On the POS:** the Messages box asked for messages **before** it had read this computer's licence
+  (which restaurant it is). With no licence key its filter let **every restaurant's messages** through,
+  saved them in the local cache, and showed them. So even a message addressed to one restaurant appeared
+  everywhere, and so did shops' own notes.
+- **In Super Admin:** the "Client" picker started on **"All / general note"**. A message sent without
+  choosing a restaurant went to everyone.
+
+### What changed
+- **POS:** asks Firestore only for **its own messages** and Digital Target's announcements to all
+  restaurants, and asks for nothing until it knows its licence. It no longer downloads the other
+  restaurants' messages at all (also lighter: one small query instead of the whole collection). The old
+  cache, which could hold other restaurants' messages, is deleted unread. A shop's note always carries its
+  own licence, so it can only reach Digital Target.
+- **Super Admin → Support:**
+  - **To:** starts on "Choose a restaurant…", and **Send** works only after a restaurant is chosen.
+  - **All restaurants (announcement)** is a separate choice that asks
+    "Send to every restaurant?" first.
+  - The line under the box says who will see the message, e.g. "Only Lotus Café will see this message."
+  - The inbox says **To Restaurant A** / **From Restaurant B** / **To all restaurants**.
+  - **Reply** on a shop's message answers that restaurant.
+- **Old notes** that were sent with "All / general note" (most were meant for one shop) are shown on no
+  POS. They stay in Super Admin, labelled "Old general note — not shown on any POS". To send something
+  to everyone now, use "All restaurants".
+- **Firestore rules** (`superadmin/firestore.rules`): a shop's note must carry its own licence key, and a
+  shop can never post to all restaurants. **Publish the updated rules** (Firebase Console → Firestore →
+  Rules → paste → Publish). The POS fix works without this step; the rule adds protection at the
+  database.
+
+### Checked
+- In a real browser against a fake Firestore holding two restaurants' threads, an announcement, an old
+  keyless note and a leftover v1.19.0 cache:
+  - **Lotus** saw only Lotus's messages and the announcement.
+  - **Karachi Grill** saw only its own messages and the announcement.
+  - Neither POS downloaded the whole collection, and each POS's reply carried its own licence key.
+- In Super Admin, Send stayed off until a restaurant was chosen; "All restaurants" asked first; the inbox
+  showed To / From.
+- 1,393 automated tests pass (12 new). Both type checks and both builds are clean.
+
 ## v1.19.0 — All Categories picker, centred popups in DT Retail, service charge and discount on every bill, today's sales in Super Admin
 
 - **Reported:** "Category names cut off; an All Categories grid like the variant popup; in DT Retail the
