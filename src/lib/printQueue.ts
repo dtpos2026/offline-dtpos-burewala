@@ -580,7 +580,16 @@ export function enqueueToken(order: Order): boolean {
 /** Payment ke waqt receipt — 'No receipt on pay' setting ka ek hi gate.
  *  When ON, the receipt will NOT print on pay (simple pay, retrieve-pay, pending-pay
  *  all). Reprint/Bill-Print buttons bypass this — they are explicit. */
-export function enqueueReceiptOnPay(order: Order, opts: EnqueueOpts = {}) {
+/** The payment screen's "Print receipt" box for one bill: true / false overrides Settings, absent follows them. */
+export interface ReceiptChoice { receipt?: boolean }
+
+function decideReceipt(order: Order, choice: ReceiptChoice): ReceiptOnPay {
+  if (choice.receipt === true) return 'print';
+  if (choice.receipt === false) return 'skip-all';
+  return receiptOnPay(order, getSettings());
+}
+
+export function enqueueReceiptOnPay(order: Order, opts: EnqueueOpts = {}, choice: ReceiptChoice = {}) {
   // NOTE (v1.0.40): stock deduction used to be kicked off from here as well,
   // on top of the two paths inside saveOrder — three deductions for one sale.
   // saveOrder is the single funnel now (see stockEngine.consumeStockForOrder),
@@ -594,7 +603,7 @@ export function enqueueReceiptOnPay(order: Order, opts: EnqueueOpts = {}) {
     }
   } catch {}
   try {
-    const decision = receiptOnPay(order, getSettings());
+    const decision = decideReceipt(order, choice);
     if (decision !== 'print') {
       console.log('%c[DT-Print]', 'color:#f59e0b', `receipt on pay SKIPPED (${decision})`, { order: order.orderNumber });
       return undefined;
@@ -655,11 +664,11 @@ export function holdMessage(orderNumber: number | string, printed: { bill: boole
  * throws and never touches the order's payment — a printer problem is
  * reported by the queue on its own, and the bill stays paid.
  */
-export function printReceiptAfterPayment(order: Order): { decision: ReceiptOnPay; queued: boolean } {
+export function printReceiptAfterPayment(order: Order, choice: ReceiptChoice = {}): { decision: ReceiptOnPay; queued: boolean } {
   let decision: ReceiptOnPay = 'print';
-  try { decision = receiptOnPay(order, getSettings()); } catch { /* default: print */ }
+  try { decision = decideReceipt(order, choice); } catch { /* default: print */ }
   let queued = false;
-  try { queued = !!enqueueReceiptOnPay(order); } catch { queued = false; }
+  try { queued = !!enqueueReceiptOnPay(order, {}, choice); } catch { queued = false; }
   return { decision, queued };
 }
 

@@ -254,6 +254,13 @@ export default function POSScreen() {
   // Weight items (kg): the side panel — By weight / By amount (Settings → POS → Weight items).
   const [weightSheet, setWeightSheet] = useState<{ item: MenuItem; seq: number } | null>(null);
   const [weightSheetScale, setWeightSheetScale] = useState<{ kg: number; at: number } | null>(null);
+  // The payment screen's "Print receipt" box, for the one bill being paid (undefined = follow Settings).
+  const printChoiceRef = useRef<boolean | undefined>(undefined);
+  const takePrintChoice = (): { receipt?: boolean } => {
+    const v = printChoiceRef.current;
+    printChoiceRef.current = undefined;
+    return v === undefined ? {} : { receipt: v };
+  };
   const [weightUnit, setWeightUnit] = useState<'KG' | 'Gram' | 'Pao'>('KG');
 
   // Payment - integrated (no separate dialog)
@@ -1167,9 +1174,10 @@ export default function POSScreen() {
         }
 
         setLastOrder(updated);
+        const choice = takePrintChoice();
         if (status === 'paid') {
           // The bill is already saved as PAID above. Printing only follows it.
-          const decision = receiptOnPay(updated, settings);
+          const decision = choice.receipt === true ? 'print' : choice.receipt === false ? 'skip-all' : receiptOnPay(updated, settings);
           if (decision === 'skip-dining') {
             // "Print Receipt Automatically on Dining Payment" is OFF:
             // no print and no print dialog.
@@ -1179,12 +1187,12 @@ export default function POSScreen() {
             setReceiptViewOnly(true); setShowReceipt(true);
             toast.success(`Bill #${updated.orderNumber} paid`);
           } else {
-            const r = printReceiptAfterPayment(updated);
+            const r = printReceiptAfterPayment(updated, choice);
             if (settings.showBillOnScreen) { setReceiptViewOnly(true); setShowReceipt(true); }
             toast.success(paidMessage(updated.orderNumber, r.decision, r.queued));
           }
         } else if (status === 'partial') {
-          try { enqueueReceiptOnPay(updated); } catch {}
+          try { enqueueReceiptOnPay(updated, {}, choice); } catch {}
           const due = Math.max(0, (updated.grandTotal || 0) - (updated.amountPaid || 0));
           toast.success(`#${updated.orderNumber} Partial — Paid Rs.${(updated.amountPaid||0).toLocaleString()} · Due Rs.${due.toLocaleString()}`);
         } else if (status === 'void') {
@@ -1292,21 +1300,22 @@ export default function POSScreen() {
     const autoKot = isOrderTaker
       ? settings.autoKotOnOrderTakerSave !== false
       : perTypeAutoNew;
+    const choice = takePrintChoice();
     if (status === 'paid') {
       // The bill is already saved as PAID above. Printing only follows it.
-      const decision = receiptOnPay(order, settings);
+      const decision = choice.receipt === true ? 'print' : choice.receipt === false ? 'skip-all' : receiptOnPay(order, settings);
       if (decision === 'skip-dining') {
         toast.success(paidMessage(order.orderNumber, decision, false));
       } else if (isPrintPreviewEnabled()) {
         setReceiptViewOnly(true); setShowReceipt(true);
         toast.success(`Bill #${order.orderNumber} paid`);
       } else {
-        const r = printReceiptAfterPayment(order);
+        const r = printReceiptAfterPayment(order, choice);
         if (settings.showBillOnScreen) { setReceiptViewOnly(true); setShowReceipt(true); }
         toast.success(paidMessage(order.orderNumber, r.decision, r.queued));
       }
     } else if (status === 'partial') {
-      try { enqueueReceiptOnPay(order); } catch {}
+      try { enqueueReceiptOnPay(order, {}, choice); } catch {}
       const due = Math.max(0, (order.grandTotal || 0) - (order.amountPaid || 0));
       toast.success(`Order #${order.orderNumber} — Partial paid Rs.${(order.amountPaid||0).toLocaleString()} · Pending Rs.${due.toLocaleString()}`);
     } else if (status === 'hold') {
@@ -1336,6 +1345,7 @@ export default function POSScreen() {
   // + immediate print (rush hours ke liye).
   const handleDirectPay = () => {
     if (cart.length === 0) { toast.error('Cart is empty'); return; }
+    printChoiceRef.current = undefined; // a choice left from an earlier popup never carries over
     if ((settings as any).paymentDialogEnabled === false) {
       const stamp = new Date().toISOString();
       const by = localStorage.getItem('pos-user-name') || 'cashier';
@@ -1361,8 +1371,11 @@ export default function POSScreen() {
     totalReceived: number;
     loyaltyPointsUsed?: number;
     loyaltyRedeemValue?: number;
+    printReceipt?: boolean;
   }) => {
     setShowPaymentDialog(false);
+    // Read once by the paid / partial branch of processOrder (then cleared).
+    printChoiceRef.current = r.printReceipt;
     setPaymentMethod(r.method);
     setPaymentAccountId(r.accountId);
     setPaymentAccountName(r.accountName);
@@ -3008,6 +3021,7 @@ export default function POSScreen() {
             onClose={() => setShowPaymentDialog(false)}
             onConfirm={handlePaymentConfirm}
             customerPhone={custPhone}
+            defaultPrintReceipt={receiptOnPay({ orderType } as any, settings) === 'print'}
           />
         </Suspense>
       )}
