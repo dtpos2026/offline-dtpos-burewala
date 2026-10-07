@@ -13,12 +13,18 @@ service cloud.firestore {
     // Shop ↔ Digital Target notes. The POS has no account on the shop's
     // machine, so it may read the thread and post its own note, but it can
     // never edit or delete anything Digital Target wrote.
+    // A shop's note must carry that shop's licence key (clientKey), so it lands
+    // in its own thread; it can never be an announcement to every restaurant
+    // ('*' is reserved for Digital Target).
     match /supportMessages/{messageId} {
       allow read: if true;
       allow create: if request.auth != null
         || (request.resource.data.from == 'shop'
             && request.resource.data.text is string
-            && request.resource.data.text.size() < 2000);
+            && request.resource.data.text.size() < 2000
+            && request.resource.data.clientKey is string
+            && request.resource.data.clientKey.size() > 0
+            && request.resource.data.clientKey != '*');
       allow update, delete: if request.auth != null;
     }
 

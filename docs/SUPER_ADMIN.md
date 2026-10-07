@@ -280,7 +280,7 @@ interface Client { key: string; business: string; owner: string; phone: string;
 | `deviceStatus/{docIdFor(deviceId)}` | Decision for **one computer**: `{deviceId, status, message, updatedAt, by}`; status `deleted` is a tombstone | staff | POS (`get`); staff (list) |
 | `licenseDevices/{docIdFor(key)}` | Device-slot ledger `{devices: string[], updatedAt}` | POS may only **append exactly one** id; staff anything | POS (`get`); staff (list) |
 | `devices/{docIdFor(deviceId)}` | Heartbeat from each installation (see [Appendix B](#appendix-b--field-dictionary)) | POS (own doc only, < 45 fields); staff delete | staff |
-| `supportMessages/{autoId}` | Notes both ways `{clientKey, business, phone, from, text, createdAt, read, serverAt}` | staff; POS only `from=='shop'`, text < 2000 chars | everyone (see [13](#13-security-model-and-honest-limits)) |
+| `supportMessages/{autoId}` | Notes both ways `{clientKey, business, phone, from, text, createdAt, read, serverAt}`. `clientKey` = the restaurant's licence key, or `'*'` for an announcement to every restaurant (`src/lib/messageRouting.ts`) | staff; POS only `from=='shop'`, text < 2000 chars, with its own non-empty `clientKey` that is not `'*'` | everyone (see [13](#13-security-model-and-honest-limits)) |
 | `offlineInvoices/{id}` | Invoices | staff | staff |
 | `offlineBilling/profile` | Invoice branding/profile | staff | staff |
 | `invoiceVerify/{code}` | Public record an invoice QR opens | staff | anyone with the code (`get`); staff (list) |
@@ -398,7 +398,7 @@ The POS uses **plain Firestore REST** with the public web key — no Firebase SD
 | Device status | `GET …/documents/deviceStatus/{docIdFor(deviceId)}?key=API_KEY` | same call |
 | Slot claim | `GET` then `PATCH licenseDevices/{docIdFor(key)}` with a precondition (`currentDocument.updateTime` or `exists=false`); retry up to 3× on 400/409 | at activation and when the slot is unknown |
 | Heartbeat | `PATCH …/documents/devices/{deviceId}?key=API_KEY` with ~40 scalar fields | first cycle 4 s after start, then every **5 min**; also when the verdict changes or the network returns |
-| Support | REST on `supportMessages` (read thread, create `from:'shop'`) | on demand, cached |
+| Support | `POST …/documents:runQuery` on `supportMessages` where `clientKey IN [own licence key, '*']` (only once the licence key is known); create `from:'shop'` with its own `clientKey` | when Reports is open, every 60 s; cached per licence key |
 
 Rules of behaviour (all in `cloudLink.ts` / `licenseSync.ts`):
 
@@ -491,8 +491,13 @@ admin that changes are **not instant** and never reach an offline computer.
 ### Offline Billing — see [11](#11-offline-billing--erp).
 
 ### Support
-Send a note to one client or a general note; inbox (newest first, search), unread highlighted, **Mark
-read**, **Delete** (confirmed). Shop messages (`from:'shop'`) raise the sidebar badge.
+**To** must be chosen before **Send** works: one restaurant (only that restaurant's POS shows the
+message), or **All restaurants (announcement)**, which asks for confirmation first. There is no "all"
+by default (v1.19.1; before that the picker defaulted to "All / general note"). The inbox (newest first,
+search) says who each message went **to** or came **from**; **Reply** on a shop's message addresses the
+answer to that restaurant. Unread highlighted, **Mark read**, **Delete** (confirmed). Shop messages
+(`from:'shop'`) raise the sidebar badge. Old keyless notes are labelled "Old general note — not shown on
+any POS".
 
 ### Verify Key
 Paste a key → `verifyLicenseKey` → shows ✓ plan, devices, expiry and whether it is in this registry
@@ -600,9 +605,10 @@ Limits you should know (and tell your clients):
    (about a minute). A computer that never connects is governed only by the expiry date inside its key.
 3. **Every signed-in user is a full admin** — rules check only `request.auth != null`; there are no roles.
 4. **`supportMessages` is world-readable** (`allow read: if true`) so the POS can read its thread without
-   an account; anyone who knows the project id and public key can read all threads (business names,
-   phone numbers, text). Don't put secrets in messages. Hardening idea: per-shop documents with an
-   unguessable id, or a Cloud Function.
+   an account. Since v1.19.1 the POS asks only for its own thread and the announcements and shows nothing
+   else, but anyone who knows the project id and public key could still query all threads (business
+   names, phone numbers, text) directly. Don't put secrets in messages. Hardening idea: per-shop documents
+   with an unguessable id, or a Cloud Function.
 5. **Heartbeats are unauthenticated:** anyone with the public key can create a `devices/{id}` document
    whose `deviceId` equals its id (size-limited to < 45 fields). The panel treats `devices` as *reported*,
    never as authoritative.
@@ -850,12 +856,18 @@ service cloud.firestore {
     // Shop ↔ Digital Target notes. The POS has no account on the shop's
     // machine, so it may read the thread and post its own note, but it can
     // never edit or delete anything Digital Target wrote.
+    // A shop's note must carry that shop's licence key (clientKey), so it lands
+    // in its own thread; it can never be an announcement to every restaurant
+    // ('*' is reserved for Digital Target).
     match /supportMessages/{messageId} {
       allow read: if true;
       allow create: if request.auth != null
         || (request.resource.data.from == 'shop'
             && request.resource.data.text is string
-            && request.resource.data.text.size() < 2000);
+            && request.resource.data.text.size() < 2000
+            && request.resource.data.clientKey is string
+            && request.resource.data.clientKey.size() > 0
+            && request.resource.data.clientKey != '*');
       allow update, delete: if request.auth != null;
     }
 

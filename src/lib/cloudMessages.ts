@@ -6,16 +6,27 @@
 //   { clientKey, business, phone, from: 'admin' | 'shop', text,
 //     createdAt (ms), read }
 //
+// Each restaurant sees ONLY its own thread (clientKey = its licence key) and
+// the announcements Digital Target sends to everyone (lib/messageRouting.ts).
+// The POS asks Firestore for exactly those — it never downloads the other
+// restaurants' messages — and does not ask at all until it knows its own
+// licence key. The cache is kept per licence key.
+//
 // The POS talks to Firestore over plain REST (no Firebase SDK), stays
 // offline-first (last messages are cached) and never blocks the UI.
 // ============================================================
+import { BROADCAST_KEY, isForShop } from './messageRouting';
 
 const PROJECT_ID = 'dtpos-offline';
 const API_KEY = 'AIzaSyCgLRlvTaXyuk13vWCQ1vCKUbAmC5IY9cU';
 const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 
-const CACHE_KEY = 'dtpos-messages-cache';
+const CACHE_KEY = 'dtpos-messages-cache-v2';
+/** Before v1.19.1 the cache could hold other restaurants' messages: it is thrown away, never shown. */
+const OLD_CACHE_KEY = 'dtpos-messages-cache';
 const READ_KEY = 'dtpos-messages-read-at';
+/** More than any one restaurant's thread; the list is sorted here, so no Firestore index is needed. */
+const MAX_FETCH = 500;
 
 export interface DTMessage {
   id: string;
@@ -62,42 +73,78 @@ async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
   ]);
 }
 
-export function cachedMessages(): DTMessage[] {
+function dropOldCache() {
+  try { localStorage.removeItem(OLD_CACHE_KEY); } catch { /* storage blocked */ }
+}
+
+/** The last messages this restaurant downloaded — only when they were saved for this same licence. */
+export function cachedMessages(licenseKey?: string): DTMessage[] {
+  dropOldCache();
+  const key = (licenseKey || '').trim();
+  if (!key) return [];
   try {
-    const raw = JSON.parse(localStorage.getItem(CACHE_KEY) || '[]');
-    return Array.isArray(raw) ? raw : [];
+    const raw = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+    if (!raw || raw.key !== key || !Array.isArray(raw.list)) return [];
+    return (raw.list as DTMessage[]).filter(m => isForShop(m, key));
   } catch { return []; }
 }
 
-function cache(list: DTMessage[]) {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify(list.slice(0, 100))); } catch { /* quota */ }
+function cache(key: string, list: DTMessage[]) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ key, list: list.slice(-100) })); } catch { /* quota */ }
 }
 
-/** Download the thread for this shop (plus general notes sent to everyone). */
+/** The Firestore query for one restaurant: its own thread and the announcements to everyone. */
+export function threadQuery(licenseKey: string) {
+  return {
+    structuredQuery: {
+      from: [{ collectionId: 'supportMessages' }],
+      where: {
+        fieldFilter: {
+          field: { fieldPath: 'clientKey' },
+          op: 'IN',
+          value: { arrayValue: { values: [{ stringValue: licenseKey }, { stringValue: BROADCAST_KEY }] } },
+        },
+      },
+      limit: MAX_FETCH,
+    },
+  };
+}
+
+/** Download this restaurant's thread (plus Digital Target's announcements to everyone). */
 export async function fetchMessages(ctx: MessageContext): Promise<DTMessage[]> {
-  if (!navigator.onLine) return cachedMessages();
-  const url = `${BASE}/supportMessages?pageSize=200&key=${API_KEY}`;
-  const res = await withTimeout(fetch(url).then(r => (r.ok ? r.json() : null)), 9000);
-  if (!res || !Array.isArray(res.documents)) return cachedMessages();
-  const key = ctx.licenseKey || '';
-  const list = (res.documents.map(parseDoc).filter(Boolean) as DTMessage[])
-    .filter(m => !m.clientKey || !key || m.clientKey === key)
+  const key = (ctx.licenseKey || '').trim();
+  // Not known yet which restaurant this is: ask for nothing, show nothing.
+  if (!key) return [];
+  if (!navigator.onLine) return cachedMessages(key);
+  const res = await withTimeout(
+    fetch(`${BASE}:runQuery?key=${API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(threadQuery(key)),
+    }).then(r => (r.ok ? r.json() : null)),
+    9000,
+  );
+  if (!Array.isArray(res)) return cachedMessages(key);
+  const list = (res.map((row: any) => (row?.document ? parseDoc(row.document) : null)).filter(Boolean) as DTMessage[])
+    // The query already asks for these only; checked again so nothing else can ever be shown.
+    .filter(m => isForShop(m, key))
     .sort((a, b) => a.createdAt - b.createdAt);
-  cache(list);
+  cache(key, list);
   return list;
 }
 
-/** Send a note from this shop to Digital Target. */
+/** Send a note from this shop to Digital Target. Never without this restaurant's licence key. */
 export async function sendShopMessage(text: string, ctx: MessageContext): Promise<boolean> {
   const body = text.trim();
-  if (!body) return false;
+  const key = (ctx.licenseKey || '').trim();
+  if (!body || !key) return false;
   if (!navigator.onLine) return false;
   const fields: Record<string, unknown> = {
     from: { stringValue: 'shop' },
     text: { stringValue: body },
     createdAt: { integerValue: String(Date.now()) },
     read: { booleanValue: false },
-    clientKey: { stringValue: ctx.licenseKey || '' },
+    clientKey: { stringValue: key },
     business: { stringValue: ctx.business || '' },
     phone: { stringValue: ctx.phone || '' },
   };

@@ -1,12 +1,16 @@
 // Floating "Messages" button — shop ↔ Digital Target notes.
 // Uses the same cloud collection the Super Admin panel reads/writes,
 // so a message sent from either side is visible on the other.
+// It shows only this restaurant's own messages and Digital Target's
+// announcements to everyone, and asks for nothing until this computer's
+// licence (which restaurant it is) has been read.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageCircle, X, Send, Loader2, RefreshCw } from 'lucide-react';
 import {
   fetchMessages, sendShopMessage, cachedMessages, markAllRead, unreadCount,
   type DTMessage, type MessageContext,
 } from '@/lib/cloudMessages';
+import { isBroadcast } from '@/lib/messageRouting';
 import { Button } from '@/components/ui/button';
 
 function isReportsDashboard(): boolean {
@@ -17,7 +21,9 @@ function isReportsDashboard(): boolean {
 export default function DTMessagesWidget() {
   const [onReports, setOnReports] = useState(isReportsDashboard());
   const [open, setOpen] = useState(false);
-  const [msgs, setMsgs] = useState<DTMessage[]>(cachedMessages());
+  const [msgs, setMsgs] = useState<DTMessage[]>([]);
+  // True once the licence has been read (or found missing): only then is anything fetched.
+  const [ready, setReady] = useState(false);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -36,25 +42,34 @@ export default function DTMessagesWidget() {
   }, []);
 
   useEffect(() => {
+    let alive = true;
     (async () => {
       try {
         const { loadLicense } = await import('@/licensing/licenseService');
         const lic = await loadLicense();
-        if (lic) ctxRef.current = { licenseKey: lic.licenseKey, business: lic.businessName, phone: lic.mobileNumber };
+        if (alive && lic?.licenseKey) {
+          ctxRef.current = { licenseKey: lic.licenseKey, business: lic.businessName, phone: lic.mobileNumber };
+          setMsgs(cachedMessages(lic.licenseKey));
+        }
       } catch { /* offline build */ }
+      if (alive) setReady(true);
     })();
+    return () => { alive = false; };
   }, []);
 
   const refresh = useCallback(async () => {
+    // Without this restaurant's licence key there is no thread to ask for.
+    if (!ctxRef.current.licenseKey) return;
     setLoading(true);
     try { setMsgs(await fetchMessages(ctxRef.current)); } finally { setLoading(false); }
   }, []);
 
   useEffect(() => {
+    if (!ready) return;
     refresh();
     const t = setInterval(refresh, 60_000);
     return () => clearInterval(t);
-  }, [refresh]);
+  }, [ready, refresh]);
 
   useEffect(() => {
     if (open) { markAllRead(); scrollRef.current?.scrollTo({ top: 999999, behavior: 'smooth' }); }
@@ -68,6 +83,10 @@ export default function DTMessagesWidget() {
   const send = async () => {
     const body = text.trim();
     if (!body) return;
+    if (!ctxRef.current.licenseKey) {
+      setNote('Messages work once this computer is activated with its licence.');
+      return;
+    }
     setBusy(true);
     setNote('');
     const ok = await sendShopMessage(body, ctxRef.current);
@@ -126,7 +145,7 @@ export default function DTMessagesWidget() {
                 }`}>
                   <p className="whitespace-pre-wrap">{m.text}</p>
                   <p className="mt-1 text-[10px] opacity-70">
-                    {m.from === 'admin' ? 'Digital Target' : 'You'} · {m.createdAt ? new Date(m.createdAt).toLocaleString() : ''}
+                    {m.from === 'admin' ? (isBroadcast(m) ? 'Digital Target · to all restaurants' : 'Digital Target') : 'You'} · {m.createdAt ? new Date(m.createdAt).toLocaleString() : ''}
                   </p>
                 </div>
               </div>
