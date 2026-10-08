@@ -1,5 +1,101 @@
 # DT POS Enterprise — Release Notes
 
+## v1.20.0 — Weight items by kg or by amount, a Premium payment screen, the Espresso Orange theme and PIN sign-in
+
+- **Reported:** "When a kg item is tapped, open a panel at the side with ready buttons like 0.25 kg, and
+  let me sell it by price too; switch when I tap another item. Make the Premium payment screen
+  available in DT Retail and every look, with an on/off option. Make the design theme from the PDF,
+  exactly the same. Users should also be able to sign in with a PIN — the username and password stay."
+
+### Weight items (kg): a panel at the side
+- Tapping an item sold per kg opens a panel on the right instead of the cart keypad:
+  - **By weight (kg):** preset buttons (0.25, 0.5, 1, 1.5, 2, 5 kg), a keypad, and kg / gram / pao units.
+    The price is kg × rate, rounded the shop's way.
+  - **By amount (Rs.):** preset buttons (Rs. 100, 200, 500, 1,000, 2,000) or any amount. The line costs
+    exactly that amount, and the weight shown is what it buys (to the gram).
+  - **Scale:** "Scale · F9" reads a connected scale into the panel. Auto-capture still works.
+  - **Add to cart:** the button or **Enter**. While the panel is open, Enter and "+" never reach the POS
+    behind it. **Esc** closes it.
+- Tapping another kg item switches the panel to it. Tapping a normal item closes it.
+- **Settings → General → Weight items (kg):**
+  - Panel on/off. Off brings back the cart keypad, as before.
+  - The shop's own preset buttons, e.g. "0.25, 0.5, 1" kg and "100, 200, 500" rupees.
+
+### Payment screen: Premium, or Classic
+- The new **Premium** layout is the default in every look:
+  - a big **Total Payable**
+  - Cash / Online / Split / Other tiles
+  - an **Exact** button and the next round notes
+  - **Change** and **Due (Credit)** side by side
+  - **Back to cart** and **Complete Sale (Enter)**
+- Paying less than the total is a partial payment, shown as **Partial Pay · Rs. X (Due Rs. Y)**, as
+  before.
+- **Print receipt** box: ticked or unticked by default from your receipt settings. Untick it to skip
+  the receipt for this one bill; tick it to print one even when Settings say none. The tandoor token
+  still prints.
+- **Settings → General → Payment screen → Classic** brings back the earlier compact popup. Its Quick
+  Discount stays there.
+
+### Espresso Orange theme — the DT Retail POS v1.8 look
+- **Settings → Appearance → DT Retail → Espresso Orange.** It is an eighth DT Retail theme. The other
+  seven, and every Modern and Classic look, are unchanged.
+- **Sign-in screen:**
+  - The left panel is espresso brown with orange glows, and shows "Welcome to <your shop>", six feature
+    chips, *Developed by Digital Target* and *Licensed to <licence holder>*.
+  - The right side is the PIN page: your name card, 4 dots and a keypad, plus **Use username &
+    password**.
+  - While the admin still has the factory password, a "First login" hint shows.
+- **Inside:**
+  - espresso sidebar with the orange active item
+  - a stacked clock ("05:06 pm / Wed, 07 Oct 2026")
+  - for administrators only, a red line "You are using the default admin password. Change it in Users
+    to protect your data." It disappears once the password is changed.
+- **POS categories:** a coloured dot before each name, and the selected category is filled in its own
+  colour. On a narrow panel the name drops under the dot, so a word is never split.
+
+### PIN sign-in (every look)
+- **Users & Roles → Edit user → Quick login PIN (optional):**
+  - exactly 4 digits, or leave it empty
+  - users with a PIN show a **PIN** badge
+  - no user gets a PIN by itself — existing users keep signing in exactly as before
+- **Sign-in:**
+  - Tap your name, type the PIN (on screen or on the keyboard). The fourth digit signs you in.
+  - A user without a PIN goes to the password form with the username already filled in.
+  - In Espresso Orange the PIN page comes first. In the other looks, **Sign in with PIN** appears under
+    Sign In as soon as one user has a PIN.
+- **Safety:**
+  - A wrong PIN says how many tries are left.
+  - Five wrong PINs lock that user's PIN sign-in for one minute. The password still works.
+  - The username + password sign-in is unchanged and always available.
+
+### Checked
+- 1,450 automated tests pass (57 new: weight panel, Premium payment, PIN sign-in and lock-out, the
+  Espresso theme and its colours, category dots, the clock and the warning line). Both type checks and
+  both builds are clean. Lint has no new errors against v1.19.1.
+- In a real browser (Chromium):
+  - **Full sale on all 8 DT Retail themes × 3 screen sizes (24/24):** categories grid → size popup →
+    10% discount → service charge → Premium payment → bill on screen with both rates. The popups were
+    centred and the totals right.
+  - **Weight panel, 6 looks × 3 sizes (18/18):**
+    - 1.5 kg = Rs. 1,800
+    - Rs. 500 = 0.417 kg
+    - 750 g = Rs. 675
+    - Enter adds without opening Payment; switching items, closing with a normal item and Esc all
+      worked.
+  - **Premium payment, 6 looks × 3 sizes + Classic (19/19):** change Rs. 2,860 on Rs. 5,000; an
+    unticked receipt sent nothing to the printer; a partial Rs. 1,000 was saved as partial with
+    Rs. 1,140 due.
+  - **Sign-in, 4 screen sizes (16/16):**
+    - Espresso PIN page, wrong PIN, lock-out, a user without a PIN going to the password form, and PIN
+      sign-in to the POS, with the clock, the warning line and the category colours.
+    - Royal Purple: password first, then Sign in with PIN.
+    - Classic with no PINs: exactly the old form.
+
+### Not checked here
+- These were not tried on a real Windows install (Electron), a real receipt printer or a real weighing
+  scale. The panel uses the same scale reading as before.
+- The PIN lock-out is counted on each computer.
+
 ## v1.19.1 — Support messages go only to the restaurant they are for
 
 - **Reported:** "A support message I send from Super Admin to one restaurant shows in every restaurant's
