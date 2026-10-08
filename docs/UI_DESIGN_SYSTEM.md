@@ -71,7 +71,7 @@ Settings → Display → Enable Display Screen is on.
 
 Seven more themes — Royal Purple, Crimson Red & White, Black & Gold, Emerald,
 Sunset Orange, Ocean Blue and Night — form the **DT Retail** family, after the
-"DT Retail POS Design Guide". They are Modern themes with extra attributes:
+"DT Retail POS Design Guide" (Espresso Orange joined them in v1.20). They are Modern themes with extra attributes:
 
 | Attribute on `<html>` | Set when | Used for |
 | --- | --- | --- |
@@ -94,6 +94,23 @@ Sunset Orange, Ocean Blue and Night — form the **DT Retail** family, after the
 - Retail themes may set `accentText` (a deeper shade, lighter on dark pages) so the
   accent stays readable as text (≥ 4.5 : 1); the brand colours on buttons are kept
   exactly as in the guide (≥ 3 : 1 for white text).
+- **Espresso Orange (`dtr-espresso`, v1.20)** — the eighth DT Retail theme, the look of the
+  DT Retail POS v1.8 screens. Same rules as the other retail themes, plus a block at the end of
+  `ui-retail.css` scoped to `[data-ui-theme="dtr-espresso"]` (a test fails if a rule there is not):
+  - **Sign-in:** a wider (54 %) espresso panel with two orange glows (`--dtr-espresso`,
+    `--dtr-glow-a/b` in its token block) and faint Digital Target marks
+    (`LoginRetailBrand variant="espresso"`: "Welcome to <shop>", six chips, *Developed by* and
+    *Licensed to <licence owner>*). The cream side is the PIN page itself, without a card
+    (`PinLoginPanel`), with the first-login hint while the admin still has `admin123`.
+  - **Shell:** `HeaderClock variant="stacked"` ("05:06 pm / Wed, 07 Oct 2026") and
+    `DefaultPasswordBanner` under the top bar (admins only, while the factory password is in use).
+  - **POS categories:** each pill carries `--cat-c` (`lib/categoryColors.ts`, by position) and a
+    hidden `[data-cat-dot]`; this theme shows the dot instead of the emoji, fills the selected pill
+    in its colour and hides the counts in the side panel. Other looks ignore both.
+- **PIN sign-in (every look, v1.20):** `PinLoginPanel` (user cards, 4 dots, keypad, keyboard digits).
+  Espresso Orange opens on it; the other looks show *Sign in with PIN* under Sign In once a user has
+  a PIN. `store.authenticateUserByPin` locks one user's PIN for a minute after five wrong tries
+  (`dtpos-pin-lock`); the password is never locked by it. `pos-login-mode` remembers the last way in.
 - **Print follows the same guide but not the same CSS:** receipt designs are
   `DtRetailReceipt.tsx` (11), token designs `dtrSlipHtml()` in `tokenSlip.ts` (5), and
   `renderDtrKitchen()` in `KitchenReceipt.tsx`. They use CSS grid, never `<table>`, because
@@ -150,7 +167,7 @@ stylesheet and the theme list agree; and that Classic removes every trace.
 | `src/styles/ui-tokens.css` | The tokens. Every value lives here: palette, accent, status colours, radii, shadows, control heights, spacing and type scales, and the resolved `--ui-*` aliases for inline styles. |
 | `src/styles/ui-modern.css` | What a token cannot say: focus, table and dialog finish, flat replacements for the old gradients, badge tints. Every selector starts with `html[data-ui="modern"]`. |
 | `src/styles/ui-pos.css` | The POS order screen: product tiles, the Order panel, lines, totals, the Pay bar. It hooks onto `data-pos-*` attributes that `POSScreen.tsx` carries in both styles, so Classic never matches it. |
-| `src/lib/uiThemes.ts` | The thirteen Modern themes and the seven DT Retail ones. |
+| `src/lib/uiThemes.ts` | The thirteen Modern themes and the eight DT Retail ones (the guide's seven + Espresso Orange). |
 | `src/lib/customTheme.ts` | Custom themes: derive, check, store, import / export. |
 | `src/components/settings/CustomThemeManager.tsx` | The designer and the list of custom themes. |
 | `src/styles/ui-retail.css` | The DT Retail look: gradient shell, dashboard banner and cards, tiles, motion, dark-page fixes, splash and sign-in. Scoped to `data-look="retail"`. |

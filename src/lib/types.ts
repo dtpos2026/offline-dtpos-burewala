@@ -467,7 +467,8 @@ export interface User {
   featurePermissions?: string[];
   /** Phone number — used by Order Taker / Rider portal for phone+PIN login. */
   phone?: string;
-  /** 4-digit numeric PIN for portal login (Order Taker, Rider). */
+  /** 4-digit numeric PIN: portal login (Order Taker, Rider), and the optional
+   *  quick PIN sign-in on the login screen for everyone else. */
   pin?: string;
 }
 

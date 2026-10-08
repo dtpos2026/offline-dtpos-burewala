@@ -10,6 +10,8 @@ import BillingStatusBar from '@/components/BillingStatusBar';
 import HeaderClock from '@/components/shell/HeaderClock';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useThemeId, useUiLook } from '@/lib/uiStyle';
+import { ESPRESSO_THEME_ID } from '@/lib/uiThemes';
 
 interface Props {
   title: string;
@@ -31,6 +33,8 @@ const iconButton = 'grid h-9 w-9 place-items-center rounded-[10px] text-muted-fo
 export default function ModernHeader({
   title, collapsed, onToggleCollapse, onOpenMobileMenu, onOpenLauncher, zoom, onZoom, onResetZoom, children, userChip,
 }: Props) {
+  const themeId = useThemeId();
+  const espresso = useUiLook() === 'retail' && themeId === ESPRESSO_THEME_ID;
   return (
     <header data-ui-shell="header" className="flex h-[var(--ui-header-h)] shrink-0 items-center gap-2 border-b bg-card px-4">
       <button type="button" className={`${iconButton} lg:hidden`} onClick={onOpenMobileMenu} aria-label="Open menu">
@@ -67,7 +71,7 @@ export default function ModernHeader({
         </div>
         <HeaderNotificationBar />
         {children}
-        <HeaderClock variant="modern" />
+        <HeaderClock variant={espresso ? 'stacked' : 'modern'} />
         <Popover>
           <PopoverTrigger asChild>
             <button type="button" className={iconButton} aria-label="Text size" title="Text size">

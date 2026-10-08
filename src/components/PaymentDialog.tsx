@@ -53,7 +53,7 @@ type Mode = 'cash' | 'online' | 'split' | 'custom';
 
 export default function PaymentDialog({ open, onClose, grandTotal, onConfirm, customerPhone, remainingMode, defaultPrintReceipt }: Props) {
   // Settings → General → Payment screen: Premium (default) or Classic. Same logic, different layout.
-  const premium = (getSettings() as any)?.paymentDialogStyle !== 'classic';
+  const premium = getSettings()?.paymentDialogStyle !== 'classic';
   const [printReceipt, setPrintReceipt] = useState(defaultPrintReceipt !== false);
   const [accounts, setAccounts] = useState<PaymentAccount[]>([]);
   const [mode, setMode] = useState<Mode>('cash');
@@ -212,14 +212,14 @@ export default function PaymentDialog({ open, onClose, grandTotal, onConfirm, cu
     : `✓ Confirm Payment${redeemValue > 0 ? ` · Rs.${netDue.toLocaleString()}` : ''}`;
 
   if (premium) {
-    const st: any = getSettings() || {};
-    const customTypes = ((st.customPaymentTypes as string[]) || []).filter(Boolean);
-    const cfgQuick = ((st.quickCashAmounts as number[]) || []).filter((n: number) => n > 0);
+    const st = (getSettings() || {}) as { customPaymentTypes?: string[]; quickCashAmounts?: number[] };
+    const customTypes = (st.customPaymentTypes || []).filter(Boolean);
+    const cfgQuick = (st.quickCashAmounts || []).filter((n: number) => n > 0);
     const notes = cfgQuick.length ? cfgQuick.slice(0, 5) : suggestedNotes(netDue);
     const change = Math.max(0, cashReceivedNum - netDue);
     const due = mode === 'cash' ? Math.max(0, netDue - cashReceivedNum) : remainingAfter;
     const fmt = (n: number) => n.toLocaleString('en-PK', { maximumFractionDigits: 2 });
-    const tiles: Array<{ id: Mode; label: string; Icon: any; disabled?: boolean; hint?: string }> = [
+    const tiles: Array<{ id: Mode; label: string; Icon: typeof Wallet; disabled?: boolean; hint?: string }> = [
       { id: 'cash', label: 'Cash', Icon: Banknote },
       { id: 'online', label: 'Online', Icon: Landmark, disabled: onlineAccts.length === 0, hint: 'Add a payment account in Settings → Accounts' },
       { id: 'split', label: 'Split', Icon: SplitSquareHorizontal, disabled: onlineAccts.length === 0, hint: 'Needs a payment account' },

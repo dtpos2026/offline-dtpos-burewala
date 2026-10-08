@@ -4,7 +4,9 @@ import HeaderClock from '@/components/shell/HeaderClock';
 import ModernSidebar from '@/components/shell/ModernSidebar';
 import ModernHeader from '@/components/shell/ModernHeader';
 import ModuleLauncher from '@/components/shell/ModuleLauncher';
-import { useUiLook, useUiStyle } from '@/lib/uiStyle';
+import DefaultPasswordBanner from '@/components/shell/DefaultPasswordBanner';
+import { useThemeId, useUiLook, useUiStyle } from '@/lib/uiStyle';
+import { ESPRESSO_THEME_ID } from '@/lib/uiThemes';
 import { useScreenConfig } from '@/hooks/usePosLayout';
 import { shouldCollapseMenu } from '@/lib/posLayout';
 import { ReactNode, useState, useEffect } from 'react';
@@ -329,6 +331,7 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
   const modern = useUiStyle() === 'modern';
   // DT Retail look: the signed-in user sits in the top bar.
   const retail = useUiLook() === 'retail';
+  const themeId = useThemeId();
   const signedInName = (() => {
     try { return getUsers().find(u => u.id === (localStorage.getItem('pos-user-id') || ''))?.name || ''; } catch { return ''; }
   })();
@@ -531,6 +534,7 @@ export default function AppLayout({ children, userRole, onLogout }: Props) {
           </div>
         </header>
         )}
+        {retail && themeId === ESPRESSO_THEME_ID && <DefaultPasswordBanner userRole={userRole} />}
 
         <main className="flex-1 overflow-auto bg-background relative">
           {children}

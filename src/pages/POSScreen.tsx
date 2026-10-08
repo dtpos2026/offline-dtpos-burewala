@@ -5,6 +5,7 @@ import { overrideFromOrder, serviceChargeFields, serviceChargeLabel, type Servic
 import { publishLiveBill, toLiveBill } from '@/lib/liveBill';
 import CategoryGridDialog from '@/components/pos/CategoryGridDialog';
 import WeightEntrySheet from '@/components/pos/WeightEntrySheet';
+import { categoryDotColor } from '@/lib/categoryColors';
 import { DEFAULT_AMOUNT_PRESETS, DEFAULT_KG_PRESETS, presetsFrom, type WeightLine } from '@/lib/weightEntry';
 import { Search, Plus, Minus, Trash2, CreditCard, Pause, Weight, Edit3, ShoppingCart, RotateCcw, Delete, User, Phone, Ban, Gift, XCircle, ChefHat, MessageCircle, ChevronLeft, ChevronRight, MoreVertical, Pencil, LayoutGrid } from 'lucide-react';
 import { normalizePhone, buildPaidMessage, buildDeliveryMessage, openWhatsApp } from '@/lib/whatsapp';
@@ -668,7 +669,7 @@ export default function POSScreen() {
     return off;
   }, [(settings as any).minimartMode, (settings as any).embeddedBarcodeMode, handleScan]);
 
-  const weightPanelOn = (settings as any).weightEntryPanel !== false;
+  const weightPanelOn = settings.weightEntryPanel !== false;
   const addToCart = useCallback((item: MenuItem) => {
     if (gatePromptOn && !orderTypePicked && !editingOrderId) { setShowOrderTypeGate(true); return; }
     if (item.pricingType === 'weight' && weightPanelOn) {
@@ -1719,9 +1720,9 @@ export default function POSScreen() {
               data-active={selectedCat === 'all'}
               className="cat-pill"
             >
-              📋 All{modern && <span data-cat-count>{catCounts.all}</span>}
+              <span data-cat-icon>📋{'\u00a0'}</span>All{modern && <span data-cat-count>{catCounts.all}</span>}
             </button>
-            {categories.map(cat => {
+            {categories.map((cat, catIndex) => {
               const catFont = settings.categoryStyle;
               const catFontStyle: React.CSSProperties = catFont && catFont.font !== 'default' ? {
                 fontFamily: `'${catFont.font}', serif`,
@@ -1735,12 +1736,15 @@ export default function POSScreen() {
                   onClick={() => setSelectedCat(cat.id)}
                   data-active={selectedCat === cat.id}
                   className="cat-pill flex items-center gap-1.5 shrink-0"
-                  style={catFontStyle}
+                  style={{ ...catFontStyle, ['--cat-c' as string]: categoryDotColor(catIndex) }}
                 >
                   {cat.image ? (
                     <img src={cat.image} alt={cat.name} className="h-5 w-5 rounded-full object-cover" />
                   ) : (
-                    <span className="text-sm">{cat.icon}</span>
+                    <>
+                      <span data-cat-dot aria-hidden className="hidden" />
+                      <span data-cat-icon className="text-sm">{cat.icon}</span>
+                    </>
                   )}
                   <span>{cat.name}</span>
                   {modern && <span data-cat-count>{catCounts.byCat.get(cat.id) || 0}</span>}
@@ -1785,10 +1789,10 @@ export default function POSScreen() {
                   data-cat-all
                   className="cat-pill cat-pill-side whitespace-nowrap min-w-0 flex-1 flex items-center gap-1.5 justify-start"
                 >
-                  📋 All{modern && <span data-cat-count className="ml-auto">{catCounts.all}</span>}
+                  <span data-cat-icon>📋</span>All{modern && <span data-cat-count className="ml-auto">{catCounts.all}</span>}
                 </button>
               </div>
-              {categories.map(cat => {
+              {categories.map((cat, catIndex) => {
                 const catFont = settings.categoryStyle;
                 const catFontStyle: React.CSSProperties = catFont && catFont.font !== 'default' ? {
                   fontFamily: `'${catFont.font}', serif`,
@@ -1802,13 +1806,16 @@ export default function POSScreen() {
                     onClick={() => setSelectedCat(cat.id)}
                     data-active={selectedCat === cat.id}
                     className="cat-pill cat-pill-side w-[calc(100%-12px)] mx-1.5 mb-1.5 flex items-center gap-1.5 justify-start"
-                    style={catFontStyle}
+                    style={{ ...catFontStyle, ['--cat-c' as string]: categoryDotColor(catIndex) }}
                     title={cat.name}
                   >
                     {cat.image ? (
                       <img src={cat.image} alt={cat.name} className="h-5 w-5 rounded-full object-cover shrink-0" />
                     ) : (
-                      <span className="text-sm shrink-0">{cat.icon}</span>
+                      <>
+                        <span data-cat-dot aria-hidden className="hidden" />
+                        <span data-cat-icon className="text-sm shrink-0">{cat.icon}</span>
+                      </>
                     )}
                     {/* The whole name, wrapped onto a second line when needed — never cut short. */}
                     <span data-cat-name className="min-w-0 text-left leading-snug break-words">{cat.name}</span>
@@ -3021,7 +3028,7 @@ export default function POSScreen() {
             onClose={() => setShowPaymentDialog(false)}
             onConfirm={handlePaymentConfirm}
             customerPhone={custPhone}
-            defaultPrintReceipt={receiptOnPay({ orderType } as any, settings) === 'print'}
+            defaultPrintReceipt={receiptOnPay({ orderType }, settings) === 'print'}
           />
         </Suspense>
       )}
@@ -3263,10 +3270,10 @@ export default function POSScreen() {
           key={`${weightSheet.item.id}-${weightSheet.seq}`}
           item={weightSheet.item}
           rate={Number(weightSheet.item.ratePerKg) || Number(weightSheet.item.price) || 0}
-          currency={(() => { const c = String((settings as any).currencySymbol ?? 'Rs').trim() || 'Rs'; return c === 'Rs' ? 'Rs.' : c; })()}
+          currency={(() => { const c = String(settings.currencySymbol ?? 'Rs').trim() || 'Rs'; return c === 'Rs' ? 'Rs.' : c; })()}
           rounding={loadScaleConfig().priceRounding}
-          kgPresets={presetsFrom((settings as any).weightPresetsKg, DEFAULT_KG_PRESETS)}
-          amountPresets={presetsFrom((settings as any).weightPresetsAmount, DEFAULT_AMOUNT_PRESETS)}
+          kgPresets={presetsFrom(settings.weightPresetsKg, DEFAULT_KG_PRESETS)}
+          amountPresets={presetsFrom(settings.weightPresetsAmount, DEFAULT_AMOUNT_PRESETS)}
           scaleReading={weightSheetScale}
           scaleConnected={scaleConnected}
           onReadScale={() => { void captureForWeightSheet(); }}

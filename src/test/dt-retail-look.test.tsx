@@ -37,7 +37,7 @@ const read = (...p: string[]) => readFileSync(resolve(__dirname, '..', ...p), 'u
 const tokens = read('styles', 'ui-tokens.css');
 const retailCss = read('styles', 'ui-retail.css');
 
-const RETAIL_IDS = ['dtr-royal', 'dtr-crimson', 'dtr-gold', 'dtr-emerald', 'dtr-sunset', 'dtr-ocean', 'dtr-night'];
+const RETAIL_IDS = ['dtr-royal', 'dtr-crimson', 'dtr-gold', 'dtr-emerald', 'dtr-sunset', 'dtr-ocean', 'dtr-night', 'dtr-espresso'];
 const DARK_IDS = ['dtr-gold', 'dtr-night'];
 const DTR_RECEIPTS = [
   'dtr-classic', 'dtr-modern', 'dtr-minimal', 'dtr-restaurant', 'dtr-retail-invoice', 'dtr-compact',
@@ -82,13 +82,13 @@ beforeEach(() => {
   ATTRS.forEach(a => root().removeAttribute(a));
 });
 
-describe('the seven DT Retail themes', () => {
+describe('the DT Retail themes (the guide’s seven + Espresso Orange)', () => {
   it('are listed after the thirteen Modern ones, which are untouched', () => {
     expect(RETAIL_THEMES.map(t => t.id)).toEqual(RETAIL_IDS);
     expect(UI_THEMES).toHaveLength(13);
-    expect(ALL_THEMES).toHaveLength(20);
-    expect(new Set(ALL_THEMES.map(t => t.id)).size).toBe(20);
-    expect(RETAIL_THEMES.map(t => t.name)).toEqual(['Royal Purple', 'Crimson Red & White', 'Black & Gold', 'Emerald', 'Sunset Orange', 'Ocean Blue', 'Night']);
+    expect(ALL_THEMES).toHaveLength(21);
+    expect(new Set(ALL_THEMES.map(t => t.id)).size).toBe(21);
+    expect(RETAIL_THEMES.map(t => t.name)).toEqual(['Royal Purple', 'Crimson Red & White', 'Black & Gold', 'Emerald', 'Sunset Orange', 'Ocean Blue', 'Night', 'Espresso Orange']);
     for (const t of RETAIL_THEMES) { expect(isRetailTheme(t.id)).toBe(true); expect(findTheme(t.id).id).toBe(t.id); }
     for (const t of UI_THEMES) expect(isRetailTheme(t.id)).toBe(false);
     expect(DEFAULT_THEME_ID).toBe('ember'); // a fresh install does not change look by itself
@@ -303,7 +303,7 @@ describe('ui-retail.css cannot leak', () => {
           depth--;
           if (depth === 0) {
             const body = chunk.slice(start, i);
-            if (/^@(media|supports)/.test(header)) walk(body);
+            if (/^@(media|supports|container)/.test(header)) walk(body);
             else if (!/^@(keyframes|font-face)/.test(header)) split(header).forEach(s => out.push(s));
             start = i + 1;
           }

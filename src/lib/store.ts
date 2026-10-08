@@ -1451,6 +1451,67 @@ export function authenticateUser(username: string, password: string): { user: Us
   return { user: match, reason: 'ok' };
 }
 
+// ============ Quick login with a PIN (offline) ============
+// A user picks their card on the sign-in screen and types a 4-digit PIN (set in
+// Users & Roles). Five wrong PINs lock that user's PIN sign-in for a minute;
+// the username + password sign-in is never locked by it.
+export type PinAuthReason = 'ok' | 'not_found' | 'inactive' | 'no_pin' | 'bad_pin' | 'locked' | 'no_db';
+export const PIN_MAX_TRIES = 5;
+export const PIN_LOCK_MS = 60_000;
+const PIN_LOCK_KEY = 'dtpos-pin-lock';
+
+function readPinLocks(): Record<string, { fails: number; until?: number }> {
+  try { return JSON.parse(localStorage.getItem(PIN_LOCK_KEY) || '{}') || {}; } catch { return {}; }
+}
+function writePinLocks(v: Record<string, { fails: number; until?: number }>) {
+  try { localStorage.setItem(PIN_LOCK_KEY, JSON.stringify(v)); } catch { /* storage blocked */ }
+}
+
+/** A usable quick-login PIN: exactly four digits. */
+export function isValidLoginPin(pin: unknown): boolean {
+  return typeof pin === 'string' && /^\d{4}$/.test(pin);
+}
+
+/** The people shown as cards on the PIN sign-in screen (riders use their own portal). */
+export interface PinLoginUser { id: string; name: string; username: string; role: User['role']; hasPin: boolean }
+export function pinLoginUsers(): PinLoginUser[] {
+  let users: User[] = [];
+  try { users = getUsers() || []; } catch { return []; }
+  return users
+    .filter(u => u.isActive !== false && u.role !== 'rider')
+    .map(u => ({ id: u.id, name: u.name || u.username, username: u.username, role: u.role, hasPin: isValidLoginPin(u.pin) }));
+}
+
+export function authenticateUserByPin(userId: string, pin: string, now = Date.now()): { user: User | null; reason: PinAuthReason; retryInSec?: number; triesLeft?: number } {
+  let users: User[] = [];
+  try { users = getUsers() || []; } catch { return { user: null, reason: 'no_db' }; }
+  const match = users.find(u => u.id === userId);
+  if (!match) return { user: null, reason: 'not_found' };
+  if (match.isActive === false) return { user: null, reason: 'inactive' };
+  if (!isValidLoginPin(match.pin)) return { user: null, reason: 'no_pin' };
+  const locks = readPinLocks();
+  const lock = locks[userId];
+  if (lock?.until && lock.until > now) return { user: null, reason: 'locked', retryInSec: Math.ceil((lock.until - now) / 1000) };
+  if ((pin || '').trim() !== match.pin) {
+    const fails = (lock?.until && lock.until <= now ? 0 : lock?.fails || 0) + 1;
+    locks[userId] = fails >= PIN_MAX_TRIES ? { fails, until: now + PIN_LOCK_MS } : { fails };
+    writePinLocks(locks);
+    return fails >= PIN_MAX_TRIES
+      ? { user: null, reason: 'locked', retryInSec: Math.ceil(PIN_LOCK_MS / 1000) }
+      : { user: null, reason: 'bad_pin', triesLeft: PIN_MAX_TRIES - fails };
+  }
+  if (lock) { delete locks[userId]; writePinLocks(locks); }
+  return { user: match, reason: 'ok' };
+}
+
+/** True while the built-in administrator still signs in with the factory password. */
+export function adminUsesDefaultPassword(): boolean {
+  try {
+    return (getUsers() || []).some(u => u.role === 'admin' && u.isActive !== false
+      && (u.username || '').trim().toLowerCase() === 'admin' && (u.password || '').trim() === 'admin123');
+  } catch { return false; }
+}
+
 /** Guarantees baseline users exist. Called by UI "Repair Users" button and on
  *  every restore. Returns a short human-readable report. */
 export function isSystemInitialized(): boolean {

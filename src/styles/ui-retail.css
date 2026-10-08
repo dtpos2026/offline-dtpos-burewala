@@ -420,3 +420,57 @@ html:not([data-anim="off"])[data-ui="modern"][data-look="retail"] .dtr-logo-tile
 html:not([data-anim="off"])[data-ui="modern"][data-look="retail"] .dtr-login-form { animation: dtrRiseIn 0.55s var(--dtr-ease) backwards; }
 html:not([data-anim="off"])[data-ui="modern"][data-look="retail"] .dtr-login-logo { animation: dtrPopIn 0.6s cubic-bezier(0.2, 1.3, 0.4, 1) 0.15s backwards, dtrGlow 2.6s ease-in-out 0.9s infinite; }
 html[data-ui="modern"][data-look="retail"] .dtr-login-form { border-radius: 18px; box-shadow: var(--ui-shadow-card); }
+
+/* ============================================================
+ * ESPRESSO ORANGE — the DT Retail POS v1.8 screens.
+ * Same retail rules as above, plus: the espresso sign-in panel with two orange
+ * glows and faint Digital Target marks, the plain PIN page on the cream side,
+ * a coloured dot per category (the selected one filled in its colour), and
+ * the "Powered by" card and stacked clock of those screens.
+ * ============================================================ */
+html[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-espresso"] .dtr-login-brand.dtr-login-espresso {
+  background:
+    radial-gradient(ellipse 100% 56% at 0% 0%, hsl(var(--dtr-glow-a)) 0%, hsl(var(--dtr-glow-a) / 0.78) 30%, hsl(24 62% 30% / 0.5) 62%, transparent 92%),
+    radial-gradient(ellipse 72% 54% at 100% 100%, hsl(var(--dtr-glow-b)) 0%, hsl(var(--dtr-glow-b) / 0.8) 24%, hsl(22 85% 26% / 0.45) 62%, transparent 100%),
+    radial-gradient(ellipse 48% 26% at 50% 53%, hsl(15 31% 13% / 0.9), transparent 75%),
+    hsl(var(--dtr-sb-bot));
+}
+html[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-espresso"] .dtr-esp-mark {
+  position: absolute;
+  color: rgb(255 255 255 / 0.08);
+  pointer-events: none;
+}
+html[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-espresso"] .dtr-esp-logo {
+  background: linear-gradient(135deg, hsl(27 92% 60%), hsl(21 90% 48%));
+  box-shadow: 0 12px 30px -8px hsl(24 95% 50% / 0.75), inset 0 1px 0 rgb(255 255 255 / 0.3);
+}
+/* the PIN page sits straight on the cream side — no card */
+html:not([data-anim="off"])[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-espresso"] .dtr-login-form-plain { animation: dtrRiseIn 0.55s var(--dtr-ease) backwards; }
+
+/* ---------------------------------------------------------------- POS categories */
+html[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-espresso"] .cat-pill [data-cat-dot] {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: hsl(var(--cat-c, var(--primary)));
+}
+html[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-espresso"] .cat-pill [data-cat-icon] { display: none; }
+/* the side panel: dot and name on one line (long names wrap between words), no counts.
+   A very narrow panel (small screens) keeps the name on its own line under the dot,
+   so a word is never split letter by letter. */
+html[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-espresso"] .cat-pill.cat-pill-side:is([data-cat-all], :has(> [data-cat-dot])) > [data-cat-count] { display: none; }
+@container (min-width: 131px) and (max-width: 170px) {
+  html[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-espresso"] .cat-pill.cat-pill-side:has(> [data-cat-dot]) { flex-wrap: nowrap; }
+  html[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-espresso"] .cat-pill.cat-pill-side:has(> [data-cat-dot]) > [data-cat-name] { order: 0; flex-basis: auto; }
+}
+html[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-espresso"] .cat-pill.cat-pill-side { border-radius: 10px; font-weight: 600; gap: 0.6rem; padding-left: 0.75rem; }
+html[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-espresso"] .cat-pill[data-active="true"]:has(> [data-cat-dot]) {
+  background: hsl(var(--cat-c));
+  border-color: hsl(var(--cat-c));
+  color: #fff;
+  box-shadow: 0 8px 18px -8px hsl(var(--cat-c) / 0.75);
+}
+html[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-espresso"] .cat-pill[data-active="true"] > [data-cat-dot] { background: #fff; }
+html[data-ui="modern"][data-look="retail"][data-ui-theme="dtr-espresso"] .cat-pill[data-active="true"]:has(> [data-cat-dot]) [data-cat-count] { background: rgb(255 255 255 / 0.22); color: #fff; }

@@ -68,7 +68,7 @@ describe('the arithmetic', () => {
 });
 
 describe('the panel', () => {
-  const setup = (over: any = {}) => {
+  const setup = (over: Partial<React.ComponentProps<typeof WeightEntrySheet>> = {}) => {
     const onAdd = vi.fn(); const onClose = vi.fn(); const onReadScale = vi.fn();
     const props = {
       item: { id: 'm1', name: 'Mutton Karahi' }, rate: 1200, currency: 'Rs.', rounding: 'whole' as const,
@@ -139,7 +139,7 @@ describe('the panel', () => {
 describe('wired into the POS and Settings', () => {
   const pos = read('pages/POSScreen.tsx');
   it('weight items open the panel when the setting is on; other items close it', () => {
-    expect(pos).toMatch(/const weightPanelOn = \(settings as any\)\.weightEntryPanel !== false;/);
+    expect(pos).toMatch(/const weightPanelOn = settings\.weightEntryPanel !== false;/);
     expect(pos).toMatch(/if \(item\.pricingType === 'weight' && weightPanelOn\) \{/);
     expect(pos).toMatch(/\/\/ Any other item: an open weight panel closes[^\n]*\n\s*setWeightSheet\(null\);/);
     expect(pos).toMatch(/<WeightEntrySheet[\s\S]*onAdd=\{addFromWeightSheet\}/);

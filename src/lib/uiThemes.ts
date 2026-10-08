@@ -200,7 +200,8 @@ export const UI_THEMES: UiTheme[] = [
 ];
 
 // ============================================================
-// DT RETAIL THEMES — the seven looks of the DT Retail design guide.
+// DT RETAIL THEMES — the seven looks of the DT Retail design guide, plus
+// Espresso Orange, the look of the DT Retail POS v1.8 screens.
 //
 // A separate family from the thirteen above so nothing about them changes.
 // Each is a whole look: a dark gradient sidebar, a gradient hero banner on the
@@ -273,12 +274,26 @@ export const RETAIL_THEMES: UiTheme[] = [
     sidebar: 'dark', dark: true, sidebarColor: '220 51% 8%', sidebarGradient: ['221 53% 6%', '222 48% 11%'], hero: ['273 84% 22%', '259 87% 67%'],
     swatches: ['#070c17', '#8b5cf6', '#0b1120', '#e6ebf5'],
   },
+  {
+    // The DT Retail POS v1.8 look: espresso-brown sidebar and login panel with
+    // orange glows, PIN sign-in, coloured category dots, a stacked clock.
+    id: 'dtr-espresso', family: 'retail', name: 'Espresso Orange',
+    tagline: 'Espresso brown and orange, with PIN sign-in.',
+    accent: { h: 21, s: 90, l: 48 }, onAccent: 'light',
+    accentText: { h: 21, s: 90, l: 38 }, // deeper (lighter on the dark page) where the accent is text
+    surface: { background: '30 44% 96%', card: WHITE_PANEL, foreground: '222 47% 11%', mutedForeground: '215 16% 40%', muted: '28 30% 93%', border: '28 26% 88%' },
+    sidebar: 'dark', sidebarColor: '17 70% 9%', sidebarGradient: ['17 68% 12%', '16 73% 6%'], hero: ['17 79% 32%', '25 91% 57%'],
+    swatches: ['#2a1b16', '#ea580c', '#faf6f2', '#f5802d'],
+  },
 ];
 
-/** Every theme the picker can apply: the thirteen Modern ones, then the DT Retail seven. */
+/** Every theme the picker can apply: the thirteen Modern ones, then the DT Retail eight. */
 export const ALL_THEMES: UiTheme[] = [...UI_THEMES, ...RETAIL_THEMES];
 
 export const DEFAULT_THEME_ID = 'ember';
+
+/** The DT Retail POS v1.8 look (PIN sign-in page, stacked clock, category dots). */
+export const ESPRESSO_THEME_ID = 'dtr-espresso';
 
 // Themes designed in Settings → Custom (or imported from a theme file). Registered by
 // lib/customTheme.ts at start-up; the built-in lists above are never changed.

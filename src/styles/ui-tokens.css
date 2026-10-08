@@ -507,7 +507,7 @@
 /* ============================================================
  * DT RETAIL THEMES (src/lib/uiThemes.ts → RETAIL_THEMES)
  *
- * The seven looks of the DT Retail design guide. Same contract as the themes
+ * The seven looks of the DT Retail design guide, plus Espresso Orange (v1.8 screens). Same contract as the themes
  * above: only the surface colours live here; the accent is set from JS. They
  * also carry the colours ui-retail.css paints with (sidebar gradient, hero
  * banner). Two are dark pages (Black & Gold, Night). src/test/dt-retail-look.test.ts
@@ -674,6 +674,42 @@
   --dtr-hero-a: 16 76% 29%;
   --dtr-hero-b: 26 94% 63%;
   --dtr-highlight: 48 96% 53%;
+}
+:root[data-ui="modern"][data-ui-theme="dtr-espresso"] {
+  --background: 30 44% 96%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --secondary: 28 30% 93%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 28 30% 93%;
+  --muted-foreground: 215 16% 40%;
+  --accent: 28 30% 93%;
+  --accent-foreground: 222 47% 11%;
+  --border: 28 26% 88%;
+  --input: 28 18% 80%;
+  --pos-grid-bg: 30 44% 96%;
+  --pos-sidebar: 0 0% 100%;
+  --pos-cart: 0 0% 100%;
+  --pos-sidebar-foreground: 222 47% 11%;
+  --sidebar-foreground: 24 30% 84%;
+  --sidebar-border: 18 40% 20%;
+  --ui-sb-bg: 17 70% 9%;
+  --ui-sb-fg: 24 30% 84%;
+  --ui-sb-border: 18 40% 20%;
+  --ui-sb-hover: 18 45% 18%;
+  --ui-sb-muted-fg: 24 16% 66%;
+  --dtr-sb-top: 17 68% 12%;
+  --dtr-sb-bot: 16 73% 6%;
+  --dtr-hero-a: 17 79% 32%;
+  --dtr-hero-b: 25 91% 57%;
+  --dtr-highlight: 48 96% 53%;
+  /* the sign-in panel: espresso with two orange glows */
+  --dtr-espresso: 15 31% 9%;
+  --dtr-glow-a: 27 78% 56%;
+  --dtr-glow-b: 26 88% 47%;
 }
 :root[data-ui="modern"][data-ui-theme="dtr-ocean"] {
   --background: 207 47% 96%;

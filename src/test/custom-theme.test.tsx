@@ -232,8 +232,8 @@ describe('using a custom theme', () => {
   it('the built-in themes are untouched', () => {
     saveCustomThemeDef({ ...DEFAULT_CUSTOM_DEF, name: 'Teal' });
     expect(UI_THEMES).toHaveLength(13);
-    expect(RETAIL_THEMES).toHaveLength(7);
-    expect(ALL_THEMES).toHaveLength(20);
+    expect(RETAIL_THEMES).toHaveLength(8);
+    expect(ALL_THEMES).toHaveLength(21);
     expect(isThemeId('custom-teal')).toBe(true);
     expect(findTheme('custom-teal').custom).toBe(true);
     expect(findTheme('tomato').custom).toBeUndefined();
@@ -386,12 +386,12 @@ describe('the Theme manager in Settings → Appearance', () => {
   it('offers Modern themes, DT Retail and Custom, and Classic stays one click away', () => {
     render(<InterfaceStyleCard />);
     const tabs = screen.getByRole('tablist', { name: 'Theme family' });
-    expect(within(tabs).getAllByRole('tab').map(t => t.textContent?.replace(/\s+/g, ' ').trim())).toEqual(['Modern themes · 13', 'DT Retail · 7', 'Custom · 0']);
+    expect(within(tabs).getAllByRole('tab').map(t => t.textContent?.replace(/\s+/g, ' ').trim())).toEqual(['Modern themes · 13', 'DT Retail · 8', 'Custom · 0']);
     expect(within(screen.getByRole('radiogroup', { name: 'Theme' })).getAllByRole('radio')).toHaveLength(13);
     expect(screen.getByRole('radio', { name: /Classic/ })).toBeTruthy();
 
     fireEvent.click(within(tabs).getByRole('tab', { name: /DT Retail/ }));
-    expect(within(screen.getByRole('radiogroup', { name: 'DT Retail theme' })).getAllByRole('radio')).toHaveLength(7);
+    expect(within(screen.getByRole('radiogroup', { name: 'DT Retail theme' })).getAllByRole('radio')).toHaveLength(8);
     expect(screen.queryByRole('radiogroup', { name: 'Theme' })).toBeNull();
     expect(screen.getByRole('switch', { name: 'Smooth animations' })).toBeTruthy();
 

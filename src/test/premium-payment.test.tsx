@@ -40,7 +40,7 @@ describe('note suggestions', () => {
 });
 
 describe('the premium screen', () => {
-  const open = async (props: any = {}, settings: any = {}) => {
+  const open = async (props: Record<string, unknown> = {}, settings: Record<string, unknown> = {}) => {
     seed(settings);
     const { default: PaymentDialog } = await import('@/components/PaymentDialog');
     const onConfirm = vi.fn();
@@ -124,7 +124,7 @@ describe('the print queue honours "Print receipt" for one bill', () => {
 describe('wired into the POS', () => {
   const pos = read('pages/POSScreen.tsx');
   it('passes the box’s default and reads the choice once per bill', () => {
-    expect(pos).toMatch(/defaultPrintReceipt=\{receiptOnPay\(\{ orderType \} as any, settings\) === 'print'\}/);
+    expect(pos).toMatch(/defaultPrintReceipt=\{receiptOnPay\(\{ orderType \}, settings\) === 'print'\}/);
     expect(pos).toMatch(/printChoiceRef\.current = r\.printReceipt;/);
     expect(pos.match(/const choice = takePrintChoice\(\);/g)).toHaveLength(2);
     expect(pos.match(/printReceiptAfterPayment\((updated|order), choice\)/g)).toHaveLength(2);

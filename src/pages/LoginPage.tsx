@@ -1,17 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { authenticateUser, getSettings, setCurrentBranchId, repairUsers, isSystemInitialized } from '@/lib/store';
+import { authenticateUser, getSettings, setCurrentBranchId, repairUsers, isSystemInitialized, pinLoginUsers, adminUsesDefaultPassword } from '@/lib/store';
+import type { User } from '@/lib/types';
 import { dbLog } from '@/lib/electron';
 import { recordLogin } from '@/lib/cloudLink';
-import { Lock, User as UserIcon, LogIn, Eye, EyeOff, WifiOff, ShieldCheck } from 'lucide-react';
+import { Lock, User as UserIcon, LogIn, Eye, EyeOff, WifiOff, ShieldCheck, Grid3x3 } from 'lucide-react';
 import { toast } from 'sonner';
 import dtLogo from '@/assets/dt-mark.png';
 import LoginMarketingPanel, { LoginVersionBadge } from '@/components/LoginMarketingPanel';
 import ContactDigitalTargetDialog from '@/components/ContactDigitalTargetDialog';
 import { APP_VERSION } from '@/lib/version';
-import { useUiLook, useUiStyle } from '@/lib/uiStyle';
+import { useThemeId, useUiLook, useUiStyle } from '@/lib/uiStyle';
+import { ESPRESSO_THEME_ID } from '@/lib/uiThemes';
 import LoginRetailBrand from '@/components/LoginRetailBrand';
+import PinLoginPanel from '@/components/PinLoginPanel';
+import DtMark from '@/components/DtMark';
 
 interface Props {
   onLogin: (userId: string, role: string) => void;
@@ -19,6 +23,8 @@ interface Props {
 
 const REMEMBER_KEY = 'pos-remember-username';
 const SAVED_USERNAME_KEY = 'pos-saved-username';
+/** How the last successful sign-in on this computer was made: 'pin' or 'password'. */
+export const LOGIN_MODE_KEY = 'pos-login-mode';
 
 export default function LoginPage({ onLogin }: Props) {
   // Remember Me defaults ON — staff username is remembered on both Windows and Web.
@@ -38,6 +44,30 @@ export default function LoginPage({ onLogin }: Props) {
   const settings = getSettings();
   const modern = useUiStyle() === 'modern';
   const retail = useUiLook() === 'retail';
+  // Espresso Orange: the DT Retail POS v1.8 sign-in — a PIN page by default.
+  const themeId = useThemeId();
+  const espresso = retail && themeId === ESPRESSO_THEME_ID;
+  const pinUsers = useMemo(() => (initialized ? pinLoginUsers() : []), [initialized]);
+  // PIN sign-in is offered once someone has a PIN — and always in Espresso Orange,
+  // where the user cards are the sign-in page (a user without a PIN goes on to the password).
+  const pinAvailable = pinUsers.length > 0 && (espresso || pinUsers.some(u => u.hasPin));
+  const [mode, setMode] = useState<'pin' | 'password'>(() => {
+    let last: string | null = null;
+    try { last = localStorage.getItem(LOGIN_MODE_KEY); } catch { /* storage blocked */ }
+    return last === 'pin' || (espresso && last !== 'password') ? 'pin' : 'password';
+  });
+  const showPin = mode === 'pin' && pinAvailable;
+  const defaultPasswordHint = espresso && initialized && adminUsesDefaultPassword();
+  const [licensedTo, setLicensedTo] = useState('');
+  useEffect(() => {
+    if (!espresso) return;
+    let live = true;
+    import('@/licensing/licenseService')
+      .then(m => m.loadLicense())
+      .then(l => { if (live) setLicensedTo((l?.ownerName || l?.businessName || '').trim()); })
+      .catch(() => { /* no licence on this computer yet */ });
+    return () => { live = false; };
+  }, [espresso]);
 
   // Hidden maintenance shortcut for administrators (Ctrl+Alt+Shift+R).
   useEffect(() => {
@@ -51,6 +81,45 @@ export default function LoginPage({ onLogin }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Everything that follows a successful sign-in, whichever way it was made.
+  const completeLogin = (user: User, via: 'password' | 'pin') => {
+    try { localStorage.setItem('dt_pos_current_user', JSON.stringify({ id: user.id, name: user.name, username: user.username, role: user.role })); } catch { /* storage blocked */ }
+    try { localStorage.setItem(LOGIN_MODE_KEY, via); } catch { /* storage blocked */ }
+    if (via === 'password') {
+      try {
+        if (remember) {
+          localStorage.setItem(REMEMBER_KEY, '1');
+          localStorage.setItem(SAVED_USERNAME_KEY, username);
+        } else {
+          localStorage.setItem(REMEMBER_KEY, '0');
+          localStorage.removeItem(SAVED_USERNAME_KEY);
+        }
+      } catch { /* storage blocked */ }
+    }
+    if (user.branchId && user.role !== 'admin' && user.role !== 'manager') {
+      setCurrentBranchId(user.branchId);
+    }
+    try { recordLogin(); } catch { /* activity stats are best effort */ }
+    // Refresh the licence status in the background — the screen never waits.
+    void (async () => {
+      try {
+        const { syncLicenseStatus } = await import('@/licensing/licenseSync');
+        const { resetPrintGuardCache, prewarmPrintGuard } = await import('@/licensing/printGuard');
+        await syncLicenseStatus();
+        resetPrintGuardCache();
+        prewarmPrintGuard();
+      } catch { /* offline login must never fail here */ }
+    })();
+    void dbLog('INFO', 'login-success', `${user.username} (${user.role})${via === 'pin' ? ' · PIN' : ''}`);
+    onLogin(user.id, user.role);
+    toast.success(`Welcome, ${user.name}`);
+  };
+
+  const usePassword = (prefill?: string) => {
+    if (prefill) { setUsername(prefill); setPassword(''); }
+    setMode('password');
+  };
+
   const handleLogin = () => {
     setTimedOut(false);
     setLoading(true);
@@ -60,33 +129,7 @@ export default function LoginPage({ onLogin }: Props) {
       clearTimeout(timer);
       setLoading(false);
       if (reason === 'ok' && user) {
-        try { localStorage.setItem('dt_pos_current_user', JSON.stringify({ id: user.id, name: user.name, username: user.username, role: user.role })); } catch {}
-        try {
-          if (remember) {
-            localStorage.setItem(REMEMBER_KEY, '1');
-            localStorage.setItem(SAVED_USERNAME_KEY, username);
-          } else {
-            localStorage.setItem(REMEMBER_KEY, '0');
-            localStorage.removeItem(SAVED_USERNAME_KEY);
-          }
-        } catch {}
-        if (user.branchId && user.role !== 'admin' && user.role !== 'manager') {
-          setCurrentBranchId(user.branchId);
-        }
-        try { recordLogin(); } catch { /* activity stats are best effort */ }
-        // Refresh the licence status in the background — the screen never waits.
-        void (async () => {
-          try {
-            const { syncLicenseStatus } = await import('@/licensing/licenseSync');
-            const { resetPrintGuardCache, prewarmPrintGuard } = await import('@/licensing/printGuard');
-            await syncLicenseStatus();
-            resetPrintGuardCache();
-            prewarmPrintGuard();
-          } catch { /* offline login must never fail here */ }
-        })();
-        void dbLog('INFO', 'login-success', `${user.username} (${user.role})`);
-        onLogin(user.id, user.role);
-        toast.success(`Welcome, ${user.name}`);
+        completeLogin(user, 'password');
         return;
       }
       const msg =
@@ -124,13 +167,13 @@ export default function LoginPage({ onLogin }: Props) {
   const brandLogo = settings.appLogo || settings.logo || dtLogo;
 
   return (
-    <div className="min-h-screen bg-background lg:flex">
-      <LoginVersionBadge />
+    <div className="min-h-screen bg-background lg:flex" data-login-look={espresso ? 'espresso' : undefined}>
+      {!espresso && <LoginVersionBadge />}
 
       {/* Left brand panel — matches LicenseGate purple theme */}
-      <div className={`relative hidden min-h-screen overflow-hidden bg-primary px-10 py-9 text-primary-foreground lg:flex lg:w-[42%] lg:flex-col lg:justify-between xl:px-14 xl:py-11 ${retail ? 'dtr-login-brand' : ''}`}>
+      <div className={`relative hidden min-h-screen overflow-hidden bg-primary px-10 py-9 text-primary-foreground lg:flex lg:flex-col lg:justify-between xl:px-14 xl:py-11 ${espresso ? 'dtr-login-espresso lg:w-[54%]' : 'lg:w-[42%]'} ${retail ? 'dtr-login-brand' : ''}`}>
         {retail ? (
-          <LoginRetailBrand shop={(settings.name || '').trim() || undefined} />
+          <LoginRetailBrand shop={(settings.name || '').trim() || undefined} variant={espresso ? 'espresso' : 'default'} licensedTo={licensedTo || undefined} />
         ) : (
           <>
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-primary-glow/80 to-transparent" />
@@ -142,7 +185,14 @@ export default function LoginPage({ onLogin }: Props) {
 
       {/* Right activation-style form */}
       <section className="flex min-h-screen flex-1 flex-col px-5 py-5 sm:px-8 lg:px-10 lg:py-8 xl:px-14">
-        <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
+        <div className={`mx-auto flex w-full flex-1 flex-col justify-center ${espresso ? 'max-w-[420px]' : 'max-w-md'}`}>
+          {showPin && espresso ? (
+            // Espresso Orange: the PIN page itself — no card, as in the v1.8 screens.
+            <div data-login-pin-page className="dtr-login-form-plain">
+              <PinLoginPanel heading onSuccess={u => completeLogin(u, 'pin')} onUsePassword={usePassword} />
+              {defaultPasswordHint && <FirstLoginHint />}
+            </div>
+          ) : (
           <div className={`rounded-2xl border border-border bg-card p-6 shadow-card sm:p-8 ${retail ? 'dtr-login-form' : ''}`}>
             <div className="flex flex-col items-center text-center">
               <div className={`h-16 w-16 rounded-xl bg-primary p-2 ring-1 ring-primary/20 shadow-elegant ${retail ? 'dtr-login-logo' : ''}`}>
@@ -153,6 +203,12 @@ export default function LoginPage({ onLogin }: Props) {
               <div className="mt-3 h-[1px] w-20 bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
             </div>
 
+            {showPin ? (
+              <div className="mt-6">
+                <p className="mb-3 text-center text-xs text-muted-foreground">Tap your name, then type your 4-digit PIN.</p>
+                <PinLoginPanel onSuccess={u => completeLogin(u, 'pin')} onUsePassword={usePassword} />
+              </div>
+            ) : (
             <div className="mt-6 space-y-4">
               <div>
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Username</label>
@@ -215,6 +271,19 @@ export default function LoginPage({ onLogin }: Props) {
                 <LogIn className="mr-2 h-4 w-4" /> {loading ? 'Signing in…' : 'Sign In'}
               </Button>
 
+              {pinAvailable && (
+                <button
+                  type="button"
+                  data-use-pin
+                  onClick={() => setMode('pin')}
+                  className="mx-auto flex items-center gap-2 text-xs font-semibold text-primary hover:underline"
+                >
+                  <Grid3x3 className="h-3.5 w-3.5" /> Sign in with PIN
+                </button>
+              )}
+
+              {defaultPasswordHint && <FirstLoginHint />}
+
               {timedOut && (
                 <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
                   <p className="mb-1 font-bold">Login failed</p>
@@ -250,13 +319,25 @@ export default function LoginPage({ onLogin }: Props) {
                 </button>
               )}
             </div>
+            )}
           </div>
+          )}
 
+          {espresso ? (
+            <footer data-login-footer className="mt-6 flex items-center justify-center gap-2.5 text-[13px] text-muted-foreground">
+              <span className="flex items-center gap-1.5 text-[hsl(258_60%_45%)]">
+                <DtMark size={20} />
+                <span className="text-[9px] font-black uppercase leading-[1.05] tracking-[0.06em]">Digital<br />Target</span>
+              </span>
+              <span>Developed by <b className="font-semibold text-foreground/80">Digital Target</b> · v{APP_VERSION}</span>
+            </footer>
+          ) : (
           <footer className="mt-5 flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5 text-primary" />
             <span>© {new Date().getFullYear()} Digital Target — All Rights Reserved</span>
             <span className="rounded-full border px-2 py-0.5 font-semibold text-primary">v{APP_VERSION}</span>
           </footer>
+          )}
         </div>
       </section>
 
@@ -291,6 +372,16 @@ export default function LoginPage({ onLogin }: Props) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Shown (Espresso Orange) only while the built-in admin still has the factory
+// password — it disappears for good once that password is changed.
+function FirstLoginHint() {
+  return (
+    <div data-first-login className="mt-5 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-xs leading-relaxed text-sky-700">
+      <b>First login:</b> username <b>admin</b>, password <b>admin123</b>. Please change it after signing in.
     </div>
   );
 }

@@ -1,6 +1,8 @@
 // The brand panel of the DT Retail login: the theme's gradient, slowly floating
 // translucent shapes, a headline, six feature chips and the Digital Target
 // lockup. Purely decorative — the sign-in form beside it is unchanged.
+// The Espresso Orange theme has its own panel (the DT Retail POS v1.8 one):
+// espresso brown with orange glows, "Welcome to <shop>", the licence holder.
 import { BarChart3, Printer, ShieldCheck, Ticket, WifiOff, Zap } from 'lucide-react';
 import DtMark from '@/components/DtMark';
 import { APP_NAME, APP_VERSION } from '@/lib/version';
@@ -14,7 +16,76 @@ const CHIPS = [
   { icon: ShieldCheck, text: 'Safe backups' },
 ];
 
-export default function LoginRetailBrand({ shop }: { shop?: string }) {
+// Faint Digital Target marks scattered over the Espresso panel.
+const MARKS = [
+  { top: '7%', right: '22%', size: 64, rotate: 12 },
+  { top: '17%', left: '4%', size: 92, rotate: -8 },
+  { top: '40%', left: '50%', size: 46, rotate: 18 },
+  { top: '66%', left: '22%', size: 72, rotate: -14 },
+  { top: '59%', right: '2%', size: 128, rotate: 8 },
+];
+
+interface Props {
+  shop?: string;
+  /** 'espresso': the DT Retail POS v1.8 sign-in panel (Espresso Orange theme). */
+  variant?: 'default' | 'espresso';
+  /** The licence holder, shown under "Developed by" on the Espresso panel. */
+  licensedTo?: string;
+}
+
+function EspressoBrand({ shop, licensedTo }: Props) {
+  return (
+    <div data-dtr="login-brand" data-variant="espresso" className="relative z-10 flex h-full flex-col justify-between text-white">
+      {MARKS.map((m, i) => (
+        <span key={i} className="dtr-esp-mark" style={{ top: m.top, left: m.left, right: m.right, transform: `rotate(${m.rotate}deg)` }} aria-hidden>
+          <DtMark size={m.size} />
+        </span>
+      ))}
+
+      <div className="relative flex items-center gap-3.5">
+        <span className="dtr-logo-tile dtr-esp-logo grid h-14 w-14 place-items-center rounded-2xl text-white">
+          <DtMark size={30} />
+        </span>
+        <div className="leading-tight">
+          <div className="text-xl font-extrabold tracking-tight">{APP_NAME}</div>
+          <div className="text-[13px] text-white/75">Version {APP_VERSION}</div>
+        </div>
+      </div>
+
+      <div className="relative">
+        <h1 className="dtr-rise text-[2.6rem] font-extrabold leading-[1.15] tracking-tight xl:text-5xl xl:leading-[1.12]">
+          Welcome to<br /><span className="break-words">{shop || APP_NAME}</span>
+        </h1>
+        <p className="dtr-rise mt-3 text-lg font-medium text-white/90" style={{ animationDelay: '0.2s' }}>Simple Offline POS for Small Businesses</p>
+        <div className="mt-9 grid max-w-[560px] grid-cols-2 gap-3.5">
+          {CHIPS.map((c, i) => (
+            <div
+              key={c.text}
+              className="dtr-rise flex h-[50px] items-center gap-3 rounded-xl border border-white/20 bg-white/[0.06] px-4 text-[14px] font-semibold backdrop-blur-sm"
+              style={{ animationDelay: `${0.3 + i * 0.07}s` }}
+            >
+              <c.icon className="h-[18px] w-[18px] shrink-0 text-white/90" />
+              {c.text}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative flex items-center gap-3">
+        <DtMark size={30} />
+        <div className="text-[12px] font-black uppercase leading-[1.05] tracking-[0.08em]">Digital<br />Target</div>
+        <div className="ml-1 text-[13px] leading-snug">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">Developed by</div>
+          <div className="font-bold">Digital Target · v{APP_VERSION}</div>
+          {licensedTo && <div data-licensed-to className="text-white/70">Licensed to {licensedTo}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function LoginRetailBrand({ shop, variant = 'default', licensedTo }: Props) {
+  if (variant === 'espresso') return <EspressoBrand shop={shop} licensedTo={licensedTo} />;
   return (
     <div data-dtr="login-brand" className="relative z-10 flex h-full flex-col justify-between text-white">
       <span className="dtr-shape" style={{ top: '8%', right: '-4%', width: 210, height: 210, animationDuration: '13s' }} aria-hidden />

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { getUsers, saveUser, deleteUser, genId, getBranches } from '@/lib/store';
+import { getUsers, saveUser, deleteUser, genId, getBranches, isValidLoginPin } from '@/lib/store';
 import { User, UserRole } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -71,6 +71,10 @@ export default function UsersRolesPage() {
         toast.error('Username and password are required');
         return;
       }
+      // Optional quick-login PIN for the sign-in screen: exactly 4 digits, or none.
+      const pin = (editUser.pin || '').replace(/\D/g, '');
+      if (pin && pin.length !== 4) { toast.error('The quick login PIN must be exactly 4 digits (or leave it empty)'); return; }
+      toSave = { ...toSave, pin: pin || undefined };
     }
     saveUser(toSave);
     setShowDialog(false);
@@ -153,6 +157,11 @@ export default function UsersRolesPage() {
                     <Badge variant={u.isActive ? 'default' : 'secondary'} className={`text-[10px] ${u.isActive ? 'bg-status-success text-status-success-foreground' : ''}`}>
                       {u.isActive ? 'Active' : 'Inactive'}
                     </Badge>
+                    {u.role !== 'rider' && u.role !== 'order_taker' && isValidLoginPin(u.pin) && (
+                      <Badge data-user-has-pin variant="outline" className="ml-1.5 gap-1 text-[10px]" title="Can sign in with a 4-digit PIN">
+                        <KeyRound className="h-3 w-3" /> PIN
+                      </Badge>
+                    )}
                   </td>
                   <td className="px-4 py-2.5 text-right whitespace-nowrap">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(u)}><Edit2 className="h-3.5 w-3.5" /></Button>
@@ -217,6 +226,21 @@ export default function UsersRolesPage() {
                     <div>
                       <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Password</label>
                       <Input type="text" placeholder="Password" value={editUser.password} onChange={e => setEditUser({ ...editUser, password: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider" htmlFor="user-login-pin">Quick login PIN (optional)</label>
+                      <Input
+                        id="user-login-pin"
+                        data-user-pin
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={4}
+                        placeholder="4 digits, e.g. 1234"
+                        value={editUser.pin || ''}
+                        onChange={e => setEditUser({ ...editUser, pin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                        className="font-mono tracking-widest"
+                      />
+                      <p className="mt-1 text-[10px] text-muted-foreground">Sign in by tapping your name and typing this PIN. The password still works.</p>
                     </div>
                   </>
                 )}
