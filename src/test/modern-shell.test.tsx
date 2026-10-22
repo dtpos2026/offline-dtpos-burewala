@@ -153,7 +153,7 @@ describe('Settings → Modules', () => {
     expect(within(nav).queryByRole('button', { name: /^Kitchen$/, hidden: true })).toBeNull();
     expect(within(nav).getByRole('button', { name: /^POS$/, hidden: true })).toBeInTheDocument();
     expect(within(screen.getByRole('dialog')).queryByRole('button', { name: 'Kitchen' })).toBeNull();
-  });
+  }, 15_000); // renders the module list, then the whole shell with the launcher: ~4.6 s alone, slower when the full suite runs in parallel
 
   it('Settings itself cannot be moved or hidden', () => {
     renderCard();

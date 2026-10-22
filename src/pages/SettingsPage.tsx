@@ -336,7 +336,7 @@ export default function SettingsPage() {
           </div>
           <div>
             <h2 className="text-xl font-extrabold tracking-tight">Settings & Masters</h2>
-            <p className="text-[11px] text-muted-foreground">Restaurant configuration — har module ek separate card mein</p>
+            <p className="text-[11px] text-muted-foreground">Restaurant configuration — each module on its own card</p>
           </div>
         </div>
       )}
@@ -398,7 +398,7 @@ export default function SettingsPage() {
                       <div className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">{g.title}</div>
                       {g.items.map(it => {
                         const Icon = SETTINGS_ICONS[it.v] || SettingsIcon;
-                        const cls = 'group !h-10 !w-full !justify-start gap-3 !rounded-[10px] !px-3 text-[13.5px] font-semibold text-sidebar-foreground transition-colors hover:bg-accent data-[state=active]:!bg-primary/10 data-[state=active]:!text-primary data-[state=active]:!shadow-none';
+                        const cls = 'group !h-10 !w-full !justify-start gap-3 !rounded-[10px] !px-3 text-[13.5px] font-semibold text-foreground/80 transition-colors hover:bg-accent data-[state=active]:!bg-primary/10 data-[state=active]:!text-primary data-[state=active]:!shadow-none';
                         return it.v === 'dayclose' ? (
                           <button key={it.v} type="button" title={it.desc} onClick={() => navigate('/day-close')} className={cn('inline-flex items-center whitespace-nowrap', cls)}>
                             <Icon className="h-[18px] w-[18px] shrink-0" /><span className="truncate">{it.label}</span>
@@ -479,7 +479,7 @@ export default function SettingsPage() {
             <label className="flex items-center justify-between gap-3 p-3 rounded-lg border-2 border-primary/30 bg-primary/5">
               <div>
                 <div className="text-sm font-bold">📡 Master: Location Tracking</div>
-                <div className="text-[11px] text-muted-foreground">Sab location features ka master switch</div>
+                <div className="text-[11px] text-muted-foreground">Master switch for every location feature</div>
               </div>
               <Switch
                 checked={settings.locationTrackingEnabled !== false}
@@ -489,10 +489,10 @@ export default function SettingsPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {[
-                { key: 'trackRestaurantLocation', label: '🏪 Restaurant Location', desc: 'Branch ki physical location track' },
-                { key: 'trackDeviceLocation',     label: '💻 Device Location',     desc: 'Har device kahan se chal raha hai' },
-                { key: 'trackRiderLocation',      label: '🏍️ Rider Live Tracking', desc: 'Rider Go-Live pe path track ho' },
-                { key: 'trackCustomerLocation',   label: '📍 Customer Location',    desc: 'Customer ka delivery location pin' },
+                { key: 'trackRestaurantLocation', label: '🏪 Restaurant Location', desc: 'Where the branch is' },
+                { key: 'trackDeviceLocation',     label: '💻 Device Location',     desc: 'Where each device is running' },
+                { key: 'trackRiderLocation',      label: '🏍️ Rider Live Tracking', desc: 'Record the rider’s route while live' },
+                { key: 'trackCustomerLocation',   label: '📍 Customer Location',    desc: 'The customer’s delivery pin' },
               ].map(opt => (
                 <label key={opt.key} className="flex items-center justify-between gap-2 p-3 rounded-lg border">
                   <div className="min-w-0">
@@ -526,7 +526,7 @@ export default function SettingsPage() {
               <div>
                 <h3 className="text-sm font-extrabold">Self-Pickup Settings</h3>
                 <p className="text-[11px] text-muted-foreground">
-                  Customer cart mein "Self-Pickup" option dikhe — delivery ki jagah customer khud aa kar order le jaye.
+                  Offer "Self-Pickup" in the customer's cart — the customer collects the order instead of a delivery.
                 </p>
               </div>
             </div>
@@ -534,7 +534,7 @@ export default function SettingsPage() {
             <label className="flex items-center justify-between gap-3 p-3 rounded-lg border-2 border-primary/30 bg-primary/5">
               <div>
                 <div className="text-sm font-bold">🏃 Enable Self-Pickup</div>
-                <div className="text-[11px] text-muted-foreground">Customer cart mein Self-Pickup option show kare</div>
+                <div className="text-[11px] text-muted-foreground">Show the Self-Pickup option in the customer's cart</div>
               </div>
               <Switch
                 checked={settings.selfPickupEnabled === true}
@@ -545,7 +545,7 @@ export default function SettingsPage() {
             <label className="flex items-center justify-between gap-3 p-3 rounded-lg border-2 border-blue-400/40 bg-blue-50 dark:bg-blue-950/20">
               <div>
                 <div className="text-sm font-bold">🍽️ "Select Order Type" Prompt</div>
-                <div className="text-[11px] text-muted-foreground">POS kholte hi Dine-In/Takeaway/Delivery gate dialog aayega. Off karne par direct items add ho sakenge.</div>
+                <div className="text-[11px] text-muted-foreground">When the POS opens it asks Dine-In / Takeaway / Delivery first. Off: items can be added straight away.</div>
               </div>
               <Switch
                 checked={settings.orderTypeGatePromptEnabled !== false}
@@ -723,7 +723,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="text-[11px] text-muted-foreground bg-muted/40 p-2 rounded">
-              Selected: <b className="text-primary">{(settings.enabledCities || []).length} cities</b> — yeh BranchesPage ke City dropdown mein dikheinge.
+              Selected: <b className="text-primary">{(settings.enabledCities || []).length} cities</b> — these appear in the City list on the Branches page.
             </div>
 
             <Button onClick={handleSaveSettings} className="w-full">💾 Save Cities</Button>
@@ -834,7 +834,7 @@ export default function SettingsPage() {
             <h3 className="text-sm font-bold mb-1">Branch Management</h3>
             <p className="text-xs text-muted-foreground mb-3">
               Add/edit your restaurant branches (Jhang, Faisalabad, etc.) here.
-              Har bill active branch ke sath save hota hai aur Reports me uss branch ka data alag dikhta hai.
+              Every bill is saved with the active branch, and Reports show each branch's data separately.
             </p>
             <a href="#/branches" className="inline-flex items-center gap-1 text-sm font-semibold text-primary underline">
               → Branches page kholein
@@ -846,7 +846,7 @@ export default function SettingsPage() {
           <div className="bg-card border rounded-xl p-4">
             <h3 className="text-sm font-bold mb-1">Multi-Device Login (Online Mode)</h3>
             <p className="text-xs text-muted-foreground mb-3">
-              Cloud mode active hone par har naye device ka approval / block control kar saktay hain.
+              In cloud mode, each new device can be approved or blocked here.
               In offline mode only a single device works.
             </p>
             <a href="#/devices" className="inline-flex items-center gap-1 text-sm font-semibold text-primary underline">
@@ -905,7 +905,7 @@ export default function SettingsPage() {
                 value={(settings as any).taxMode || 'exclusive'}
                 onChange={e => setSettings({ ...settings, taxMode: e.target.value } as any)}>
                 <option value="exclusive">Exclusive — added on top of the total</option>
-                <option value="inclusive">Inclusive — qeemat me shamil hai</option>
+                <option value="inclusive">Inclusive — already included in the price</option>
               </select>
             </div>
             <div className="space-y-1">
@@ -965,7 +965,7 @@ export default function SettingsPage() {
                   setQuickCashDraft(nums.join(','));
                 }}
               />
-              <p className="text-[11px] text-muted-foreground">Cash lene ke tez buttons — payment screen pe nazar aayenge.</p>
+              <p className="text-[11px] text-muted-foreground">Quick cash buttons shown on the payment screen.</p>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Delivery Charge (flat)</label>
@@ -993,7 +993,7 @@ export default function SettingsPage() {
               <div>
                 <h3 className="text-sm font-bold flex items-center gap-2">💰 Food Cost & Profit Tracking</h3>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  ON karne par: Recipes, Food Cost %, Margin, Profitability reports & Inventory Valuation enable hote hain.
+                  ON: Recipes, Food Cost %, Margin, Profitability reports and Inventory Valuation are switched on.
                   <br/>OFF par: simple POS + stock management (no cost columns, no profit reports).
                 </p>
               </div>
@@ -1069,7 +1069,7 @@ export default function SettingsPage() {
                   )}
                 </div>
                 <p className="col-span-3 text-[10px] text-muted-foreground">
-                  Yeh discount har bill par automatic apply hoga (excluded categories chhor kar).
+                  This discount is applied to every bill automatically (except the excluded categories).
                 </p>
               </div>
             )}
@@ -1121,7 +1121,7 @@ export default function SettingsPage() {
                   </span>
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  ON: Cashier POS me discount field disabled hoga. Discount lagane ke liye bill Bill Editor (Admin) me jana hoga jahan admin approve / edit karega.
+                  ON: the discount field is disabled for cashiers on the POS. To give a discount, the bill is opened in the Bill Editor, where an admin approves or edits it.
                   <br />OFF: Cashier can also apply a discount in POS on their own (current behavior).
                 </p>
               </div>
@@ -1134,7 +1134,7 @@ export default function SettingsPage() {
               <div>
                 <h3 className="text-sm font-bold flex items-center gap-2">🏆 Loyalty Program</h3>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Customers ko har paid order par automatic points milein. Points balance Customers page par dikhe.
+                  Customers earn points automatically on every paid order. Their balance shows on the Customers page.
                 </p>
               </div>
               <label className="flex items-center gap-2 shrink-0 cursor-pointer">
@@ -1188,7 +1188,7 @@ export default function SettingsPage() {
           {/* Urdu Font Selection */}
           <div className="border rounded-lg p-4 space-y-3">
             <h3 className="text-sm font-bold">🔤 Urdu Font Selection</h3>
-            <p className="text-xs text-muted-foreground">ریسٹورنٹ نام، ایڈریس، آئٹم نام وغیرہ کے لیے اردو فونٹ منتخب کریں</p>
+            <p className="text-xs text-muted-foreground">Choose the Urdu font for the restaurant name, address, item names and other Urdu text</p>
             <div className="grid grid-cols-2 gap-2">
               {([
                 { value: 'none', label: 'Default (English)', preview: 'Restaurant Name' },
@@ -1220,7 +1220,7 @@ export default function SettingsPage() {
 
           <div>
             <label className="text-xs font-medium text-muted-foreground">Receipt / KOT Logo</label>
-            <p className="text-[10px] text-muted-foreground mb-1">Yeh logo sirf printed receipts aur kitchen tickets pe lagega.</p>
+            <p className="text-[10px] text-muted-foreground mb-1">This logo is used on printed receipts and kitchen tickets only.</p>
             <div className="flex items-center gap-4 mt-1">
               {settings.logo && (
                 <img
@@ -1291,7 +1291,7 @@ export default function SettingsPage() {
             {/* App/Login logo */}
             <SurfaceLogoRow
               label="Admin App + Login Screen"
-              hint="POS sidebar aur owner/cashier login screen ka logo."
+              hint="The logo on the POS menu and the sign-in screen."
               value={settings.appLogo}
               onChange={(v) => setSettings({ ...settings, appLogo: v })}
             />
@@ -1299,7 +1299,7 @@ export default function SettingsPage() {
             {/* Web Portal logo */}
             <SurfaceLogoRow
               label="Web Ordering Portal"
-              hint="Online order page (#/order) aur Track Order page ka logo."
+              hint="The logo on the online order page (#/order) and the Track Order page."
               value={settings.webPortalLogo}
               onChange={(v) => setSettings({ ...settings, webPortalLogo: v })}
             />
@@ -1318,7 +1318,7 @@ export default function SettingsPage() {
             <div>
               <h3 className="text-sm font-bold flex items-center gap-2">📍 Restaurant Physical Location</h3>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Aapke restaurant ki actual location. Yeh Super Admin map par dikhaayi degi (devices ke alawa).
+                Where your restaurant actually is. It appears on the Digital Target map (in addition to the devices).
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -1384,8 +1384,8 @@ export default function SettingsPage() {
                   <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-fuchsia-600 text-white">NEW</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Soft card shadows, subtle background wash, refined focus ring aur button press-lift.
-                  Har theme ke upar kaam karta hai — structure aur colors same rehte hain.
+                  Soft card shadows, a subtle background wash, a refined focus ring and a button press-lift.
+                  Works on top of every theme — the layout and colours stay the same.
                 </p>
               </div>
               <Switch
@@ -1402,9 +1402,9 @@ export default function SettingsPage() {
           <div className="border rounded-lg p-4 space-y-4">
             <div className="flex items-center gap-2">
               <Palette className="h-5 w-5" />
-              <h3 className="text-sm font-bold">🎨 UI Theme / تھیم تبدیل کریں</h3>
+              <h3 className="text-sm font-bold">🎨 UI Theme</h3>
             </div>
-            <p className="text-xs text-muted-foreground">اپنی پسند کا تھیم منتخب کریں — تمام سکرینز آٹو اپڈیٹ ہو جائیں گی</p>
+            <p className="text-xs text-muted-foreground">Choose a theme — every screen updates straight away</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {themes.map(theme => {
                 const isPremium = theme.id === 'vince-premium';
@@ -1484,7 +1484,7 @@ export default function SettingsPage() {
               <div>
                 <h3 className="text-sm font-extrabold">WhatsApp Floating Button</h3>
                 <p className="text-[11px] text-muted-foreground">
-                  Online order web pe bottom-right corner mein WhatsApp button dikhega. Customer click kare to seedha WhatsApp pe chala jaye ga.
+                  A WhatsApp button appears in the bottom-right corner of the online order page. A customer who taps it goes straight to WhatsApp.
                 </p>
               </div>
             </div>
@@ -1492,7 +1492,7 @@ export default function SettingsPage() {
             <label className="flex items-center justify-between gap-3 p-3 rounded-lg border-2 border-primary/30 bg-primary/5">
               <div>
                 <div className="text-sm font-bold">💬 Enable Floating Button</div>
-                <div className="text-[11px] text-muted-foreground">Online order pages pe WhatsApp button show kare</div>
+                <div className="text-[11px] text-muted-foreground">Show a WhatsApp button on the online order pages</div>
               </div>
               <Switch
                 checked={settings.whatsappFloatingEnabled !== false}
@@ -1516,7 +1516,7 @@ export default function SettingsPage() {
                 <Input
                   value={settings.whatsappFloatingMessage || ''}
                   onChange={e => setSettings({ ...settings, whatsappFloatingMessage: e.target.value })}
-                  placeholder="Salam! Mujhe order ke baare me poochna tha."
+                  placeholder="Hello! I would like to ask about my order."
                   className="text-sm"
                 />
                 <p className="text-[10px] text-muted-foreground">This pre-filled message will be sent to the customer's WhatsApp.</p>
@@ -1637,8 +1637,8 @@ export default function SettingsPage() {
         {/* Receipt Text Styling Tab */}
         <TabsContent value="receiptstyle" className="space-y-4">
           <div className="bg-accent/50 rounded-lg p-3 mb-2">
-            <p className="text-xs font-bold">📝 ہر ٹیکسٹ لائن کا فونٹ، سائز، بولڈ، اور پوزیشن الگ الگ سیٹ کریں</p>
-            <p className="text-[10px] text-muted-foreground mt-1">ہر سیکشن کا اپنا فونٹ، سائز (px)، بولڈ، اور الائنمنٹ (Left/Center/Right) ہے</p>
+            <p className="text-xs font-bold">📝 Set the font, size, bold and alignment of each receipt line</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Each section has its own font, size (px), bold and alignment (Left / Center / Right)</p>
           </div>
 
           {([
@@ -1680,7 +1680,7 @@ export default function SettingsPage() {
 
           <div className="border-t pt-4 mt-4">
             <h3 className="text-sm font-bold mb-3">🖥️ POS Display Fonts</h3>
-            <p className="text-[10px] text-muted-foreground mb-3">POS سکرین پر کیٹیگری اور آئٹم کے فونٹ سیٹ کریں</p>
+            <p className="text-[10px] text-muted-foreground mb-3">Set the category and item fonts on the POS screen</p>
             <div className="space-y-4">
               <ReceiptStyleEditor
                 label="📂 Category Names"
@@ -1929,7 +1929,7 @@ export default function SettingsPage() {
         <TabsContent value="display" className="space-y-4">
           <div className="border rounded-lg p-4 space-y-4">
             <h3 className="text-sm font-bold">📺 Customer Display / Kitchen Screen</h3>
-            <p className="text-xs text-muted-foreground">سیکنڈری سکرین پر کسٹمر کو آرڈر اور ٹوٹل دکھائیں یا پروموشنل ویڈیو/امیجز چلائیں۔</p>
+            <p className="text-xs text-muted-foreground">Show the customer their order and total on a second screen, or play promotional images and video.</p>
             <p className="text-xs text-muted-foreground" data-testid="display-live-bill-note">
               When this is on, the Customer Display shows <b>“Your order”</b> beside the order board while the cashier rings up a bill — item names,
               quantities, amounts, discount, service charge and the total, exactly as on the receipt. Nothing internal is shown: no cashier, waiter,
@@ -1940,7 +1940,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between bg-card border rounded-lg p-3">
               <div>
                 <p className="text-xs font-bold">Enable Display Screen</p>
-                <p className="text-[10px] text-muted-foreground">سیکنڈری سکرین یا TV پر ڈسپلے آن کریں</p>
+                <p className="text-[10px] text-muted-foreground">Turn on the display on a second screen or TV</p>
               </div>
               <button
                 onClick={() => setSettings({ ...settings, displayEnabled: !settings.displayEnabled })}
@@ -1956,7 +1956,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between bg-card border rounded-lg p-3">
                   <div>
                     <p className="text-xs font-bold">Show Live Order Items</p>
-                    <p className="text-[10px] text-muted-foreground">آرڈر کی آئٹمز لائیو دکھائیں</p>
+                    <p className="text-[10px] text-muted-foreground">Show the order's items live</p>
                   </div>
                   <button
                     onClick={() => setSettings({ ...settings, displayShowItems: !settings.displayShowItems })}
@@ -1970,7 +1970,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between bg-card border rounded-lg p-3">
                   <div>
                     <p className="text-xs font-bold">Show Total Amount</p>
-                    <p className="text-[10px] text-muted-foreground">ٹوٹل رقم بڑے فونٹ میں دکھائیں</p>
+                    <p className="text-[10px] text-muted-foreground">Show the total in a large font</p>
                   </div>
                   <button
                     onClick={() => setSettings({ ...settings, displayShowTotal: !settings.displayShowTotal })}
@@ -1984,7 +1984,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between bg-card border rounded-lg p-3">
                   <div>
                     <p className="text-xs font-bold">Fullscreen Mode</p>
-                    <p className="text-[10px] text-muted-foreground">ڈسپلے فل سکرین ہو</p>
+                    <p className="text-[10px] text-muted-foreground">Open the display full screen</p>
                   </div>
                   <button
                     onClick={() => setSettings({ ...settings, displayFullscreen: !settings.displayFullscreen })}
@@ -1997,7 +1997,7 @@ export default function SettingsPage() {
                 {/* Promo Images Upload */}
                 <div>
                   <label className="text-xs font-medium text-muted-foreground block mb-1">Promotional Images / Slideshow</label>
-                  <p className="text-[10px] text-muted-foreground mb-2">جب کوئی آرڈر نہ ہو تو یہ تصاویر سلائیڈ شو کے طور پر دکھائی جائیں گی</p>
+                  <p className="text-[10px] text-muted-foreground mb-2">When there is no order, these images play as a slideshow</p>
                   <div className="flex flex-wrap gap-2 mb-2">
                     {(settings.displayPromoImages || []).map((img, idx) => (
                       <div key={idx} className="relative group">
@@ -2426,7 +2426,7 @@ function ServiceAreasEditor({
       </div>
 
       <div className="text-[11px] text-muted-foreground bg-muted/40 p-2 rounded">
-        <b>{cities.length} cities</b> · <b>{areas.length} areas</b> · <b>{Object.keys(locs).length} with location</b> — delivery form & online order me dikheinge.
+        <b>{cities.length} cities</b> · <b>{areas.length} areas</b> · <b>{Object.keys(locs).length} with location</b> — shown in the delivery form and the online order page.
       </div>
 
       <Button onClick={onSave} className="w-full">💾 Save Service Areas</Button>

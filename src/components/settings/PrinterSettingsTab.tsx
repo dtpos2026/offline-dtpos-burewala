@@ -33,7 +33,7 @@ export default function PrinterSettingsTab({ settings, setSettings, onSave, prin
                 <Printer className="h-5 w-5" />
                 <h3 className="text-sm font-bold">🖨️ Printer Settings</h3>
               </div>
-              <p className="text-xs text-muted-foreground">سسٹم میں installed printers یہاں دکھائے جائیں گے۔ Default printer منتخب کریں۔</p>
+              <p className="text-xs text-muted-foreground">Printers installed in Windows are listed here. Choose the default printer.</p>
 
               {/* Auto-start on Windows boot (Electron only) */}
               {isElectron() && (
@@ -75,11 +75,11 @@ export default function PrinterSettingsTab({ settings, setSettings, onSave, prin
                       ))}
                     </select>
                   ) : (
-                    <p className="text-xs text-muted-foreground bg-accent rounded-lg p-3">کوئی پرنٹر نہیں ملا۔ پہلے Windows میں printer install کریں۔</p>
+                    <p className="text-xs text-muted-foreground bg-accent rounded-lg p-3">No printer found. Install the printer in Windows first.</p>
                   )
                 ) : (
                   <div className="bg-accent rounded-lg p-3">
-                    <p className="text-xs text-muted-foreground">⚠️ Printer selection صرف Desktop App (Electron) میں دستیاب ہے۔ Browser میں system print dialog استعمال ہوگا۔</p>
+                    <p className="text-xs text-muted-foreground">⚠️ Printers can be chosen in the Windows desktop app only. In a browser the system print dialog is used.</p>
                   </div>
                 )}
               </div>
@@ -105,15 +105,15 @@ export default function PrinterSettingsTab({ settings, setSettings, onSave, prin
                       ))}
                     </select>
                   ) : (
-                    <p className="text-xs text-muted-foreground bg-accent rounded-lg p-3">کوئی پرنٹر نہیں ملا۔</p>
+                    <p className="text-xs text-muted-foreground bg-accent rounded-lg p-3">No printer found.</p>
                   )
                 ) : (
                   <div className="bg-accent rounded-lg p-3">
-                    <p className="text-xs text-muted-foreground">⚠️ KOT printer selection صرف Desktop App میں دستیاب ہے۔</p>
+                    <p className="text-xs text-muted-foreground">⚠️ The KOT printer can be chosen in the Windows desktop app only.</p>
                   </div>
                 )}
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  دو پرنٹر سیٹ اپ: اوپر والا <b>Receipt</b> (POS بل) کے لیے، یہ والا <b>Kitchen</b> (KOT) کے لیے۔ Network printer ہو تو پہلے Windows میں اس کا shared name install کریں، یہاں خود نظر آجائے گا۔
+                  Two-printer setup: the one above prints <b>Receipts</b> (POS bills), this one prints <b>Kitchen</b> slips (KOT). For a network printer, install its shared name in Windows first; it then appears here.
                 </p>
               </div>
 
@@ -137,7 +137,7 @@ export default function PrinterSettingsTab({ settings, setSettings, onSave, prin
                       ))}
                     </select>
                   ) : (
-                    <p className="text-xs text-muted-foreground bg-accent rounded-lg p-3">⚠️ Backup printer Desktop App me hi available hai.</p>
+                    <p className="text-xs text-muted-foreground bg-accent rounded-lg p-3">⚠️ The backup printer can be chosen in the Windows desktop app only.</p>
                   )}
                 </div>
                 <div className="flex items-center justify-between bg-card border rounded-lg p-3 border-l-2 border-l-emerald-500">
@@ -155,7 +155,7 @@ export default function PrinterSettingsTab({ settings, setSettings, onSave, prin
                 <div className="flex items-center justify-between bg-card border rounded-lg p-3 border-l-2 border-l-red-500">
                   <div>
                     <p className="text-xs font-bold">Offline Printer Alert</p>
-                    <p className="text-[10px] text-muted-foreground">Printer offline hone par persistent red banner show ho ga (jobs held)</p>
+                    <p className="text-[10px] text-muted-foreground">Shows a red banner while the printer is offline (jobs are held)</p>
                   </div>
                   <button
                     onClick={() => setSettings({ ...settings, offlinePrinterAlert: settings.offlinePrinterAlert === false ? true : false })}
@@ -187,23 +187,23 @@ export default function PrinterSettingsTab({ settings, setSettings, onSave, prin
                       ))}
                     </select>
                   ) : (
-                    <p className="text-xs text-muted-foreground bg-accent rounded-lg p-3">کوئی پرنٹر نہیں ملا۔</p>
+                    <p className="text-xs text-muted-foreground bg-accent rounded-lg p-3">No printer found.</p>
                   )
                 ) : (
                   <div className="bg-accent rounded-lg p-3">
-                    <p className="text-xs text-muted-foreground">⚠️ Token printer selection صرف Desktop App میں دستیاب ہے۔</p>
+                    <p className="text-xs text-muted-foreground">⚠️ The token printer can be chosen in the Windows desktop app only.</p>
                   </div>
                 )}
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  تیسرا printer جو صرف <b>Token / Customer slip</b> کے لیے استعمال ہوگا۔ خالی چھوڑیں تو Receipt printer ہی use ہوگا۔
+                  An optional third printer for <b>Token / Customer slips</b> only. Leave it empty to use the receipt printer.
                 </p>
               </div>
 
               {/* Silent Print Toggle */}
               <div className="flex items-center justify-between bg-card border rounded-lg p-3">
                 <div>
-                  <p className="text-xs font-bold">Silent Print (بغیر ڈائیلاگ)</p>
-                  <p className="text-[10px] text-muted-foreground">Pay/Print پر receipt سیدھا printer سے نکلے، dialog نہ آئے</p>
+                  <p className="text-xs font-bold">Silent Print (no dialog)</p>
+                  <p className="text-[10px] text-muted-foreground">On Pay / Print the receipt goes straight to the printer, without a print dialog</p>
                 </div>
                 <button
                   onClick={() => setSettings({ ...settings, silentPrint: !settings.silentPrint })}
@@ -255,7 +255,7 @@ export default function PrinterSettingsTab({ settings, setSettings, onSave, prin
                   <div className="flex-1">
                     <div className="text-sm font-bold flex items-center gap-2">🖨️ Fujitsu FP-1100 Raster Preset</div>
                     <p className="text-[11px] text-muted-foreground mt-1">
-                      Ek click me FP-1100 Raster driver ke liye optimal settings: Windows GDI driver, 80mm width, top margin 0, extra-feed off, trim 0, cut allowance 0. Top blank-feed minimize karne ke liye tuned.
+                      One click sets the best values for the FP-1100 Raster driver: Windows GDI driver, 80mm width, top margin 0, extra feed off, trim 0, cut allowance 0. Tuned to keep the blank feed at the top to a minimum.
                     </p>
                   </div>
                   <button
@@ -357,7 +357,7 @@ export default function PrinterSettingsTab({ settings, setSettings, onSave, prin
                 <div className="flex items-center justify-between bg-card border rounded-lg p-3">
                   <div>
                     <p className="text-xs font-bold">Auto Cut After Receipt</p>
-                    <p className="text-[10px] text-muted-foreground">Receipt ke end par cut exactly wahi ho</p>
+                    <p className="text-[10px] text-muted-foreground">Cut exactly at the end of the receipt</p>
                   </div>
                   <button
                     onClick={() => setSettings({ ...settings, autoCut: !(settings.autoCut !== false) })}
@@ -396,7 +396,7 @@ export default function PrinterSettingsTab({ settings, setSettings, onSave, prin
             {/* Receipt Scale & Margin Controls */}
             <div className="border rounded-lg p-4 space-y-4">
               <h3 className="text-sm font-bold">📐 Receipt Scale & Margins</h3>
-              <p className="text-xs text-muted-foreground">Receipt/KOT ko cut se bachane ke liye left/right safe margin minimum 3mm rakha gaya hai.</p>
+              <p className="text-xs text-muted-foreground">A safe left / right margin of at least 3 mm keeps receipts and KOTs from being cut off.</p>
 
               {/* Scale */}
               <div>
@@ -460,7 +460,7 @@ export default function PrinterSettingsTab({ settings, setSettings, onSave, prin
                 </div>
                 <div className="col-span-2">
                   <label className="text-xs font-medium text-muted-foreground">
-                    Paper Cut Trim (mm) — extra paper kam karne ke liye barhayein
+                    Paper Cut Trim (mm) — increase to waste less paper
                   </label>
                   <Input
                     type="number"

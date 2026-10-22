@@ -11,6 +11,7 @@ import { Plus, Trash2, Edit2, Save, ImagePlus, Download, Search, FolderInput, Ch
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { uploadTenantImage } from '@/lib/storage';
+import { menuPriceLabel } from '@/lib/menuPrice';
 import BulkImageUpload from '@/components/BulkImageUpload';
 import ExcelImportDialog from '@/components/ExcelImportDialog';
 
@@ -447,7 +448,7 @@ export default function MenuManagerPage() {
                     : <Badge className="text-[10px] bg-green-600 hover:bg-green-700">Active</Badge>}
                 </td>
                 <td className="px-4 py-2 text-right font-medium">
-                  {item.pricingType === 'fixed' ? `PKR ${item.price}` : `PKR ${item.ratePerKg}/kg`}
+                  {menuPriceLabel(item)}
                 </td>
                 <td className="px-4 py-2 text-right whitespace-nowrap">
                   <Button variant="ghost" size="sm" onClick={() => openEditItem(item)}><Edit2 className="h-3 w-3" /></Button>
@@ -662,7 +663,7 @@ export default function MenuManagerPage() {
                       onChange={rows => setEditItem({ ...editItem, inchVariants: rows })}
                     />
                   )}
-                  <p className="text-[10px] text-muted-foreground italic">Base price hidden — POS pe customer variant select karega.</p>
+                  <p className="text-[10px] text-muted-foreground italic">No single price — the cashier picks a size on the POS.</p>
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground italic">Manual price — operator enters price at POS</p>

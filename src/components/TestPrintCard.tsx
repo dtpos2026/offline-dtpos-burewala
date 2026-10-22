@@ -168,8 +168,8 @@ export default function TestPrintCard() {
           <div>
             <div className="text-sm font-semibold">Raw ESC/POS Test Mode</div>
             <p className="text-xs text-muted-foreground">
-              Sirf plain printer compatibility test. Normal Receipt, KOT aur Token selected design ke saath
-              hidden silent worker se print hote hain; koi preview ya dialog nahi aata.
+              A plain printer compatibility test only. Normal receipts, KOTs and tokens keep their selected
+              design and print silently in the background, with no preview or dialog.
             </p>
           </div>
           <span className="text-xs font-semibold text-muted-foreground">Normal bills keep their selected design</span>

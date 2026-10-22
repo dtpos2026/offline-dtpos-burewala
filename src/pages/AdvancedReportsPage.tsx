@@ -100,7 +100,7 @@ export default function AdvancedReportsPage() {
         </div>
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-extrabold tracking-tight">Advanced Item / Variant Reports</h1>
-          <p className="text-[11px] text-muted-foreground">Pizza → Small / Medium / Large alag alag dikhega. POS + Web + Foodpanda sab cover.</p>
+          <p className="text-[11px] text-muted-foreground">Each size of an item (e.g. Pizza Small / Medium / Large) on its own line, from every source: POS, website and Foodpanda.</p>
         </div>
         <Button size="sm" variant="outline" onClick={exportCsv}>
           <Download className="h-3.5 w-3.5 mr-1" /> Export CSV

@@ -31,7 +31,7 @@ export default function WhatsAppFloat({ message, number }: Props) {
   const intl = phone.startsWith('0') ? '92' + phone.slice(1) : phone;
 
   const text = (message || settings.whatsappFloatingMessage ||
-    `Salam ${settings.name || ''}! Mujhe order ke baare me poochna tha.`).trim();
+    `Hello ${settings.name || ''}! I would like to ask about my order.`).trim();
 
   const href = `https://wa.me/${intl}?text=${encodeURIComponent(text)}`;
 

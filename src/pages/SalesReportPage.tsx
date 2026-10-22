@@ -218,8 +218,8 @@ export default function SalesReportPage() {
       {/* ===== Printable report ===== */}
       <div className="bg-white text-black rounded-lg border p-5 print:border-0 print:p-0">
         <div className="text-center border-b-2 border-black pb-2 mb-3">
-          <h2 className="text-lg font-black uppercase">{settings.restaurantName || 'DT POS'}</h2>
-          <p className="text-xs">{settings.address || ''}{settings.phone ? ` · ${settings.phone}` : ''}</p>
+          <h2 className="text-lg font-black uppercase">{settings.name || 'DT POS'}</h2>
+          <p className="text-xs">{settings.address || ''}{(settings.phone1 || settings.phone) ? ` · ${settings.phone1 || settings.phone}` : ''}</p>
           <p className="text-sm font-bold mt-1">SALES REPORT — {label.toUpperCase()}</p>
           <p className="text-[11px]">
             {from.toLocaleDateString()} — {to.toLocaleDateString()}
@@ -364,7 +364,7 @@ export default function SalesReportPage() {
 
         {view === 'shift' && (
           <div className="py-2">
-            <p className="text-center text-[11px] text-gray-600 mb-2 print:hidden">Shift Report — thermal preview (aap ke sample format ke mutabiq)</p>
+            <p className="text-center text-[11px] text-gray-600 mb-2 print:hidden">Shift Report — thermal preview</p>
             <ShiftReportPreview range={{ from, to, label, startingCash: Number((settings as any).startingCash || 0) }} />
           </div>
         )}

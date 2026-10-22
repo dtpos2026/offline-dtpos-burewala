@@ -1,5 +1,36 @@
 # DT POS Enterprise — Release Notes
 
+## v1.20.1 — Small fixes found while writing the User Guide, and the User Guide itself
+
+- **New:** a complete, client-ready **User Guide & Feature Overview** (PDF, 140+ pages) with a screenshot of
+  every module, step-by-step instructions and an honest list of what is not in the Offline Edition. It lives
+  in `docs/user-guide/` with its editable source and every screenshot (see `docs/user-guide/README.md`).
+
+### Fixed
+- **Customer details showed 0 orders.** *Customers → View* looked up a customer's bills by the phone number
+  exactly as saved ("0322-6677889") but the bills are matched on the normalised number, so customers saved
+  with a dash or space showed no orders, no total spent and no favourite item. All forms of one number now
+  match.
+- **Menu → Price column.** Items priced by size or inch read "PKR 0/kg". They now show their price range
+  (e.g. "PKR 750–1750"); open-price items read "Open price".
+- **Sales Report heading.** The printed heading read a setting that does not exist, so it always said "DT POS"
+  with no phone. It now prints the restaurant name and phone from *Settings → General*.
+- **Settings menu text.** The tab names in the Settings list were pale on a light page in the Modern look;
+  they now use the page text colour.
+
+### English throughout
+Remaining Roman-Urdu and Urdu-script text in the screens was translated to English (the Urdu font previews
+are intentionally left in Urdu):
+- *Settings*: General, Self-Pickup, Printer, KOT Settings, Receipt, Display, Location, Branches, Loyalty, WhatsApp
+- *Printer Center*: Status, Test print, Printers, Tokens
+- *POS*: "no order" and "no previous bill" messages
+- *Backup*, *Inventory*, *Sales Report*, *Advanced Reports*, *Menu → Edit item*
+
+### Checked
+- All automated tests pass (the long Settings → Modules test now has a realistic time limit); both type
+  checks and builds are clean.
+- Every screenshot in the guide was captured from this version in a real browser with a sample restaurant's data.
+
 ## v1.20.0 — Weight items by kg or by amount, a Premium payment screen, the Espresso Orange theme and PIN sign-in
 
 - **Reported:** "When a kg item is tapped, open a panel at the side with ready buttons like 0.25 kg, and

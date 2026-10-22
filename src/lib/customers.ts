@@ -45,9 +45,12 @@ export function searchCustomers(q: string, limit = 8): CustomerProfile[] {
 
 export function getCustomerOrders(customerId: string): Order[] {
   const digits = (customerId || '').replace(/\D/g, '');
+  // A profile's phone is stored as typed ("0322-6677889"); orders are matched
+  // on the normalised number ("923226677889"), so normalise this side too.
+  const key = normalizePhone(customerId || '') || digits;
   return getOrders().filter(o => {
     const p = normalizePhone(o.customer?.phone || o.creditCustomerPhone || '') || (o.customer?.phone || '').replace(/\D/g, '');
-    return p === customerId || p === digits;
+    return p === customerId || p === digits || p === key;
   });
 }
 

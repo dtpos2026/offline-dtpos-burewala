@@ -144,7 +144,7 @@ export default function TokenSettingsCard() {
         <div className="flex items-center gap-2">
           <input
             className="flex-1 border rounded-md px-2 py-1.5 text-xs bg-background"
-            placeholder="Naya type (e.g. NETS, PayNow, GrabPay)"
+            placeholder="New type (e.g. NETS, PayNow, GrabPay)"
             value={newPayType}
             onChange={(e) => setNewPayType(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') addPayType(); }}
@@ -187,7 +187,7 @@ export default function TokenSettingsCard() {
       <label className="flex items-center justify-between gap-2 bg-muted/40 px-3 py-2 rounded-lg cursor-pointer">
         <div>
           <span className="text-xs font-semibold block">Tandoor Token</span>
-          <span className="text-[11px] text-muted-foreground">Roti/naan ka alag token slip, pay par</span>
+          <span className="text-[11px] text-muted-foreground">A separate token slip for roti / naan, printed on payment</span>
         </div>
         <Toggle on={tokenOn} onClick={() => save({ tokenPrintEnabled: !tokenOn })} />
       </label>
@@ -207,7 +207,7 @@ export default function TokenSettingsCard() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold">Token Template (design)</p>
-              <p className="text-[11px] text-muted-foreground">Slip ka style — preview neeche</p>
+              <p className="text-[11px] text-muted-foreground">Slip style — preview below</p>
             </div>
             <select
               className="border rounded-md px-2 py-1.5 text-xs bg-background max-w-[180px]"
@@ -231,7 +231,7 @@ export default function TokenSettingsCard() {
           )}
           <label className="flex items-center justify-between gap-2 bg-muted/40 px-3 py-2 rounded-lg cursor-pointer">
             <div>
-              <span className="text-xs font-semibold block">Token items sale count me shamil</span>
+              <span className="text-xs font-semibold block">Count token items in sales</span>
               <span className="text-[11px] text-muted-foreground">OFF = token only, not included in report sales</span>
             </div>
             <Toggle on={countsOn} onClick={() => save({ tokenCountsInSales: !countsOn })} />
@@ -282,7 +282,7 @@ export default function TokenSettingsCard() {
 
       <label className="flex items-center justify-between gap-2 bg-muted/40 px-3 py-2 rounded-lg cursor-pointer">
         <div>
-          <span className="text-xs font-semibold block">KOT sirf Kitchen printer pe</span>
+          <span className="text-xs font-semibold block">KOT on the kitchen printer only</span>
           <span className="text-[11px] text-muted-foreground">ON = if no kitchen printer is set, KOT will NOT fall back to the cash counter — an error will show</span>
         </div>
         <Toggle on={kotStrict} onClick={() => save({ kotFallbackToReceipt: kotStrict ? undefined : false })} />

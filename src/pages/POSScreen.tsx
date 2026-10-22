@@ -1563,7 +1563,7 @@ export default function POSScreen() {
       if (e.key === 'F8') {
         e.preventDefault();
         if (a.lastOrder) { a.setReceiptViewOnly(false); a.setShowReceipt(true); }
-        else toast.error('Koi pichla bill nahi mila');
+        else toast.error('No previous bill found');
         return;
       }
       if (dialogOpen) return; // dialogs apne Enter/Esc khud handle karte hain
@@ -2659,7 +2659,7 @@ export default function POSScreen() {
             <button
               onClick={async () => {
                 // Auto-create a running order (no payment required) and show kitchen slip
-                if (cart.length === 0 && !lastOrder) { toast.error('کوئی آرڈر نہیں ہے'); return; }
+                if (cart.length === 0 && !lastOrder) { toast.error('There is no order yet'); return; }
                 if (cart.length > 0) {
                   // Dining/Delivery need their info dialog first — defer kitchen slip until confirm.
                   if (orderType === 'dining' && !selectedTable && !editingOrderId) {
@@ -2687,7 +2687,7 @@ export default function POSScreen() {
             <button
               onClick={() => {
                 // Build a preview order if no real one exists yet — supports unpaid / credit
-                if (cart.length === 0 && !lastOrder) { toast.error('کوئی آرڈر نہیں ہے'); return; }
+                if (cart.length === 0 && !lastOrder) { toast.error('There is no order yet'); return; }
                 if (lastOrder) {
                   setReceiptViewOnly(false); setShowReceipt(true);
                 } else {
@@ -2785,7 +2785,7 @@ export default function POSScreen() {
                         className="w-full px-3 py-2 text-left text-[11px] font-bold text-status-warning hover:bg-accent flex items-center gap-2 border-b"
                         onClick={async () => {
                           setCartMoreOpen(false);
-                          if (cart.length === 0 && !lastOrder) { toast.error('کوئی آرڈر نہیں ہے'); return; }
+                          if (cart.length === 0 && !lastOrder) { toast.error('There is no order yet'); return; }
                           if (cart.length > 0) {
                             if (orderType === 'dining' && !selectedTable && !editingOrderId) { setPendingKitchenReceipt(true); setShowDiningDialog(true); return; }
                             if (orderType === 'delivery' && !custName && !editingOrderId) { setPendingKitchenReceipt(true); setShowDeliveryDialog(true); return; }

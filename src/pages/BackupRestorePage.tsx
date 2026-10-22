@@ -279,8 +279,8 @@ export default function BackupRestorePage() {
         </div>
         <p className="text-xs text-muted-foreground">
           {cloud
-            ? 'Cloud mode میں سب devices یہاں سے approve/remove کر سکتے ہیں۔'
-            : 'Cloud mode disabled ہے — device management صرف cloud mode میں دستیاب۔'}
+            ? 'In cloud mode, every device can be approved or removed from here.'
+            : 'Device management is part of cloud mode, which is off in this edition.'}
         </p>
         <Button
           variant="outline"

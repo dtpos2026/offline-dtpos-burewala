@@ -57,7 +57,7 @@ export default function WeightScaleSettingsCard() {
     if (!list.length) {
       toast.warning(isElectronApp()
         ? 'No COM port found — check the USB-to-RS232 cable and driver'
-        : 'COM port list sirf desktop EXE me milti hai');
+        : 'The COM port list is available in the Windows desktop app only');
     } else {
       toast.success(`Found ${list.length} COM port(s)`);
     }

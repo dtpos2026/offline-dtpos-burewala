@@ -35,7 +35,7 @@ export default function KotSettingsTab({ settings, setSettings, onSave, printers
                 <span className="text-lg">🍳</span>
                 <h3 className="text-sm font-bold">Kitchen Order Ticket (KOT) Settings</h3>
               </div>
-              <p className="text-xs text-muted-foreground">کچن پرچی کا ڈیزائن، عناصر اور پرنٹ طریقہ یہاں سے کنٹرول کریں۔</p>
+              <p className="text-xs text-muted-foreground">Choose the kitchen slip design, what it shows and how it prints.</p>
             </div>
 
             {/* ===== Professional Printing Settings ===== */}
@@ -44,19 +44,19 @@ export default function KotSettingsTab({ settings, setSettings, onSave, printers
                 <Printer className="h-4 w-4 text-primary" />
                 <h3 className="text-sm font-bold">Printing Settings (Print Service)</h3>
               </div>
-              <p className="text-xs text-muted-foreground">One-phase printing — order create par sirf KOT, payment par receipt. Duplicate print band.</p>
+              <p className="text-xs text-muted-foreground">One-phase printing — a KOT when the order is created, the receipt on payment. No duplicate prints.</p>
 
               <div className="grid sm:grid-cols-2 gap-3">
                 {[
                   { key: 'kotEnabled', label: 'Enable KOT Printing', def: true },
                   { key: 'autoPrintKot', label: 'Auto Print KOT on New Order', def: true },
-                  { key: 'noReceiptOnPay', label: 'No Receipt on Pay (pay pe parchi na nikle)', def: false },
-                  { key: 'paymentDialogEnabled', label: 'Payment Received screen on Pay (OFF = seedha cash paid + fori print)', def: true },
-                  { key: 'tokenPrintEnabled', label: 'Tandoor Token (roti/naan ka alag token slip)', def: false },
-                  { key: 'tokenCountsInSales', label: 'Token items sale count me shamil hon', def: true },
+                  { key: 'noReceiptOnPay', label: 'No Receipt on Pay (no slip when a bill is paid)', def: false },
+                  { key: 'paymentDialogEnabled', label: 'Payment screen on Pay (OFF = paid in cash and printed at once)', def: true },
+                  { key: 'tokenPrintEnabled', label: 'Tandoor Token (a separate token slip for roti / naan)', def: false },
+                  { key: 'tokenCountsInSales', label: 'Count token items in sales', def: true },
                   { key: 'manualSendToKitchen', label: 'Manual "Send to Kitchen" only', def: false },
                   { key: 'autoPrintCustomerReceipt', label: 'Auto Print Customer Receipt (on payment)', def: false },
-                  { key: 'showBillOnScreen', label: 'Show bill on screen after payment (OFF = sirf print, screen par kuch na aaye)', def: false },
+                  { key: 'showBillOnScreen', label: 'Show bill on screen after payment (OFF = print only, nothing on screen)', def: false },
                 ].map(t => {
                   const val = (settings as any)[t.key];
                   const on = val === undefined ? t.def : !!val;
@@ -207,13 +207,13 @@ export default function KotSettingsTab({ settings, setSettings, onSave, printers
                 <label className="text-xs font-medium text-muted-foreground block mb-2">KOT Template Design</label>
                 <div className="grid grid-cols-2 gap-2">
                   {([
-                    { value: 'classic', label: '🍳 Classic', desc: 'روایتی ڈیزائن — آئیکنز اور ڈیش بارڈرز' },
-                    { value: 'bold', label: '★ Bold', desc: 'موٹا فونٹ — بڑی QTY، بلیک بار' },
-                    { value: 'minimal', label: '◻ Minimal', desc: 'سادہ اور صاف — کم سے کم عناصر' },
-                    { value: 'elegant', label: '✦ Elegant', desc: 'خوبصورت — لیٹر سپیسنگ اور نفیس لک' },
-                    { value: 'vip-chef', label: '👨‍🍳 VIP Chef', desc: 'بڑے بولڈ بیج — شیف کے لیے بہترین' },
-                    { value: 'station', label: '🏷 Station', desc: 'COLD/HOT/BEVG ٹیگ — اسٹیشن روٹنگ' },
-                    { value: 'taimoor1', label: '📋 Taimoor 1', desc: 'صاف ٹیبل ڈیزائن — Order/Token/Date/Time/Type/Table' },
+                    { value: 'classic', label: '🍳 Classic', desc: 'Traditional design — icons and dashed borders' },
+                    { value: 'bold', label: '★ Bold', desc: 'Heavy font — large QTY, black bar' },
+                    { value: 'minimal', label: '◻ Minimal', desc: 'Simple and clean — the fewest elements' },
+                    { value: 'elegant', label: '✦ Elegant', desc: 'Refined — letter spacing and a fine look' },
+                    { value: 'vip-chef', label: '👨‍🍳 VIP Chef', desc: 'Large bold badges — easy for the chef to read' },
+                    { value: 'station', label: '🏷 Station', desc: 'COLD / HOT / BEVG tags — station routing' },
+                    { value: 'taimoor1', label: '📋 Taimoor 1', desc: 'Clean table design — Order / Token / Date / Time / Type / Table' },
                     { value: 'taimoor2', label: '📋 Taimoor 2', desc: 'Taimoor 1 + Waiter + Pax + Printed time' },
                     { value: 'dtr-kitchen', label: '🧾 DT Kitchen Order', desc: 'DT Retail — black title bar, DINE-IN / Table box, big quantities' },
                   ] as const).map(t => (
@@ -254,17 +254,17 @@ export default function KotSettingsTab({ settings, setSettings, onSave, printers
 
               {/* KOT Elements Toggle */}
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground block">KOT میں کیا دکھائیں</label>
+                <label className="text-xs font-medium text-muted-foreground block">What the KOT shows</label>
                 {([
-                  { key: 'kotShowLogo', label: 'Logo', desc: 'ریسٹورنٹ لوگو دکھائیں' },
-                  { key: 'kotShowAddress', label: 'Address', desc: 'پتہ دکھائیں' },
-                  { key: 'kotShowPhone', label: 'Phone', desc: 'فون نمبر دکھائیں' },
-                  { key: 'kotShowDateTime', label: 'Date & Time', desc: 'تاریخ اور وقت' },
-                  { key: 'kotShowWaiter', label: 'Waiter Name', desc: 'ویٹر کا نام' },
-                  { key: 'kotShowCustomer', label: 'Customer Info', desc: 'کسٹمر کی معلومات' },
-                  { key: 'kotShowCustomerAddress', label: 'Customer Address', desc: 'ڈلیوری/کسٹمر کا پتہ KOT پر دکھائیں' },
-                  { key: 'kotShowRider', label: 'Rider Name', desc: 'رائیڈر کا نام' },
-                  { key: 'kotShowNotes', label: 'Order Notes', desc: 'آرڈر نوٹس' },
+                  { key: 'kotShowLogo', label: 'Logo', desc: 'Show the restaurant logo' },
+                  { key: 'kotShowAddress', label: 'Address', desc: 'Show the address' },
+                  { key: 'kotShowPhone', label: 'Phone', desc: 'Show the phone number' },
+                  { key: 'kotShowDateTime', label: 'Date & Time', desc: 'Date and time' },
+                  { key: 'kotShowWaiter', label: 'Waiter Name', desc: 'Waiter name' },
+                  { key: 'kotShowCustomer', label: 'Customer Info', desc: 'Customer details' },
+                  { key: 'kotShowCustomerAddress', label: 'Customer Address', desc: 'Show the delivery / customer address on the KOT' },
+                  { key: 'kotShowRider', label: 'Rider Name', desc: 'Rider name' },
+                  { key: 'kotShowNotes', label: 'Order Notes', desc: 'Order notes' },
                 ] as const).map(item => (
                   <div key={item.key} className="flex items-center justify-between bg-card border rounded-lg p-2.5">
                     <div>
@@ -327,7 +327,7 @@ export default function KotSettingsTab({ settings, setSettings, onSave, printers
                 <div className="flex items-center justify-between bg-card border rounded-lg p-3">
                   <div>
                     <p className="text-xs font-bold">Auto Kitchen Print</p>
-                    <p className="text-[10px] text-muted-foreground">آرڈر بنتے ہی آٹو کچن پرچی نکلے</p>
+                    <p className="text-[10px] text-muted-foreground">Print the kitchen slip as soon as an order is created</p>
                   </div>
                   <button
                     onClick={() => setSettings({ ...settings, autoKitchenPrint: !settings.autoKitchenPrint })}
@@ -342,7 +342,7 @@ export default function KotSettingsTab({ settings, setSettings, onSave, printers
                     <div className="flex items-center justify-between bg-card border rounded-lg p-3 ml-3 border-l-2 border-l-primary">
                       <div>
                         <p className="text-xs font-bold">Combined Print (Receipt + KOT)</p>
-                        <p className="text-[10px] text-muted-foreground">رسیپٹ کے ساتھ KOT بھی نکلے — دونوں الگ الگ cut ہوں گے</p>
+                        <p className="text-[10px] text-muted-foreground">Print the KOT together with the receipt — each is cut separately</p>
                       </div>
                       <button
                         onClick={() => setSettings({ ...settings, kotCombinedPrint: !settings.kotCombinedPrint })}
@@ -354,7 +354,7 @@ export default function KotSettingsTab({ settings, setSettings, onSave, printers
                     <div className="flex items-center justify-between bg-card border rounded-lg p-3 ml-3 border-l-2 border-l-primary">
                       <div>
                         <p className="text-xs font-bold">Fallback to Receipt Printer</p>
-                        <p className="text-[10px] text-muted-foreground">اگر کچن پرنٹر سیٹ نہ ہو تو KOT کاؤنٹر (Receipt) پرنٹر سے نکلے</p>
+                        <p className="text-[10px] text-muted-foreground">If no kitchen printer is set, print the KOT on the counter (receipt) printer</p>
                       </div>
                       <button
                         onClick={() => setSettings({ ...settings, kotFallbackToReceipt: settings.kotFallbackToReceipt === false ? true : false })}
@@ -366,7 +366,7 @@ export default function KotSettingsTab({ settings, setSettings, onSave, printers
                     <div className="flex items-center justify-between bg-card border rounded-lg p-3 ml-3 border-l-2 border-l-amber-500">
                       <div>
                         <p className="text-xs font-bold">🪞 KOT Mirror on Cash Printer (Verify)</p>
-                        <p className="text-[10px] text-muted-foreground">ہر KOT کی ایک ایکسٹرا کاپی Cash/Receipt پرنٹر سے بھی نکلے گی — تاکہ پتہ چلے KOT بن رہا ہے یا نہیں</p>
+                        <p className="text-[10px] text-muted-foreground">Every KOT also prints one extra copy on the cash / receipt printer, so the counter can see it was sent</p>
                       </div>
                       <button
                         onClick={() => setSettings({ ...settings, kotMirrorToReceiptPrinter: !settings.kotMirrorToReceiptPrinter })}
@@ -385,7 +385,7 @@ export default function KotSettingsTab({ settings, setSettings, onSave, printers
                   {([
                     { key: 'autoKotOnOrderTakerSave', label: 'Order Taker saves', desc: 'Print the KOT as soon as an order is saved from the Order Taker portal' },
                     { key: 'autoKotOnOnlineOrder', label: 'Online order receive ho', desc: 'Website se naya order aate hi KOT print' },
-                    { key: 'autoKotOnDeliveryRunning', label: 'Delivery → Preparing', desc: 'Delivery order Preparing pe move kare to KOT print' },
+                    { key: 'autoKotOnDeliveryRunning', label: 'Delivery → Preparing', desc: 'Print the KOT when a delivery order moves to Preparing' },
                   ] as const).map(item => {
                     const on = settings[item.key as keyof RestaurantSettings] !== false;
                     return (
@@ -500,7 +500,7 @@ export default function KotSettingsTab({ settings, setSettings, onSave, printers
                     />
                   </div>
                 </div>
-                <p className="text-[10px] text-muted-foreground">Kitchen display اسی حساب سے Preparing, In Progress, اور Delayed دکھائے گی۔</p>
+                <p className="text-[10px] text-muted-foreground">The kitchen display shows Preparing, In Progress and Delayed using these times.</p>
               </div>
             </div>
 

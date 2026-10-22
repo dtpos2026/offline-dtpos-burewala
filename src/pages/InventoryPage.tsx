@@ -466,7 +466,7 @@ export default function InventoryPage() {
                   ? `Price per 1 ${unit}`
                   : costMode === 'total'
                     ? `Total bill for the entire opening stock. Per-${unit} will auto-calculate.`
-                    : `Sirf 1 ${unit} ka rate likhein.`}
+                    : `Enter the rate for one ${unit}.`}
               </p>
             </div>
             <div>

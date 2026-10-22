@@ -66,7 +66,7 @@ export default function PrinterHealthCard() {
   const repairNames = async () => {
     if (!settings) return;
     const fixes = rows.filter(r => r.ok && r.realName && r.cfg.connection !== 'lan' && r.realName !== r.cfg.printerName);
-    if (fixes.length === 0) { toast.info('Sab printer naam pehle se theek hain'); return; }
+    if (fixes.length === 0) { toast.info('All printer names are already correct'); return; }
     const updated: PrinterSettingsDoc = {
       ...settings,
       printers: settings.printers.map((p) => {
@@ -75,7 +75,7 @@ export default function PrinterHealthCard() {
       }),
     };
     await savePrinterSettings(updated);
-    toast.success(`${fixes.length} printer ka naam Windows ke mutabiq theek kar diya`);
+    toast.success(`${fixes.length} printer name(s) updated to match Windows`);
     scan();
   };
 
@@ -87,8 +87,8 @@ export default function PrinterHealthCard() {
         <div>
           <h3 className="text-lg font-semibold">Printer Health & Preview</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Printer dobara connect karne ke baad yahan se status check karein — agar naam badal gaya ho
-            to “Fix printer names” se theek ho jata hai (blank receipt ka sab se aam sabab).
+            After reconnecting a printer, check its status here. If Windows gave it a new name, “Fix printer
+            names” sets it right (the most common cause of a blank receipt).
           </p>
         </div>
         <div className="flex gap-2">
@@ -105,7 +105,7 @@ export default function PrinterHealthCard() {
 
       {rows.length === 0 ? (
         <p className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
-          Abhi koi printer configure nahi hai — neeche “Printers” se add karein.
+          No printer is set up yet — add one under “Printers” below.
         </p>
       ) : (
         <div className="space-y-2">
@@ -132,8 +132,8 @@ export default function PrinterHealthCard() {
           ))}
           {broken > 0 && (
             <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">
-              {broken} printer Windows me nahi mil raha. USB cable / power check karein, phir “Re-detect”
-              aur “Fix printer names” dabayein — warna bill blank ya bilkul nahi nikle ga.
+              {broken} printer(s) not found in Windows. Check the USB cable and power, then press “Re-detect”
+              and “Fix printer names” — otherwise bills print blank or not at all.
             </p>
           )}
         </div>
@@ -144,7 +144,7 @@ export default function PrinterHealthCard() {
           <div>
             <p className="text-sm font-semibold">Print Preview before printing</p>
             <p className="text-xs text-muted-foreground">
-              ON = paid bill pehle screen par aayega, Print dabane par nikle ga. OFF = fast silent print (recommended).
+              ON = the paid bill shows on screen first and prints when you press Print. OFF = fast silent print (recommended).
             </p>
           </div>
           <Switch
