@@ -1,0 +1,1019 @@
+{
+ "start-splash": {
+  "file": "start-splash.png",
+  "w": 1440,
+  "h": 900,
+  "markers": []
+ },
+ "start-activation": {
+  "file": "start-activation.png",
+  "w": 1440,
+  "h": 900,
+  "markers": []
+ },
+ "start-login": {
+  "file": "start-login.png",
+  "w": 1440,
+  "h": 900,
+  "markers": [
+   {
+    "n": 1,
+    "x": 83.85,
+    "y": 42.03
+   },
+   {
+    "n": 2,
+    "x": 83.85,
+    "y": 51.03
+   },
+   {
+    "n": 3,
+    "x": 83.85,
+    "y": 61.25
+   },
+   {
+    "n": 4,
+    "x": 74.46,
+    "y": 66.36
+   },
+   {
+    "n": 5,
+    "x": 83.85,
+    "y": 56.14
+   }
+  ]
+ },
+ "start-login-pin": {
+  "file": "start-login-pin.png",
+  "w": 488,
+  "h": 789,
+  "markers": []
+ },
+ "start-login-espresso": {
+  "file": "start-login-espresso.png",
+  "w": 1440,
+  "h": 900,
+  "markers": []
+ },
+ "start-contact": {
+  "file": "start-contact.png",
+  "w": 420,
+  "h": 382,
+  "markers": []
+ },
+ "ws-dashboard-shell": {
+  "file": "ws-dashboard-shell.png",
+  "w": 1440,
+  "h": 900,
+  "markers": [
+   {
+    "n": 1,
+    "x": 15.97,
+    "y": 0.67
+   },
+   {
+    "n": 2,
+    "x": 25.55,
+    "y": 3.28
+   },
+   {
+    "n": 3,
+    "x": 28.61,
+    "y": 3.28
+   },
+   {
+    "n": 4,
+    "x": 42.57,
+    "y": 3.28
+   },
+   {
+    "n": 5,
+    "x": 86.01,
+    "y": 3.28
+   },
+   {
+    "n": 6,
+    "x": 15.14,
+    "y": 92.31
+   }
+  ]
+ },
+ "ws-launcher": {
+  "file": "ws-launcher.png",
+  "w": 804,
+  "h": 801,
+  "markers": []
+ },
+ "ws-more-menu": {
+  "file": "ws-more-menu.png",
+  "w": 1440,
+  "h": 900,
+  "markers": []
+ },
+ "pos-gate": {
+  "file": "pos-gate.png",
+  "w": 484,
+  "h": 287,
+  "markers": []
+ },
+ "pos-main": {
+  "file": "pos-main.png",
+  "w": 1440,
+  "h": 900,
+  "markers": [
+   {
+    "n": 1,
+    "x": 17.36,
+    "y": 10
+   },
+   {
+    "n": 2,
+    "x": 64.93,
+    "y": 14.11
+   },
+   {
+    "n": 3,
+    "x": 17.64,
+    "y": 15.44
+   },
+   {
+    "n": 4,
+    "x": 84.44,
+    "y": 13.89
+   },
+   {
+    "n": 5,
+    "x": 76.25,
+    "y": 23
+   },
+   {
+    "n": 6,
+    "x": 76.25,
+    "y": 47.49
+   },
+   {
+    "n": 7,
+    "x": 89.02,
+    "y": 86.44
+   },
+   {
+    "n": 8,
+    "x": 76.94,
+    "y": 91.78
+   }
+  ]
+ },
+ "pos-cart": {
+  "file": "pos-cart.png",
+  "w": 349,
+  "h": 840,
+  "markers": [
+   {
+    "n": 1,
+    "x": 6.02,
+    "y": 7.74
+   },
+   {
+    "n": 2,
+    "x": 4.87,
+    "y": 13.33
+   },
+   {
+    "n": 3,
+    "x": 2.01,
+    "y": 17.5
+   },
+   {
+    "n": 4,
+    "x": 2.01,
+    "y": 43.74
+   },
+   {
+    "n": 5,
+    "x": 29.78,
+    "y": 85.48
+   },
+   {
+    "n": 6,
+    "x": 54.7,
+    "y": 85.48
+   },
+   {
+    "n": 7,
+    "x": 4.87,
+    "y": 91.19
+   },
+   {
+    "n": 8,
+    "x": 4.87,
+    "y": 96.43
+   },
+   {
+    "n": 9,
+    "x": 93.7,
+    "y": 96.43
+   }
+  ]
+ },
+ "pos-variant": {
+  "file": "pos-variant.png",
+  "w": 484,
+  "h": 291,
+  "markers": []
+ },
+ "pos-weight": {
+  "file": "pos-weight.png",
+  "w": 1440,
+  "h": 900,
+  "markers": []
+ },
+ "pos-category-grid": {
+  "file": "pos-category-grid.png",
+  "w": 804,
+  "h": 446,
+  "markers": []
+ },
+ "pos-dining-dialog": {
+  "file": "pos-dining-dialog.png",
+  "w": 420,
+  "h": 264,
+  "markers": []
+ },
+ "pos-delivery-dialog": {
+  "file": "pos-delivery-dialog.png",
+  "w": 420,
+  "h": 531,
+  "markers": []
+ },
+ "pos-payment": {
+  "file": "pos-payment.png",
+  "w": 816,
+  "h": 641,
+  "markers": [
+   {
+    "n": 1,
+    "x": 48.04,
+    "y": 18.41
+   },
+   {
+    "n": 2,
+    "x": 6,
+    "y": 37.13
+   },
+   {
+    "n": 3,
+    "x": 5.27,
+    "y": 51.79
+   },
+   {
+    "n": 4,
+    "x": 94,
+    "y": 26.05
+   },
+   {
+    "n": 5,
+    "x": 61.51,
+    "y": 33.23
+   },
+   {
+    "n": 6,
+    "x": 51.96,
+    "y": 70.67
+   },
+   {
+    "n": 7,
+    "x": 66.01,
+    "y": 90.8
+   }
+  ]
+ },
+ "pos-receipt": {
+  "file": "pos-receipt.png",
+  "w": 480,
+  "h": 842,
+  "markers": []
+ },
+ "pos-kitchen-slip": {
+  "file": "pos-kitchen-slip.png",
+  "w": 480,
+  "h": 642,
+  "markers": []
+ },
+ "pos-more-menu": {
+  "file": "pos-more-menu.png",
+  "w": 355,
+  "h": 846,
+  "markers": []
+ },
+ "pos-credit": {
+  "file": "pos-credit.png",
+  "w": 420,
+  "h": 400,
+  "markers": []
+ },
+ "pos-manual-item": {
+  "file": "pos-manual-item.png",
+  "w": 420,
+  "h": 264,
+  "markers": []
+ },
+ "tables-grid": {
+  "file": "tables-grid.png",
+  "w": 1204,
+  "h": 900,
+  "markers": [
+   {
+    "n": 1,
+    "x": 31.41,
+    "y": 14.22
+   },
+   {
+    "n": 2,
+    "x": 3.74,
+    "y": 20.11
+   },
+   {
+    "n": 3,
+    "x": 46.53,
+    "y": 14.22
+   }
+  ]
+ },
+ "tables-floormap": {
+  "file": "tables-floormap.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "tables-running-dialog": {
+  "file": "tables-running-dialog.png",
+  "w": 420,
+  "h": 703,
+  "markers": []
+ },
+ "tables-free-dialog": {
+  "file": "tables-free-dialog.png",
+  "w": 420,
+  "h": 755,
+  "markers": []
+ },
+ "tables-qr": {
+  "file": "tables-qr.png",
+  "w": 932,
+  "h": 846,
+  "markers": []
+ },
+ "bills-retrieve": {
+  "file": "bills-retrieve.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "bills-retray": {
+  "file": "bills-retray.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "kitchen-display": {
+  "file": "kitchen-display.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "kitchen-tv": {
+  "file": "kitchen-tv.png",
+  "w": 1440,
+  "h": 900,
+  "markers": []
+ },
+ "display-customer": {
+  "file": "display-customer.png",
+  "w": 1440,
+  "h": 900,
+  "markers": []
+ },
+ "kitchen-display-center": {
+  "file": "kitchen-display-center.png",
+  "w": 1204,
+  "h": 1100,
+  "markers": []
+ },
+ "delivery-board": {
+  "file": "delivery-board.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "pickup-orders": {
+  "file": "pickup-orders.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "foodpanda-orders": {
+  "file": "foodpanda-orders.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "pay-pending": {
+  "file": "pay-pending.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "credit-list": {
+  "file": "credit-list.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "credit-ledger": {
+  "file": "credit-ledger.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "void-bills": {
+  "file": "void-bills.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "bill-reprint": {
+  "file": "bill-reprint.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "bill-editor": {
+  "file": "bill-editor.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "audit-history": {
+  "file": "audit-history.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "menu-manager": {
+  "file": "menu-manager.png",
+  "w": 1204,
+  "h": 900,
+  "markers": [
+   {
+    "n": 1,
+    "x": 13.39,
+    "y": 11.33
+   },
+   {
+    "n": 2,
+    "x": 23.71,
+    "y": 11.33
+   },
+   {
+    "n": 3,
+    "x": 31.14,
+    "y": 11.33
+   },
+   {
+    "n": 4,
+    "x": 45.93,
+    "y": 11.33
+   },
+   {
+    "n": 5,
+    "x": 61.93,
+    "y": 11.33
+   }
+  ]
+ },
+ "menu-item-dialog": {
+  "file": "menu-item-dialog.png",
+  "w": 420,
+  "h": 801,
+  "markers": []
+ },
+ "menu-import": {
+  "file": "menu-import.png",
+  "w": 548,
+  "h": 536,
+  "markers": []
+ },
+ "menu-deals": {
+  "file": "menu-deals.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "stock-inventory": {
+  "file": "stock-inventory.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "stock-in-dialog": {
+  "file": "stock-in-dialog.png",
+  "w": 484,
+  "h": 398,
+  "markers": []
+ },
+ "stock-recipes": {
+  "file": "stock-recipes.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "stock-recipe-dialog": {
+  "file": "stock-recipe-dialog.png",
+  "w": 708,
+  "h": 580,
+  "markers": []
+ },
+ "stock-receiving": {
+  "file": "stock-receiving.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "stock-receiving-new": {
+  "file": "stock-receiving-new.png",
+  "w": 548,
+  "h": 557,
+  "markers": []
+ },
+ "stock-wastage": {
+  "file": "stock-wastage.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "cust-database": {
+  "file": "cust-database.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "cust-view": {
+  "file": "cust-view.png",
+  "w": 804,
+  "h": 842,
+  "markers": []
+ },
+ "cust-top": {
+  "file": "cust-top.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "cust-crm": {
+  "file": "cust-crm.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "cust-contacts": {
+  "file": "cust-contacts.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "cust-promo": {
+  "file": "cust-promo.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "cust-promo-new": {
+  "file": "cust-promo-new.png",
+  "w": 484,
+  "h": 514,
+  "markers": []
+ },
+ "cust-whatsapp": {
+  "file": "cust-whatsapp.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "acc-overview": {
+  "file": "acc-overview.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "acc-payment-accounts": {
+  "file": "acc-payment-accounts.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "acc-expense": {
+  "file": "acc-expense.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "acc-cash-close": {
+  "file": "acc-cash-close.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "acc-parties": {
+  "file": "acc-parties.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "acc-wages": {
+  "file": "acc-wages.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "acc-wages-ledger": {
+  "file": "acc-wages-ledger.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "staff-hr": {
+  "file": "staff-hr.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "staff-attendance": {
+  "file": "staff-attendance.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "staff-payslips": {
+  "file": "staff-payslips.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "staff-waiters": {
+  "file": "staff-waiters.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "staff-users": {
+  "file": "staff-users.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "staff-user-edit": {
+  "file": "staff-user-edit.png",
+  "w": 708,
+  "h": 846,
+  "markers": []
+ },
+ "rep-dashboard": {
+  "file": "rep-dashboard.png",
+  "w": 1204,
+  "h": 900,
+  "markers": [
+   {
+    "n": 1,
+    "x": 2.49,
+    "y": 10
+   },
+   {
+    "n": 2,
+    "x": 59.31,
+    "y": 24.82
+   },
+   {
+    "n": 3,
+    "x": 87.93,
+    "y": 23.7
+   },
+   {
+    "n": 4,
+    "x": 2.49,
+    "y": 30.04
+   }
+  ]
+ },
+ "rep-dashboard-2": {
+  "file": "rep-dashboard-2.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "rep-reports": {
+  "file": "rep-reports.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "rep-reports-2": {
+  "file": "rep-reports-2.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "rep-reports-category": {
+  "file": "rep-reports-category.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "rep-center": {
+  "file": "rep-center.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "rep-center-accounts": {
+  "file": "rep-center-accounts.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "rep-center-kot": {
+  "file": "rep-center-kot.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "rep-sales": {
+  "file": "rep-sales.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "rep-advanced": {
+  "file": "rep-advanced.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "rep-admin-history": {
+  "file": "rep-admin-history.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "rep-profitability": {
+  "file": "rep-profitability.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "rep-costing": {
+  "file": "rep-costing.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "rep-tokens": {
+  "file": "rep-tokens.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "close-day": {
+  "file": "close-day.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "close-day-2": {
+  "file": "close-day-2.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "close-backup": {
+  "file": "close-backup.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "set-general": {
+  "file": "set-general.png",
+  "w": 860,
+  "h": 794,
+  "markers": []
+ },
+ "set-general-2": {
+  "file": "set-general-2.png",
+  "w": 860,
+  "h": 942,
+  "markers": []
+ },
+ "set-appearance": {
+  "file": "set-appearance.png",
+  "w": 860,
+  "h": 794,
+  "markers": []
+ },
+ "set-appearance-retail": {
+  "file": "set-appearance-retail.png",
+  "w": 860,
+  "h": 794,
+  "markers": []
+ },
+ "set-modules": {
+  "file": "set-modules.png",
+  "w": 860,
+  "h": 794,
+  "markers": []
+ },
+ "set-screen": {
+  "file": "set-screen.png",
+  "w": 860,
+  "h": 794,
+  "markers": []
+ },
+ "set-tables": {
+  "file": "set-tables.png",
+  "w": 860,
+  "h": 794,
+  "markers": []
+ },
+ "set-waiters": {
+  "file": "set-waiters.png",
+  "w": 860,
+  "h": 278,
+  "markers": []
+ },
+ "set-pickup": {
+  "file": "set-pickup.png",
+  "w": 860,
+  "h": 588,
+  "markers": []
+ },
+ "set-printer": {
+  "file": "set-printer.png",
+  "w": 860,
+  "h": 794,
+  "markers": []
+ },
+ "set-receipt": {
+  "file": "set-receipt.png",
+  "w": 860,
+  "h": 794,
+  "markers": []
+ },
+ "set-receipt-fonts": {
+  "file": "set-receipt-fonts.png",
+  "w": 860,
+  "h": 794,
+  "markers": []
+ },
+ "set-kot": {
+  "file": "set-kot.png",
+  "w": 860,
+  "h": 794,
+  "markers": []
+ },
+ "set-whatsapp": {
+  "file": "set-whatsapp.png",
+  "w": 860,
+  "h": 794,
+  "markers": []
+ },
+ "set-cities": {
+  "file": "set-cities.png",
+  "w": 860,
+  "h": 794,
+  "markers": []
+ },
+ "set-service-areas": {
+  "file": "set-service-areas.png",
+  "w": 860,
+  "h": 477,
+  "markers": []
+ },
+ "set-display": {
+  "file": "set-display.png",
+  "w": 860,
+  "h": 299,
+  "markers": []
+ },
+ "prn-status": {
+  "file": "prn-status.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "prn-printers": {
+  "file": "prn-printers.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "prn-roles": {
+  "file": "prn-roles.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "prn-mode": {
+  "file": "prn-mode.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "prn-design": {
+  "file": "prn-design.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "prn-margins": {
+  "file": "prn-margins.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "prn-quality": {
+  "file": "prn-quality.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "prn-calibration": {
+  "file": "prn-calibration.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "prn-test": {
+  "file": "prn-test.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "prn-tokens": {
+  "file": "prn-tokens.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "prn-alignment": {
+  "file": "prn-alignment.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "prn-setup": {
+  "file": "prn-setup.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "prn-diagnostics": {
+  "file": "prn-diagnostics.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ },
+ "look-classic-pos": {
+  "file": "look-classic-pos.png",
+  "w": 1440,
+  "h": 900,
+  "markers": []
+ },
+ "look-espresso-pos": {
+  "file": "look-espresso-pos.png",
+  "w": 1440,
+  "h": 900,
+  "markers": []
+ },
+ "look-night-dashboard": {
+  "file": "look-night-dashboard.png",
+  "w": 1440,
+  "h": 900,
+  "markers": []
+ },
+ "look-ember-dashboard": {
+  "file": "look-ember-dashboard.png",
+  "w": 1440,
+  "h": 900,
+  "markers": []
+ },
+ "role-cashier-pos": {
+  "file": "role-cashier-pos.png",
+  "w": 1440,
+  "h": 900,
+  "markers": []
+ },
+ "close-reset-sale": {
+  "file": "close-reset-sale.png",
+  "w": 1204,
+  "h": 900,
+  "markers": []
+ }
+}

@@ -1,0 +1,954 @@
+[
+ {
+  "level": 1,
+  "num": 1,
+  "title": "Introduction",
+  "page": 5,
+  "id": "ch-1"
+ },
+ {
+  "level": 2,
+  "num": "1.1",
+  "title": "About DT POS Enterprise",
+  "page": 6,
+  "id": "p-6"
+ },
+ {
+  "level": 2,
+  "num": "1.2",
+  "title": "Complete module list",
+  "page": 7,
+  "id": "p-7"
+ },
+ {
+  "level": 2,
+  "num": "1.3",
+  "title": "How to read this guide",
+  "page": 10,
+  "id": "p-10"
+ },
+ {
+  "level": 1,
+  "num": 2,
+  "title": "Getting started",
+  "page": 11,
+  "id": "ch-2"
+ },
+ {
+  "level": 2,
+  "num": "2.1",
+  "title": "Starting the software",
+  "page": 12,
+  "id": "p-12"
+ },
+ {
+  "level": 2,
+  "num": "2.2",
+  "title": "Activating the licence",
+  "page": 13,
+  "id": "p-13"
+ },
+ {
+  "level": 2,
+  "num": "2.3",
+  "title": "Signing in with a username and password",
+  "page": 14,
+  "id": "p-14"
+ },
+ {
+  "level": 2,
+  "num": "2.4",
+  "title": "Quick sign-in with a PIN",
+  "page": 15,
+  "id": "p-15"
+ },
+ {
+  "level": 2,
+  "num": "2.5",
+  "title": "Support details — Contact Admin",
+  "page": 16,
+  "id": "p-16"
+ },
+ {
+  "level": 2,
+  "num": "2.6",
+  "title": "Your first day: set-up checklist",
+  "page": 17,
+  "id": "p-17"
+ },
+ {
+  "level": 1,
+  "num": 3,
+  "title": "The workspace",
+  "page": 18,
+  "id": "ch-3"
+ },
+ {
+  "level": 2,
+  "num": "3.1",
+  "title": "The main screen",
+  "page": 19,
+  "id": "p-19"
+ },
+ {
+  "level": 2,
+  "num": "3.2",
+  "title": "Finding any module — More",
+  "page": 20,
+  "id": "p-20"
+ },
+ {
+  "level": 2,
+  "num": "3.3",
+  "title": "Looks and themes",
+  "page": 21,
+  "id": "p-21"
+ },
+ {
+  "level": 2,
+  "num": "3.4",
+  "title": "What a cashier sees",
+  "page": 22,
+  "id": "p-22"
+ },
+ {
+  "level": 1,
+  "num": 4,
+  "title": "Selling at the POS",
+  "page": 23,
+  "id": "ch-4"
+ },
+ {
+  "level": 2,
+  "num": "4.1",
+  "title": "Choosing the order type",
+  "page": 24,
+  "id": "p-24"
+ },
+ {
+  "level": 2,
+  "num": "4.2",
+  "title": "The sale screen",
+  "page": 25,
+  "id": "p-25"
+ },
+ {
+  "level": 2,
+  "num": "4.3",
+  "title": "The bill, step by step",
+  "page": 26,
+  "id": "p-26"
+ },
+ {
+  "level": 2,
+  "num": "4.4",
+  "title": "Items with sizes and the category grid",
+  "page": 27,
+  "id": "p-27"
+ },
+ {
+  "level": 2,
+  "num": "4.5",
+  "title": "Items sold by weight",
+  "page": 28,
+  "id": "p-28"
+ },
+ {
+  "level": 2,
+  "num": "4.6",
+  "title": "Dine-in table and delivery details",
+  "page": 29,
+  "id": "p-29"
+ },
+ {
+  "level": 2,
+  "num": "4.7",
+  "title": "Discounts, promo codes, service charge and tax",
+  "page": 30,
+  "id": "p-30"
+ },
+ {
+  "level": 2,
+  "num": "4.8",
+  "title": "Taking payment",
+  "page": 31,
+  "id": "p-31"
+ },
+ {
+  "level": 2,
+  "num": "4.9",
+  "title": "The receipt and the kitchen slip",
+  "page": 32,
+  "id": "p-32"
+ },
+ {
+  "level": 2,
+  "num": "4.10",
+  "title": "More actions: credit, void and manual items",
+  "page": 33,
+  "id": "p-33"
+ },
+ {
+  "level": 2,
+  "num": "4.11",
+  "title": "Keyboard shortcuts at the POS",
+  "page": 34,
+  "id": "p-34"
+ },
+ {
+  "level": 1,
+  "num": 5,
+  "title": "Tables and dine-in",
+  "page": 35,
+  "id": "ch-5"
+ },
+ {
+  "level": 2,
+  "num": "5.1",
+  "title": "The tables screen",
+  "page": 36,
+  "id": "p-36"
+ },
+ {
+  "level": 2,
+  "num": "5.2",
+  "title": "The floor map",
+  "page": 37,
+  "id": "p-37"
+ },
+ {
+  "level": 2,
+  "num": "5.3",
+  "title": "Working with a table",
+  "page": 38,
+  "id": "p-38"
+ },
+ {
+  "level": 2,
+  "num": "5.4",
+  "title": "Table QR codes",
+  "page": 39,
+  "id": "p-39"
+ },
+ {
+  "level": 1,
+  "num": 6,
+  "title": "Open bills and reprints",
+  "page": 40,
+  "id": "ch-6"
+ },
+ {
+  "level": 2,
+  "num": "6.1",
+  "title": "Retrieve — open bills",
+  "page": 41,
+  "id": "p-41"
+ },
+ {
+  "level": 2,
+  "num": "6.2",
+  "title": "Pending payments — part-paid bills",
+  "page": 42,
+  "id": "p-42"
+ },
+ {
+  "level": 2,
+  "num": "6.3",
+  "title": "Bill reprint (read-only)",
+  "page": 43,
+  "id": "p-43"
+ },
+ {
+  "level": 1,
+  "num": 7,
+  "title": "Kitchen and customer displays",
+  "page": 44,
+  "id": "ch-7"
+ },
+ {
+  "level": 2,
+  "num": "7.1",
+  "title": "Kitchen display",
+  "page": 45,
+  "id": "p-45"
+ },
+ {
+  "level": 2,
+  "num": "7.2",
+  "title": "TV Mode and display settings",
+  "page": 46,
+  "id": "p-46"
+ },
+ {
+  "level": 2,
+  "num": "7.3",
+  "title": "The kitchen TV board",
+  "page": 47,
+  "id": "p-47"
+ },
+ {
+  "level": 2,
+  "num": "7.4",
+  "title": "Customer display",
+  "page": 48,
+  "id": "p-48"
+ },
+ {
+  "level": 1,
+  "num": 8,
+  "title": "Delivery, pickup and Foodpanda",
+  "page": 49,
+  "id": "ch-8"
+ },
+ {
+  "level": 2,
+  "num": "8.1",
+  "title": "Delivery board",
+  "page": 50,
+  "id": "p-50"
+ },
+ {
+  "level": 2,
+  "num": "8.2",
+  "title": "Pickup orders",
+  "page": 51,
+  "id": "p-51"
+ },
+ {
+  "level": 2,
+  "num": "8.3",
+  "title": "Foodpanda orders",
+  "page": 52,
+  "id": "p-52"
+ },
+ {
+  "level": 1,
+  "num": 9,
+  "title": "Credit (udhaar)",
+  "page": 53,
+  "id": "ch-9"
+ },
+ {
+  "level": 2,
+  "num": "9.1",
+  "title": "Credits — bills on credit",
+  "page": 54,
+  "id": "p-54"
+ },
+ {
+  "level": 2,
+  "num": "9.2",
+  "title": "Credit customers — the ledger",
+  "page": 55,
+  "id": "p-55"
+ },
+ {
+  "level": 1,
+  "num": 10,
+  "title": "Corrections and audit",
+  "page": 56,
+  "id": "ch-10"
+ },
+ {
+  "level": 2,
+  "num": "10.1",
+  "title": "Void, complimentary and cancelled bills",
+  "page": 57,
+  "id": "p-57"
+ },
+ {
+  "level": 2,
+  "num": "10.2",
+  "title": "Bill editor",
+  "page": 58,
+  "id": "p-58"
+ },
+ {
+  "level": 2,
+  "num": "10.3",
+  "title": "Bill and KOT edit history",
+  "page": 59,
+  "id": "p-59"
+ },
+ {
+  "level": 1,
+  "num": 11,
+  "title": "Menu and deals",
+  "page": 60,
+  "id": "ch-11"
+ },
+ {
+  "level": 2,
+  "num": "11.1",
+  "title": "Menu manager",
+  "page": 61,
+  "id": "p-61"
+ },
+ {
+  "level": 2,
+  "num": "11.2",
+  "title": "Adding or editing an item",
+  "page": 62,
+  "id": "p-62"
+ },
+ {
+  "level": 2,
+  "num": "11.3",
+  "title": "Importing a menu from Excel",
+  "page": 63,
+  "id": "p-63"
+ },
+ {
+  "level": 2,
+  "num": "11.4",
+  "title": "Deals and combos",
+  "page": 64,
+  "id": "p-64"
+ },
+ {
+  "level": 1,
+  "num": 12,
+  "title": "Inventory and food cost",
+  "page": 65,
+  "id": "ch-12"
+ },
+ {
+  "level": 2,
+  "num": "12.1",
+  "title": "Inventory",
+  "page": 66,
+  "id": "p-66"
+ },
+ {
+  "level": 2,
+  "num": "12.2",
+  "title": "Stock in, stock out, and recipes",
+  "page": 67,
+  "id": "p-67"
+ },
+ {
+  "level": 2,
+  "num": "12.3",
+  "title": "Recipes and food cost",
+  "page": 68,
+  "id": "p-68"
+ },
+ {
+  "level": 2,
+  "num": "12.4",
+  "title": "Receiving — goods received notes (GRN)",
+  "page": 69,
+  "id": "p-69"
+ },
+ {
+  "level": 2,
+  "num": "12.5",
+  "title": "Wastage",
+  "page": 70,
+  "id": "p-70"
+ },
+ {
+  "level": 1,
+  "num": 13,
+  "title": "Customers and marketing",
+  "page": 71,
+  "id": "ch-13"
+ },
+ {
+  "level": 2,
+  "num": "13.1",
+  "title": "Customer database",
+  "page": 72,
+  "id": "p-72"
+ },
+ {
+  "level": 2,
+  "num": "13.2",
+  "title": "Customer profile",
+  "page": 73,
+  "id": "p-73"
+ },
+ {
+  "level": 2,
+  "num": "13.3",
+  "title": "Top customers and CRM insights",
+  "page": 74,
+  "id": "p-74"
+ },
+ {
+  "level": 2,
+  "num": "13.4",
+  "title": "Contacts — WhatsApp messages to many customers",
+  "page": 75,
+  "id": "p-75"
+ },
+ {
+  "level": 2,
+  "num": "13.5",
+  "title": "Promo codes",
+  "page": 76,
+  "id": "p-76"
+ },
+ {
+  "level": 2,
+  "num": "13.6",
+  "title": "WhatsApp",
+  "page": 77,
+  "id": "p-77"
+ },
+ {
+  "level": 1,
+  "num": 14,
+  "title": "Accounts",
+  "page": 78,
+  "id": "ch-14"
+ },
+ {
+  "level": 2,
+  "num": "14.1",
+  "title": "Accounts overview",
+  "page": 79,
+  "id": "p-79"
+ },
+ {
+  "level": 2,
+  "num": "14.2",
+  "title": "Payment accounts",
+  "page": 80,
+  "id": "p-80"
+ },
+ {
+  "level": 2,
+  "num": "14.3",
+  "title": "Income and expenses",
+  "page": 81,
+  "id": "p-81"
+ },
+ {
+  "level": 2,
+  "num": "14.4",
+  "title": "Cash close — counting the drawer",
+  "page": 82,
+  "id": "p-82"
+ },
+ {
+  "level": 2,
+  "num": "14.5",
+  "title": "Party master — suppliers and customers",
+  "page": 83,
+  "id": "p-83"
+ },
+ {
+  "level": 2,
+  "num": "14.6",
+  "title": "Daily wages",
+  "page": 84,
+  "id": "p-84"
+ },
+ {
+  "level": 1,
+  "num": 15,
+  "title": "Staff and users",
+  "page": 85,
+  "id": "ch-15"
+ },
+ {
+  "level": 2,
+  "num": "15.1",
+  "title": "Employees",
+  "page": 86,
+  "id": "p-86"
+ },
+ {
+  "level": 2,
+  "num": "15.2",
+  "title": "Attendance and payslips",
+  "page": 87,
+  "id": "p-87"
+ },
+ {
+  "level": 2,
+  "num": "15.3",
+  "title": "Waiters and riders",
+  "page": 88,
+  "id": "p-88"
+ },
+ {
+  "level": 2,
+  "num": "15.4",
+  "title": "Users and access",
+  "page": 89,
+  "id": "p-89"
+ },
+ {
+  "level": 2,
+  "num": "15.5",
+  "title": "Editing a user and their permissions",
+  "page": 90,
+  "id": "p-90"
+ },
+ {
+  "level": 1,
+  "num": 16,
+  "title": "Dashboard and reports",
+  "page": 91,
+  "id": "ch-16"
+ },
+ {
+  "level": 2,
+  "num": "16.1",
+  "title": "Dashboard",
+  "page": 92,
+  "id": "p-92"
+ },
+ {
+  "level": 2,
+  "num": "16.2",
+  "title": "Dashboard — trends and live panels",
+  "page": 93,
+  "id": "p-93"
+ },
+ {
+  "level": 2,
+  "num": "16.3",
+  "title": "Reports — bills and totals",
+  "page": 94,
+  "id": "p-94"
+ },
+ {
+  "level": 2,
+  "num": "16.4",
+  "title": "Reports — cashiers and the bill list",
+  "page": 95,
+  "id": "p-95"
+ },
+ {
+  "level": 2,
+  "num": "16.5",
+  "title": "Category and product wise",
+  "page": 96,
+  "id": "p-96"
+ },
+ {
+  "level": 2,
+  "num": "16.6",
+  "title": "Reports Center",
+  "page": 97,
+  "id": "p-97"
+ },
+ {
+  "level": 2,
+  "num": "16.7",
+  "title": "Sales report and shift report",
+  "page": 98,
+  "id": "p-98"
+ },
+ {
+  "level": 2,
+  "num": "16.8",
+  "title": "Advanced item and variant reports",
+  "page": 99,
+  "id": "p-99"
+ },
+ {
+  "level": 2,
+  "num": "16.9",
+  "title": "Admin sales history",
+  "page": 100,
+  "id": "p-100"
+ },
+ {
+  "level": 2,
+  "num": "16.10",
+  "title": "Profitability",
+  "page": 101,
+  "id": "p-101"
+ },
+ {
+  "level": 2,
+  "num": "16.11",
+  "title": "Cost reports",
+  "page": 102,
+  "id": "p-102"
+ },
+ {
+  "level": 2,
+  "num": "16.12",
+  "title": "Token module",
+  "page": 103,
+  "id": "p-103"
+ },
+ {
+  "level": 1,
+  "num": 17,
+  "title": "Day close and data safety",
+  "page": 104,
+  "id": "ch-17"
+ },
+ {
+  "level": 2,
+  "num": "17.1",
+  "title": "Day close — before you close",
+  "page": 105,
+  "id": "p-105"
+ },
+ {
+  "level": 2,
+  "num": "17.2",
+  "title": "Day close — clearing and closing",
+  "page": 106,
+  "id": "p-106"
+ },
+ {
+  "level": 2,
+  "num": "17.3",
+  "title": "Reset sale",
+  "page": 107,
+  "id": "p-107"
+ },
+ {
+  "level": 2,
+  "num": "17.4",
+  "title": "Backup and restore",
+  "page": 108,
+  "id": "p-108"
+ },
+ {
+  "level": 1,
+  "num": 18,
+  "title": "Settings",
+  "page": 109,
+  "id": "ch-18"
+ },
+ {
+  "level": 2,
+  "num": "18.1",
+  "title": "General — restaurant, currency and tax",
+  "page": 110,
+  "id": "p-110"
+ },
+ {
+  "level": 2,
+  "num": "18.2",
+  "title": "General — charges, discounts, weight items and payment",
+  "page": 111,
+  "id": "p-111"
+ },
+ {
+  "level": 2,
+  "num": "18.3",
+  "title": "Appearance",
+  "page": 112,
+  "id": "p-112"
+ },
+ {
+  "level": 2,
+  "num": "18.4",
+  "title": "Modules, and the screen layout",
+  "page": 113,
+  "id": "p-113"
+ },
+ {
+  "level": 2,
+  "num": "18.5",
+  "title": "Tables, floors, kitchens and waiters",
+  "page": 114,
+  "id": "p-114"
+ },
+ {
+  "level": 2,
+  "num": "18.6",
+  "title": "Self-pickup and order-type options",
+  "page": 115,
+  "id": "p-115"
+ },
+ {
+  "level": 2,
+  "num": "18.7",
+  "title": "Printer",
+  "page": 116,
+  "id": "p-116"
+ },
+ {
+  "level": 2,
+  "num": "18.8",
+  "title": "Receipt design and receipt fonts",
+  "page": 117,
+  "id": "p-117"
+ },
+ {
+  "level": 2,
+  "num": "18.9",
+  "title": "KOT settings — the kitchen ticket",
+  "page": 118,
+  "id": "p-118"
+ },
+ {
+  "level": 2,
+  "num": "18.10",
+  "title": "WhatsApp",
+  "page": 119,
+  "id": "p-119"
+ },
+ {
+  "level": 2,
+  "num": "18.11",
+  "title": "Cities and delivery service areas",
+  "page": 120,
+  "id": "p-120"
+ },
+ {
+  "level": 2,
+  "num": "18.12",
+  "title": "Display — the customer screen",
+  "page": 121,
+  "id": "p-121"
+ },
+ {
+  "level": 1,
+  "num": 19,
+  "title": "Printers and the Printer Center",
+  "page": 122,
+  "id": "ch-19"
+ },
+ {
+  "level": 2,
+  "num": "19.1",
+  "title": "Status",
+  "page": 123,
+  "id": "p-123"
+ },
+ {
+  "level": 2,
+  "num": "19.2",
+  "title": "Printers and system readiness",
+  "page": 124,
+  "id": "p-124"
+ },
+ {
+  "level": 2,
+  "num": "19.3",
+  "title": "Role mapping",
+  "page": 125,
+  "id": "p-125"
+ },
+ {
+  "level": 2,
+  "num": "19.4",
+  "title": "Print mode and speed",
+  "page": 126,
+  "id": "p-126"
+ },
+ {
+  "level": 2,
+  "num": "19.5",
+  "title": "Receipt design",
+  "page": 127,
+  "id": "p-127"
+ },
+ {
+  "level": 2,
+  "num": "19.6",
+  "title": "Margins",
+  "page": 128,
+  "id": "p-128"
+ },
+ {
+  "level": 2,
+  "num": "19.7",
+  "title": "Alignment test",
+  "page": 129,
+  "id": "p-129"
+ },
+ {
+  "level": 2,
+  "num": "19.8",
+  "title": "Print quality",
+  "page": 130,
+  "id": "p-130"
+ },
+ {
+  "level": 2,
+  "num": "19.9",
+  "title": "Calibration",
+  "page": 131,
+  "id": "p-131"
+ },
+ {
+  "level": 2,
+  "num": "19.10",
+  "title": "Tokens and printing options",
+  "page": 132,
+  "id": "p-132"
+ },
+ {
+  "level": 2,
+  "num": "19.11",
+  "title": "Test print, diagnostics and machine setup",
+  "page": 133,
+  "id": "p-133"
+ },
+ {
+  "level": 2,
+  "num": "19.12",
+  "title": "Printer diagnostic center",
+  "page": 134,
+  "id": "p-134"
+ },
+ {
+  "level": 1,
+  "num": 20,
+  "title": "Feature status and limits",
+  "page": 135,
+  "id": "ch-20"
+ },
+ {
+  "level": 2,
+  "num": "20.1",
+  "title": "Modules not in the Offline Edition",
+  "page": 136,
+  "id": "p-136"
+ },
+ {
+  "level": 2,
+  "num": "20.2",
+  "title": "Features that need the Windows desktop app",
+  "page": 137,
+  "id": "p-137"
+ },
+ {
+  "level": 2,
+  "num": "20.3",
+  "title": "Known limits of version 1.20.1",
+  "page": 138,
+  "id": "p-138"
+ },
+ {
+  "level": 1,
+  "num": 21,
+  "title": "Appendix",
+  "page": 139,
+  "id": "ch-21"
+ },
+ {
+  "level": 2,
+  "num": "A",
+  "title": "A · Default page access per role",
+  "page": 140,
+  "id": "p-140"
+ },
+ {
+  "level": 2,
+  "num": "B",
+  "title": "B · Glossary",
+  "page": 141,
+  "id": "p-141"
+ },
+ {
+  "level": 2,
+  "num": "C",
+  "title": "C · Support and contact",
+  "page": 142,
+  "id": "p-142"
+ }
+]
