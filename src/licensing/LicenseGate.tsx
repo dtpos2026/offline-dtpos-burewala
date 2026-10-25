@@ -343,7 +343,12 @@ export default function LicenseGate({ children }: { children: React.ReactNode })
     lastSync.current = now;
     try {
       const r = await syncLicenseStatus();
-      if (r.reachable) await evaluateLocal();
+      if (r.reachable) {
+        await evaluateLocal();
+        // A password reset from Super Admin rides along with the licence check
+        // (its own ten-minute throttle; never blocks or fails the gate).
+        void import('@/licensing/adminResetSync').then(m => m.syncAdminReset()).catch(() => undefined);
+      }
     } catch { /* offline — keep the current decision */ }
   };
 

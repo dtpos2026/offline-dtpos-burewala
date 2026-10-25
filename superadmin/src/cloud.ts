@@ -17,6 +17,7 @@ import {
 import { db, auth } from './firebase';
 import type { Client } from './registry';
 import { firestoreSafe } from './firestoreSafe';
+import { sealReset } from '@pos/licensing/adminReset';
 
 export const docIdFor = (key: string) => key.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 200);
 
@@ -142,6 +143,44 @@ export async function removeDevice(deviceId: string, licenseKey?: string) {
 /** Clear a removal record, so the computer may report again without re-activation. */
 export async function clearDeviceRemoval(deviceId: string) {
   await deleteDoc(doc(db, 'deviceStatus', docIdFor(deviceId)));
+}
+
+// ---------- administrator password reset ----------
+// adminResets/{licence} holds ONE sealed command per restaurant (a new reset
+// replaces the old one). The password inside is encrypted for that licence
+// (see licensing/adminReset.ts) — Firestore never holds it in the clear. The
+// POS reads it by ID on its next online check and reports the result back
+// through its heartbeat, so this panel can show "Applied".
+export interface PendingReset {
+  id: string;
+  /** The sealed code: also what you read out to a shop whose PC never goes online. */
+  token: string;
+  username: string;
+  issuedAt: number;
+  expiresAt: number;
+  by?: string;
+}
+
+export async function sendAdminReset(licenseKey: string, input: { username?: string; password: string }): Promise<PendingReset> {
+  const { token, command } = await sealReset(licenseKey, input);
+  const pending: PendingReset = {
+    id: command.id, token, username: command.username,
+    issuedAt: command.issuedAt, expiresAt: command.expiresAt, by: auth.currentUser?.email || 'admin',
+  };
+  await setDoc(doc(db, 'adminResets', docIdFor(licenseKey)), firestoreSafe(pending));
+  return pending;
+}
+
+export async function clearAdminReset(licenseKey: string) {
+  await deleteDoc(doc(db, 'adminResets', docIdFor(licenseKey)));
+}
+
+export function watchAdminReset(licenseKey: string, cb: (p: PendingReset | null) => void, onErr?: (e: Error) => void) {
+  return onSnapshot(
+    doc(db, 'adminResets', docIdFor(licenseKey)),
+    snap => cb(snap.exists() ? (snap.data() as PendingReset) : null),
+    e => onErr?.(e as Error),
+  );
 }
 
 // ---------- support messages ----------

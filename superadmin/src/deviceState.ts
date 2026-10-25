@@ -17,6 +17,8 @@ export interface DeviceDoc {
   locationAccuracyM?: number; locationSource?: string;
   /** Today's sales as this computer reports them (src/lib/todaySales.ts): business day, total, bills, when the day ends. */
   salesDay?: string; salesToday?: number; salesBills?: number; salesDayEnd?: number;
+  /** The last administrator-password reset this computer applied (ID, when, outcome). */
+  adminResetId?: string; adminResetAt?: number; adminResetResult?: string;
 }
 
 /** The POS reports every 5 minutes while it is open and connected. */
@@ -68,4 +70,57 @@ export function serverDecision(device: StatusLike | undefined, licence: StatusLi
     ...(order.includes(lic) ? [{ status: lic, scope: 'licence' as const }] : []),
   ].sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
   return pick[0] || { status: 'active', scope: 'none' };
+}
+
+// ---------- administrator password reset ----------
+/** The first POS release that can receive a reset from this panel. */
+export const RESET_MIN_POS_VERSION = '1.21.0';
+
+export function versionAtLeast(version: string | undefined, min: string): boolean {
+  if (!version) return false;
+  const a = version.split('.').map(n => parseInt(n, 10) || 0);
+  const b = min.split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const d = (a[i] || 0) - (b[i] || 0);
+    if (d !== 0) return d > 0;
+  }
+  return true;
+}
+
+export interface ResetRow {
+  deviceId: string;
+  /** What to call this computer: its Windows name, else its model, else its ID. */
+  label: string;
+  state: 'applied' | 'failed' | 'waiting' | 'old-version';
+  /** Plain-English line for the row. */
+  text: string;
+  at?: number;
+}
+
+const FAILED_TEXT: Record<string, string> = {
+  'not-found': 'The username you typed does not exist on this computer.',
+  'not-admin': 'That username is not an administrator on this computer.',
+};
+
+const sameKey = (a?: string, b?: string) =>
+  (a || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === (b || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+/** Where one pending reset stands on every computer that reports under the licence. */
+export function resetProgress(devices: DeviceDoc[], licenseKey: string, resetId: string): ResetRow[] {
+  return devices
+    .filter(d => sameKey(d.licenseKey, licenseKey))
+    .map((d): ResetRow => {
+      const label = d.hostname || d.model || d.deviceId;
+      if (d.adminResetId === resetId) {
+        const r = d.adminResetResult || '';
+        if (r === 'applied' || r === 'reactivated') {
+          return { deviceId: d.deviceId, label, state: 'applied', at: d.adminResetAt, text: r === 'reactivated' ? 'Applied — the administrator account was switched back on.' : 'Applied.' };
+        }
+        return { deviceId: d.deviceId, label, state: 'failed', at: d.adminResetAt, text: FAILED_TEXT[r] || `Not applied (${r || 'unknown reason'}).` };
+      }
+      if (!versionAtLeast(d.appVersion, RESET_MIN_POS_VERSION)) {
+        return { deviceId: d.deviceId, label, state: 'old-version', text: `Runs POS ${d.appVersion ? `v${d.appVersion}` : 'an older version'} — update it to v${RESET_MIN_POS_VERSION} or newer first.` };
+      }
+      return { deviceId: d.deviceId, label, state: 'waiting', text: isOnline(d) ? 'Waiting — will apply within a few minutes.' : `Waiting for this computer to go online (last seen ${lastSeenLabel(d.lastSyncAt)}).` };
+    });
 }

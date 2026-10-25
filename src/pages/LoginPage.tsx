@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import dtLogo from '@/assets/dt-mark.png';
 import LoginMarketingPanel, { LoginVersionBadge } from '@/components/LoginMarketingPanel';
 import ContactDigitalTargetDialog from '@/components/ContactDigitalTargetDialog';
+import ForgotPasswordDialog from '@/components/ForgotPasswordDialog';
 import { APP_VERSION } from '@/lib/version';
 import { useThemeId, useUiLook, useUiStyle } from '@/lib/uiStyle';
 import { ESPRESSO_THEME_ID } from '@/lib/uiThemes';
@@ -36,6 +37,7 @@ export default function LoginPage({ onLogin }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(initialRemember);
   const [showContact, setShowContact] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
   const [loading, setLoading] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
   const [initialized, setInitialized] = useState(() => { try { return isSystemInitialized(); } catch { return true; } });
@@ -68,6 +70,37 @@ export default function LoginPage({ onLogin }: Props) {
       .catch(() => { /* no licence on this computer yet */ });
     return () => { live = false; };
   }, [espresso]);
+
+  // A password reset sent from Super Admin is picked up here while someone is
+  // standing at the sign-in screen (on opening, when the internet returns, and
+  // every few minutes), then announced so they know to use the new password.
+  useEffect(() => {
+    let live = true;
+    const look = (force = false) => {
+      import('@/licensing/adminResetSync')
+        .then(m => m.syncAdminReset({ force, minIntervalMs: 55_000 }))
+        .catch(() => { /* offline — the next check will try again */ });
+    };
+    const applied = (e: Event) => {
+      if (!live) return;
+      const outcome = (e as CustomEvent<{ outcome?: string }>).detail?.outcome;
+      if (outcome === 'applied' || outcome === 'reactivated') {
+        setInitialized(isSystemInitialized());
+        toast.success('The administrator password was reset by Digital Target. Sign in with the new password.', { duration: 9000 });
+      }
+    };
+    const onOnline = () => look(true);
+    look();
+    const timer = setInterval(() => look(), 60_000);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('dtpos-admin-reset', applied);
+    return () => {
+      live = false;
+      clearInterval(timer);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('dtpos-admin-reset', applied);
+    };
+  }, []);
 
   // Hidden maintenance shortcut for administrators (Ctrl+Alt+Shift+R).
   useEffect(() => {
@@ -323,6 +356,15 @@ export default function LoginPage({ onLogin }: Props) {
           </div>
           )}
 
+          <button
+            type="button"
+            data-forgot-password
+            onClick={() => setShowForgot(true)}
+            className="mx-auto mt-4 block text-xs font-semibold text-primary hover:underline"
+          >
+            Forgot password?
+          </button>
+
           {espresso ? (
             <footer data-login-footer className="mt-6 flex items-center justify-center gap-2.5 text-[13px] text-muted-foreground">
               <span className="flex items-center gap-1.5 text-[hsl(258_60%_45%)]">
@@ -342,6 +384,7 @@ export default function LoginPage({ onLogin }: Props) {
       </section>
 
       <ContactDigitalTargetDialog open={showContact} onClose={() => setShowContact(false)} />
+      <ForgotPasswordDialog open={showForgot} onClose={() => setShowForgot(false)} onApplied={u => { setInitialized(isSystemInitialized()); setUsername(u); setPassword(''); setMode('password'); }} />
 
       {/* Administrator recovery — reachable only via Ctrl+Alt+Shift+R */}
       {recoveryOpen && (

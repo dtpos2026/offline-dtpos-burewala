@@ -33,7 +33,7 @@ import CustomerAutocomplete from '@/components/CustomerAutocomplete';
 import LocationCapture from '@/components/LocationCapture';
 // Phase-1: lazy-load PaymentDialog (heavy child — only mounted on checkout)
 const PaymentDialog = lazy(() => import('@/components/PaymentDialog'));
-import { enqueueKot, enqueueReceipt, enqueueReceiptOnPay, enqueueKotUpdate, enqueueKotCancel, computeKotDiff, printReceiptAfterPayment, printOnHold, holdMessage } from '@/lib/printQueue';
+import { enqueueKot, enqueueReceipt, enqueueReceiptOnPay, enqueueKotUpdate, enqueueKotCancel, computeKotDiff, printReceiptAfterPayment, printOnHold, holdMessage, kotRecentlyQueued } from '@/lib/printQueue';
 import { billStatus, paidMessage, receiptOnPay } from '@/lib/billStatus';
 import { printTokenDirect, nextTokenSerial } from '@/lib/tokenSlip';
 import { resolveTokenRules, getTokenLinesFromCart } from '@/lib/tokenRules';
@@ -222,6 +222,22 @@ export default function POSScreen() {
   const [receiptViewOnly, setReceiptViewOnly] = useState(false);
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [showKitchenReceipt, setShowKitchenReceipt] = useState(false);
+  // Whether the Kitchen Slip window prints by itself when it opens. It does not
+  // when the print queue already sent this order's KOT (see openKitchenSlip).
+  const [kitchenSlipAuto, setKitchenSlipAuto] = useState(true);
+  const lastOrderIdRef = useRef('');
+  // Every place that shows an order's slips goes through here, so the Kitchen
+  // Slip window always knows WHICH order it is about (state is stale inside the
+  // handler that has just saved it).
+  const rememberLastOrder = (o: Order | null) => { lastOrderIdRef.current = o?.id || ''; setLastOrder(o); };
+  // Open the Kitchen Slip window. The Kitchen button has already queued this
+  // order's KOT through the print host; printing it again from the window made
+  // two tickets for one press. The slip is still shown, with its Print button
+  // for a deliberate extra copy.
+  const openKitchenSlip = () => {
+    setKitchenSlipAuto(!kotRecentlyQueued(lastOrderIdRef.current));
+    setShowKitchenReceipt(true);
+  };
   const [pendingKitchenReceipt, setPendingKitchenReceipt] = useState(false);
   const [showDeliveryDialog, setShowDeliveryDialog] = useState(false);
   const [custName, setCustName] = useState('');
@@ -1174,7 +1190,7 @@ export default function POSScreen() {
           }
         }
 
-        setLastOrder(updated);
+        rememberLastOrder(updated);
         const choice = takePrintChoice();
         if (status === 'paid') {
           // The bill is already saved as PAID above. Printing only follows it.
@@ -1287,7 +1303,7 @@ export default function POSScreen() {
       }
     }
 
-    setLastOrder(order);
+    rememberLastOrder(order);
     // ===== Centralized one-phase printing =====
     const role = localStorage.getItem('pos-user-role') || '';
     const isOrderTaker = role === 'order_taker';
@@ -1415,7 +1431,7 @@ export default function POSScreen() {
     // and let the cashier keep adding items — they'll process later.
     if (cart.length > 0) {
       await processOrder('running');
-      if (pendingKitchenReceipt) { setShowKitchenReceipt(true); setPendingKitchenReceipt(false); }
+      if (pendingKitchenReceipt) { openKitchenSlip(); setPendingKitchenReceipt(false); }
     } else if (selectedTable) {
       setPendingKitchenReceipt(false);
       toast.success('Table selected — add items to start order');
@@ -1426,7 +1442,7 @@ export default function POSScreen() {
     setShowDeliveryDialog(false);
     if (cart.length > 0) {
       await processOrder('running');
-      if (pendingKitchenReceipt) { setShowKitchenReceipt(true); setPendingKitchenReceipt(false); }
+      if (pendingKitchenReceipt) { openKitchenSlip(); setPendingKitchenReceipt(false); }
     } else if (custName) {
       setPendingKitchenReceipt(false);
       toast.success('Customer saved — add items to start order');
@@ -2673,9 +2689,9 @@ export default function POSScreen() {
                     return;
                   }
                   await processOrder('running');
-                  setShowKitchenReceipt(true);
+                  openKitchenSlip();
                 } else if (lastOrder) {
-                  setShowKitchenReceipt(true);
+                  openKitchenSlip();
                 }
               }}
               className="h-8 rounded-lg bg-accent/50 border border-border/50 text-[11px] font-bold hover:bg-accent transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
@@ -2710,7 +2726,7 @@ export default function POSScreen() {
                     notes: '',
                     customer: (custName || custPhone) ? { id: 'tmp', name: custName, phone: custPhone, address: custAddress } : undefined,
                   };
-                  setLastOrder(tempOrder);
+                  rememberLastOrder(tempOrder);
                   setReceiptViewOnly(false); setShowReceipt(true);
                 }
               }}
@@ -2791,7 +2807,7 @@ export default function POSScreen() {
                             if (orderType === 'delivery' && !custName && !editingOrderId) { setPendingKitchenReceipt(true); setShowDeliveryDialog(true); return; }
                             await processOrder('running');
                           }
-                          setShowKitchenReceipt(true);
+                          openKitchenSlip();
                         }}
                       >
                         <ChefHat className="h-3 w-3" /> Kitchen Receipt
@@ -3050,12 +3066,17 @@ export default function POSScreen() {
                 🧾 Customer Receipt
               </button>
               <button
-                onClick={() => { setShowKitchenReceipt(true); setShowReceipt(false); }}
+                onClick={() => { openKitchenSlip(); setShowReceipt(false); }}
                 className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${showKitchenReceipt && !showReceipt ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'}`}
               >
                 🍳 Kitchen Slip
               </button>
             </div>
+          )}
+          {lastOrder && showKitchenReceipt && !kitchenSlipAuto && (
+            <p data-kot-already-sent className="mb-2 rounded-md border border-status-success/30 bg-status-success/10 px-3 py-2 text-[11px] text-foreground">
+              This order's KOT was sent to the kitchen printer. Press <b>Print</b> below only if you need another copy.
+            </p>
           )}
           {lastOrder && showReceipt && !showKitchenReceipt && (
             <ReceiptPreview key={`rcpt-${lastOrder.id}`} order={lastOrder} settings={settings} autoPrint={!receiptViewOnly} />
@@ -3068,7 +3089,7 @@ export default function POSScreen() {
                 key={`kot-${lastOrder.id}-${isUpdate ? 'upd' : 'full'}`}
                 order={lastOrder}
                 settings={settings}
-                autoPrint
+                autoPrint={kitchenSlipAuto}
                 updateMode={isUpdate}
                 diffItemIds={isUpdate ? d.diffItemIds : undefined}
                 diffDeltas={isUpdate ? d.diffDeltas : undefined}
@@ -3089,7 +3110,7 @@ export default function POSScreen() {
                     key={`kot-${lastOrder.id}-${isUpdate ? 'upd' : 'full'}`}
                     order={lastOrder}
                     settings={settings}
-                    autoPrint
+                    autoPrint={kitchenSlipAuto}
                     autoPrintDelayMs={1800}
                     showPrintButton={false}
                     updateMode={isUpdate}
@@ -3230,7 +3251,7 @@ export default function POSScreen() {
                               Pay
                             </Button>
                             <Button size="sm" variant="outline" className="h-8 text-[10px] px-2"
-                              onClick={() => { setLastOrder(order); setReceiptViewOnly(false); setShowReceipt(true); }}>
+                              onClick={() => { rememberLastOrder(order); setReceiptViewOnly(false); setShowReceipt(true); }}>
                               Print
                             </Button>
                             {isRunning ? (

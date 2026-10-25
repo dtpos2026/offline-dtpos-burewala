@@ -1561,6 +1561,47 @@ export function repairUsers(auth?: { adminPassword?: string }): { admin: 'existe
   return { admin: adminStatus, cashier: cashierStatus };
 }
 
+// ============ Remote administrator password reset ============
+// Digital Target resets the administrator password from the Super Admin panel
+// (see licensing/adminReset.ts). Only an ADMIN account can be touched this
+// way — a reset can never change a cashier or waiter. The caller has already
+// verified the sealed command; this just writes it to the local users.
+export type AdminResetOutcome =
+  | 'applied'       // password of the administrator was changed
+  | 'reactivated'   // ... and the account had been switched off or demoted
+  | 'not-found'     // the requested username does not exist
+  | 'not-admin';    // the requested username is not an administrator
+
+export function applyAdminPasswordReset(opts: { username?: string; password: string }): { outcome: AdminResetOutcome; username?: string } {
+  const password = (opts.password || '').trim();
+  const wanted = (opts.username || '').trim().toLowerCase();
+  const users = getUsers() || [];
+  const named = (u: User, n: string) => (u.username || '').trim().toLowerCase() === n;
+  let target: User | undefined;
+  if (wanted) {
+    target = users.find(u => named(u, wanted));
+    if (!target) return { outcome: 'not-found' };
+    if (target.role !== 'admin') return { outcome: 'not-admin' };
+  } else {
+    const admins = users.filter(u => u.role === 'admin');
+    // The store always keeps an account called "admin" (ensureFields), so the
+    // last fallback restores a demoted one instead of making a second "admin".
+    target = admins.find(u => u.isActive !== false && named(u, 'admin'))
+      || admins.find(u => u.isActive !== false)
+      || admins[0]
+      || users.find(u => named(u, 'admin'));
+    if (!target) return { outcome: 'not-found' };
+  }
+  const outcome: AdminResetOutcome = target.isActive === false || target.role !== 'admin' ? 'reactivated' : 'applied';
+  const fixed: User = { ...target, password, role: 'admin', isActive: true };
+  saveUser(fixed);
+  // A forgotten password often comes with a locked PIN: let them in straight away.
+  const locks = readPinLocks();
+  if (locks[fixed.id]) { delete locks[fixed.id]; writePinLocks(locks); }
+  try { window.dispatchEvent(new CustomEvent('pos-data-changed', { detail: { collection: 'users' } })); } catch { /* non-browser */ }
+  return { outcome, username: fixed.username };
+}
+
 /** Admin-only bulk clear of paid/void order history. Returns count removed. */
 export function clearOrdersHistory(): { removed: number; blocked?: string } {
   const me = getCurrentUser();

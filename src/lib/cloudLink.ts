@@ -46,6 +46,7 @@ const LS = {
   location: 'dtpos-approx-location',
   installedAt: 'dtpos-installed-at',
   lastSync: 'dtpos-last-sync-at',
+  adminResetLog: 'dtpos-admin-reset-log',
 };
 
 // ---------- tiny state machine ----------
@@ -103,6 +104,37 @@ function readField(doc: any, name: string): string {
 }
 
 export const docIdFor = (key: string) => key.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 200);
+
+// ---------- administrator password reset (see licensing/adminReset.ts) ----------
+/** What this computer has done with Super Admin's reset commands. Reported with the heartbeat. */
+export interface AdminResetLog {
+  /** IDs already applied here (newest last) — a command is applied once. */
+  applied: string[];
+  last?: { id: string; at: number; result: string };
+}
+
+export function getAdminResetLog(): AdminResetLog {
+  const v = json<AdminResetLog>(LS.adminResetLog, { applied: [] });
+  return { applied: Array.isArray(v.applied) ? v.applied : [], last: v.last };
+}
+
+export function saveAdminResetLog(log: AdminResetLog): void {
+  try { localStorage.setItem(LS.adminResetLog, JSON.stringify({ ...log, applied: log.applied.slice(-20) })); } catch { /* quota */ }
+}
+
+/**
+ * One string field of a document the POS is allowed to read by ID. `value: ''`
+ * with `reachable: true` means "no such document" (404) — nothing is pending.
+ */
+export async function fetchDocString(collection: string, id: string, field: string): Promise<{ reachable: boolean; value: string }> {
+  if (!id || !navigator.onLine) return { reachable: false, value: '' };
+  const url = `${BASE}/${collection}/${encodeURIComponent(docIdFor(id))}?key=${API_KEY}`;
+  const res = await withTimeout(fetch(url).then(async r => ({ ok: r.ok, status: r.status, body: await r.json().catch(() => null) })), 8000);
+  if (!res) return { reachable: false, value: '' };
+  if (res.status === 404) return { reachable: true, value: '' };
+  if (!res.ok) return { reachable: false, value: '' };
+  return { reachable: true, value: readField(res.body, field) };
+}
 
 // ---------- login activity (local, sent with the heartbeat) ----------
 export interface LoginStats { firstLoginAt?: number; lastLoginAt?: number; loginCount: number }
@@ -397,6 +429,7 @@ export async function sendHeartbeat(input: HeartbeatInput): Promise<boolean> {
   const [hw, loc] = await Promise.all([getDeviceHardware(), refreshLocation()]);
   const stats = getLoginStats();
   const verdict = cachedVerdict();
+  const resetLog = getAdminResetLog().last;
 
   const body = {
     fields: toFields({
@@ -433,6 +466,8 @@ export async function sendHeartbeat(input: HeartbeatInput): Promise<boolean> {
       locationUpdatedAt: loc?.at || 0,
       locationAccuracyM: loc?.accuracyM || 0,
       locationSource: loc?.source || 'network',
+      // The last administrator-password reset applied here: Super Admin shows "Applied".
+      ...(resetLog ? { adminResetId: resetLog.id, adminResetAt: resetLog.at, adminResetResult: resetLog.result } : {}),
       // Today's sales: four small values, well inside the device document's size rule.
       ...(input.sales ? {
         salesDay: input.sales.day,
@@ -492,6 +527,8 @@ export function startCloudLink(provider: Provider): () => void {
   // report straight away instead of waiting five minutes.
   const onVerdict = () => { void cycle(); };
   window.addEventListener('dtpos-license-verdict', onVerdict);
+  // A reset was just applied: tell Super Admin now instead of in five minutes.
+  window.addEventListener('dtpos-admin-reset', onVerdict);
 
   const kick = setTimeout(cycle, 4000);
   if (timer) clearInterval(timer);
@@ -504,6 +541,7 @@ export function startCloudLink(provider: Provider): () => void {
     window.removeEventListener('offline', onOffline);
     window.removeEventListener('dtpos-device-location-updated', onOnline);
     window.removeEventListener('dtpos-license-verdict', onVerdict);
+    window.removeEventListener('dtpos-admin-reset', onVerdict);
   };
 }
 

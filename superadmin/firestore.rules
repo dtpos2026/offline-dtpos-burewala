@@ -94,6 +94,15 @@ service cloud.firestore {
       allow list, write: if request.auth != null;
     }
 
+    // Administrator password resets (v1.21). ONE sealed command per licence,
+    // written by staff only. The POS reads it by ID (get); the password inside
+    // is encrypted for that licence (never stored in the clear), and nobody
+    // outside can list or write.
+    match /adminResets/{licenseId} {
+      allow get: if true;
+      allow list, write: if request.auth != null;
+    }
+
     // Everything else is closed.
     match /{document=**} {
       allow read, write: if false;

@@ -1,5 +1,66 @@
 # DT POS Enterprise — Release Notes
 
+## v1.21.0 — Reset a restaurant's administrator password from Super Admin, and the double KOT fixed
+
+Super Admin panel **v1.1.0** ships with it.
+
+### New: reset a forgotten administrator password (Super Admin → Clients → ⋯ → Security → Reset admin password…)
+A restaurant that forgets its administrator password had no remedy, and the administrator can see and manage
+every other user. Now Digital Target types a new password for that restaurant and **every computer on the
+licence applies it by itself** the next time it is online. Nothing is typed at the shop and no data is lost —
+only the password changes.
+
+- **In the panel:** type the new password (6–64 characters; *Generate* makes an easy-to-read one). The username
+  is optional — empty means the main administrator (`admin`). A confirmation explains the effect first. After
+  sending, the dialog lists every computer on the licence: **applied**, **waiting** (with its last-seen time),
+  **needs update** (a POS older than v1.21.0 cannot receive it) or **failed** (the username typed does not
+  exist / is not an administrator). *Cancel / remove* takes the pending reset off the server.
+- **On the POS:** the sign-in screen looks for a waiting reset when it opens, when the internet returns and
+  every minute while it stays open (the licence check also looks, at most every 10 minutes). When it finds one
+  it sets the administrator's password, announces it ("The administrator password was reset by Digital Target…")
+  and fills in the username. A locked PIN is unlocked, a switched-off administrator is switched back on.
+- **Only an administrator account can be changed this way** — never a cashier, waiter or rider.
+- **A new sign-in link: "Forgot password?"** explains the above, has **Check for a reset now**, and a box for a
+  **reset code** — the same sealed command, copied from the panel and pasted, for a computer that never goes
+  online.
+- **Security:** the password is never stored or sent in the clear. It is encrypted (AES-256-GCM, key derived
+  with PBKDF2 from the app secret and the restaurant's licence key), so a command made for one restaurant cannot
+  be opened or altered for another. Only signed-in staff can write it (Firestore rules); it is applied once per
+  computer, **expires after 7 days**, and should be removed once every computer shows *applied*.
+- **Heartbeat:** three new fields (`adminResetId`, `adminResetAt`, `adminResetResult`) tell the panel what a
+  computer did; the device document stays under the 45-field rule (about 40 at most).
+
+### Fixed: the KOT printed twice when you printed just the KOT
+The **Kitchen** button saves the order — which sends the KOT to the kitchen printer through the print queue —
+and then opened the Kitchen Slip window, whose preview printed **the same KOT again** by itself, outside the
+queue, where none of the duplicate guards could see it. One press, two tickets. The same happened from the
+*Kitchen Receipt* menu entry, after the Dining/Delivery details window, and when switching to the *Kitchen Slip*
+tab right after a bill.
+- The window now prints by itself **only if the queue has not already sent that order's KOT**. Otherwise it just
+  shows the slip with a note, and its **Print** button still gives a deliberate extra copy.
+- With *Auto Print KOT* off (send manually) the window is the only printer and prints once, as before.
+- A KOT that failed for good does not count as sent, so the window prints it.
+- Unchanged and intentional: *KOT copies* (KOT settings) and *KOT Mirror on Cash Printer* make extra copies on
+  purpose. Note that *KOT copies* and the kitchen printer's own *copies* (Printer Center) multiply — keep one of
+  them at 1.
+
+### Deploying
+1. **Publish `superadmin/firestore.rules` in Firebase Console → Firestore → Rules** (one new rule, `adminResets`).
+   Until it is published the panel says so instead of saving the reset.
+2. Build and deploy the Super Admin panel (`npm run build:superadmin`, then the usual hosting deploy).
+3. Build and install POS **v1.21.0** on the shops. **A shop must be on v1.21.0 before a reset can reach it** —
+   the panel marks older computers *needs update*.
+
+### Checked
+- 92 test files, 1517 tests pass (61 new): sealing/opening/expiry/tampering, the store changes only
+  administrators, the POS picks up and applies once, the heartbeat fields and the Firestore field limit, the
+  Super Admin dialog and per-computer status, the sign-in screen's *Forgot password?*, and the double KOT — a
+  test mounts the real print host and shows the old behaviour printing twice and the new one printing once.
+- Both TypeScript projects compile; both apps build.
+- **Not tested here:** the live Firebase project (the rules and the end-to-end send → apply were exercised with
+  a fake Firestore that mirrors them), the Electron app, or a physical printer. Please confirm on a counter:
+  press *Kitchen* once and count the tickets, and send a test reset to one computer.
+
 ## v1.20.1 — Small fixes found while writing the User Guide, and the User Guide itself
 
 - **New:** a complete, client-ready **User Guide & Feature Overview** (PDF, 140+ pages) with a screenshot of

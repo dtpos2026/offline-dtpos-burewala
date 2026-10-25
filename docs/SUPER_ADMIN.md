@@ -281,6 +281,7 @@ interface Client { key: string; business: string; owner: string; phone: string;
 | `licenseDevices/{docIdFor(key)}` | Device-slot ledger `{devices: string[], updatedAt}` | POS may only **append exactly one** id; staff anything | POS (`get`); staff (list) |
 | `devices/{docIdFor(deviceId)}` | Heartbeat from each installation (see [Appendix B](#appendix-b--field-dictionary)) | POS (own doc only, < 45 fields); staff delete | staff |
 | `supportMessages/{autoId}` | Notes both ways `{clientKey, business, phone, from, text, createdAt, read, serverAt}`. `clientKey` = the restaurant's licence key, or `'*'` for an announcement to every restaurant (`src/lib/messageRouting.ts`) | staff; POS only `from=='shop'`, text < 2000 chars, with its own non-empty `clientKey` that is not `'*'` | everyone (see [13](#13-security-model-and-honest-limits)) |
+| `adminResets/{docIdFor(key)}` | **One sealed administrator-password reset per licence** `{id, token, username, issuedAt, expiresAt, by}` (v1.21). `token` is `DTP1.…`, the new password encrypted for that licence — never in the clear | staff | POS (`get` one doc); staff (list) |
 | `offlineInvoices/{id}` | Invoices | staff | staff |
 | `offlineBilling/profile` | Invoice branding/profile | staff | staff |
 | `invoiceVerify/{code}` | Public record an invoice QR opens | staff | anyone with the code (`get`); staff (list) |
@@ -397,6 +398,7 @@ The POS uses **plain Firestore REST** with the public web key — no Firebase SD
 | Licence-wide status | `GET …/documents/licenseStatus/{docIdFor(key)}?key=API_KEY` (404 = no decision = active) | 1.5 s after the POS opens, then every 60 s while it is open (`LicenseGate`), and on `online` / window focus (throttled to one check per 30 s) |
 | Device status | `GET …/documents/deviceStatus/{docIdFor(deviceId)}?key=API_KEY` | same call |
 | Slot claim | `GET` then `PATCH licenseDevices/{docIdFor(key)}` with a precondition (`currentDocument.updateTime` or `exists=false`); retry up to 3× on 400/409 | at activation and when the slot is unknown |
+| Admin password reset | `GET …/documents/adminResets/{docIdFor(key)}?key=API_KEY` (404 = nothing waiting); the POS opens `token` with its own licence key, applies it once, then reports `adminResetId/At/Result` in the next heartbeat | with the licence check once the POS has opened (at most every 10 min), and on the sign-in screen: when it opens, every minute while it stays open, when the internet returns, and on **Check for a reset now** |
 | Heartbeat | `PATCH …/documents/devices/{deviceId}?key=API_KEY` with ~40 scalar fields | first cycle 4 s after start, then every **5 min**; also when the verdict changes or the network returns |
 | Support | `POST …/documents:runQuery` on `supportMessages` where `clientKey IN [own licence key, '*']` (only once the licence key is known); create `from:'shop'` with its own `clientKey` | when Reports is open, every 60 s; cached per licence key |
 
@@ -462,12 +464,41 @@ each with **Unlink**), Expires (days left when ≤ 30), Status pill, **Edit** an
 * Licence status — *every computer on this key*: Active / Suspended / Revoked / Pending payment
   (checked item = current server value). Each change asks a **styled confirmation** that explains the
   effect, then writes `licenseStatus` and mirrors `clients.suspended` (true for suspended or revoked).
+* **Reset admin password…** (v1.21) — see [10.1](#101-reset-administrator-password-v121).
 * Delete from registry (confirmation; the shop's installed POS is not affected).
 
 **Edit licence** dialog: shop details, plan, allowed computers (+1), expiry date with quick buttons
 (+30 days, +3 months, +1 year, Lifetime). If plan/devices/expiry changed it warns that the POS reads
 these from the key and offers **Re-issue key with these limits** (mints a new key, keeps the device list,
 shows the new key to copy). "Save changes" only updates registry details.
+
+#### 10.1 Reset administrator password (v1.21)
+
+Why: the POS is offline, so a forgotten administrator password had no remedy at the shop, and the
+administrator can see and manage every other user. Clients → row menu → **Security → Reset admin
+password…** (`AdminReset.tsx`).
+
+1. Type the new password (6–64 characters; **Generate** makes an easy-to-read one; **Show/Hide**). The
+   username is optional — empty means the restaurant's main administrator (`admin`, else the first active
+   administrator). A reset can only change an **administrator** account, never a cashier or waiter.
+2. A confirmation explains the effect, then `sealReset()` (`src/licensing/adminReset.ts`, shared with the POS
+   through the `@pos` alias) encrypts the password for that licence — AES-256-GCM, key = PBKDF2-SHA-256
+   (100 000 rounds) of the app secret plus the licence key, licence key bound in as authenticated data — and
+   writes `adminResets/{docIdFor(key)}`. The password is **never** stored in the clear; the dialog shows it
+   once, after sending, so it can be read out to the owner. A new reset replaces the old one.
+3. Each POS on the licence reads the document by ID, opens it with its own licence key, writes the password
+   to the local administrator account (and lifts a PIN lock, re-activates a switched-off administrator),
+   remembers the command ID so it is applied **once**, and reports the outcome in its next heartbeat
+   (`adminResetId`, `adminResetAt`, `adminResetResult`). The dialog lists every computer reporting under
+   the licence: **applied**, **waiting** (with last-seen time), **needs update** (POS older than v1.21.0
+   cannot receive it) or **failed** (named user missing / not an administrator).
+4. A computer that never goes online gets the same sealed code by hand: sign-in screen → **Forgot
+   password?** → paste → **Apply reset code** (shown under *A computer that never goes online?*).
+5. A command expires after **7 days**. When every computer shows *applied*, press **Cancel / remove the
+   pending reset** so nothing stays on the server.
+
+Needs the updated `firestore.rules` published once (new `adminResets` rule); until then the panel says so
+instead of failing silently.
 
 ### Devices (`Devices.tsx`)
 Watches `devices`, `deviceStatus`, `licenseStatus` and `licenseDevices` live and re-renders once a
@@ -615,6 +646,11 @@ Limits you should know (and tell your clients):
 6. `licenseStatus`, `deviceStatus`, `licenseDevices` and `invoiceVerify` allow a public `get` of a known
    id (needed by the POS / the QR) but no `list`, so ids cannot be enumerated from outside.
 7. Location from the internet connection is city-level; the panel says so.
+   **Admin password reset (v1.21):** the sealed code can be read by anyone who knows the licence key (the
+   document id *is* the key) and decrypted by anyone who also extracts the app secret from the POS bundle —
+   the same trust level as the licence keys themselves. It is protected from being *written* by the rules
+   (staff only), is applied once per computer, expires in 7 days and should be removed once applied. An
+   attacker still needs physical access to the offline POS to use the password.
 8. Map tiles (OpenStreetMap) need internet.
 9. I could not test against the live Firebase project from the build environment; behaviour against it
    is covered by unit tests with mocked Firestore and by reading the rules, not by live calls.
@@ -937,6 +973,15 @@ service cloud.firestore {
       allow list, write: if request.auth != null;
     }
 
+    // Administrator password resets (v1.21). ONE sealed command per licence,
+    // written by staff only. The POS reads it by ID (get); the password inside
+    // is encrypted for that licence (never stored in the clear), and nobody
+    // outside can list or write.
+    match /adminResets/{licenseId} {
+      allow get: if true;
+      allow list, write: if request.auth != null;
+    }
+
     // Everything else is closed.
     match /{document=**} {
       allow read, write: if false;
@@ -958,6 +1003,7 @@ omitted by the POS's field encoder, numbers including `0` are sent):
 | Software | `appVersion` |
 | Hardware | `manufacturer`, `model`, `osName`, `osVersion` |
 | Activity | `installedAt`, `firstLoginAt`, `lastLoginAt`, `loginCount`, `lastSyncAt`, `lastVerifyAt` |
+| Admin reset (v1.21) | `adminResetId`, `adminResetAt`, `adminResetResult` (`applied \| reactivated \| not-found \| not-admin`) — the last reset applied on this computer |
 | Location | `country`, `region`, `city`, `latitude`, `longitude`, `locationAccuracyM`, `locationSource` (`device` \| `network`), `locationUpdatedAt` |
 
 **Status document** (`licenseStatus`, `deviceStatus`): `status` (`active | suspended | revoked | pending`;

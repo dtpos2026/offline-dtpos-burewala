@@ -1,7 +1,7 @@
 {
   "name": "dtpos-superadmin",
   "private": true,
-  "version": "1.0.40",
+  "version": "1.1.0",
   "description": "DT POS \u2014 Super Admin panel (offline: license issuing, client registry, device map)",
   "type": "module",
   "scripts": {

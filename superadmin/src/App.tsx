@@ -26,6 +26,7 @@ import CloudGate from './CloudGate';
 import Support from './Support';
 import Devices from './Devices';
 import Billing from './Billing';
+import AdminReset from './AdminReset';
 import {
   watchAdmin, adminSignOut, watchClients, pushClient, removeClient, watchDevices, watchMessages,
   watchLicenseStatuses, setLicenseStatus, docIdFor, type StatusDoc, type LicenceAction, type DeviceDoc,
@@ -738,6 +739,7 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
   const [filter, setFilter] = useState<ClientFilter>('all');
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [editing, setEditing] = useState<Client | null>(null);
+  const [resetting, setResetting] = useState<Client | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   // Licence-wide decisions on the server — what every POS on the key obeys.
   const [serverStatus, setServerStatus] = useState<Map<string, StatusDoc>>(new Map());
@@ -950,6 +952,9 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
                             setTo('revoked', 'Revoked'),
                             setTo('pending', 'Pending payment'),
                             'separator',
+                            { heading: 'Security' },
+                            { label: 'Reset admin password…', onSelect: () => setResetting(c) },
+                            'separator',
                             { label: 'Delete from registry', danger: true, onSelect: () => { void deleteClient(c); } },
                           ]}
                         />
@@ -1006,6 +1011,8 @@ function Clients({ clients, setClients }: { clients: Client[]; setClients: (f: (
         A computer that never connects is governed only by the expiry date inside its key.
         To act on one computer only, use the Devices tab.
       </p>
+
+      {resetting && <AdminReset client={resetting} onClose={() => setResetting(null)} />}
 
       {editing && (
         <EditClient

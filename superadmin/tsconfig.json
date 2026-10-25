@@ -26,6 +26,7 @@
   "include": [
     "src",
     "../src/licensing/licenseKey.ts",
-    "../src/licensing/activationReceipt.ts"
+    "../src/licensing/activationReceipt.ts",
+    "../src/licensing/adminReset.ts"
   ]
 }

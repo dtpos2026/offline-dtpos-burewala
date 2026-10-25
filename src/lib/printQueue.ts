@@ -108,6 +108,27 @@ export function getFailedJobs(): PrintJob[] {
   return getPrintQueue().filter(j => j.status === 'failed' && j.retryCount >= MAX_RETRY);
 }
 
+/**
+ * True when a kitchen ticket for this order is already on its way to the
+ * printer, or came out a moment ago.
+ *
+ * The POS "Kitchen" button saves the order — which queues the KOT through the
+ * print host — and then opens the Kitchen Slip window, whose preview used to
+ * print again by itself: two tickets for one press. The window now asks this
+ * first and only shows the slip (its Print button is still there for a
+ * deliberate extra copy). A ticket that failed for good does not count: that
+ * one really did not come out.
+ */
+export function kotRecentlyQueued(orderId: string, withinMs = 60_000, now = Date.now()): boolean {
+  if (!orderId) return false;
+  return getPrintQueue().some(j =>
+    j.orderId === orderId
+    && j.printType === 'kot'
+    && now - new Date(j.createdAt || 0).getTime() < withinMs
+    && (j.status !== 'failed' || j.retryCount < MAX_RETRY),
+  );
+}
+
 /** Resolve which printer a job should target based on settings + station. */
 function resolvePrinter(printType: PrintType, station?: string, excludePrinter?: string): string | undefined {
   const s = getSettings();
