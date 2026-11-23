@@ -22,7 +22,7 @@ export function CompatCutToggle() {
         <p className="text-xs text-muted-foreground mt-0.5">
           Turn this on if the printer cuts through the last line (for example the footer or "Printed …") or prints it on top of the
           next slip. The slip is then padded with blank paper and plain line feeds before the cut, which any printer follows. It
-          uses roughly 8–10&nbsp;mm more paper per slip. This computer only.
+          uses roughly 8–12&nbsp;mm more paper per slip. This computer only.
         </p>
       </div>
       <Switch
