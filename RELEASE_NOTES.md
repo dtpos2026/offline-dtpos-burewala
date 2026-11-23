@@ -1,5 +1,31 @@
 # DT POS Enterprise — Release Notes
 
+## v1.21.1 — Compatibility cut ("feed, then cut") for printers that cut through the last line
+
+- **Reported** on a BIXOLON SRP-352plus III (photos of the slips): the cutter fires before the last line has passed the
+  blade, so the footer ("Printed …") is cut through and the rest comes out on top of the **next** slip. The cutter sits
+  15–25 mm above the print head; the normal sequence (`ESC d n` feed, then `GS V 0` cut) relies on the printer honouring
+  the feed command and its line spacing, and this printer does not always.
+- **New switch: "Compatibility cut for older printers (feed, then cut)"** — in **Settings → Printer** (under *Cut Mode*)
+  and in **Printer Center → Print quality**. It is **off** by default and applies to this computer's printers only.
+  What it changes when it is on:
+  - **Rendered slip (RAW image):** 20 mm of blank **dot rows** are printed as part of the image, then three plain line
+    feeds, then the cut. The paper moves because rows are being printed, whatever the printer does with a feed command.
+    The printer's own **Bottom (mm)** adds to the padding.
+  - **ESC/POS text and LAN printers:** plain line-feed bytes (every printer knows them) instead of `ESC d`, at least eight,
+    then the cut.
+  - **Windows driver:** 8 mm more blank paper before the dot the driver has to print.
+  - It costs about **8–12 mm more paper per slip**. When *Auto Cut* is off nothing changes.
+- **Off = exactly as before**: the bytes sent to the printer are identical (a test compares them).
+- **Checked:** 93 test files, 1,534 tests pass (17 new: every path byte by byte, the bands the printer firmware decodes,
+  the Bottom (mm) padding, Auto Cut off, the switch). Run through the print simulator (the real raster code, decoded the way
+  the firmware does): the slips grow by exactly the 20 mm of blank rows and decode cleanly
+  (`SIM_COMPAT=1 node scripts/simulate-print.mjs <slip>`).
+- **Not tested here:** a physical BIXOLON. Please turn the switch on, press *Test print* and a KOT, and check that the last
+  line is whole. If it still cuts early, raise **Printer Center → Calibration → Bottom (mm)** by 5 at a time — it adds to the
+  padding. Note that *Cut Mode → Partial* is stored by Settings but the RAW print paths always send a full cut; that
+  is unchanged in this release.
+
 ## v1.21.0 — Reset a restaurant's administrator password from Super Admin, and the double KOT fixed
 
 Super Admin panel **v1.1.0** ships with it.

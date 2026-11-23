@@ -12,6 +12,7 @@ import { columnsOf } from './paperProfile';
 import { DEVELOPER_CREDIT } from '@/lib/displayTemplates';
 import { rawCodeBlocks } from './codeRaster';
 import type { CodePosition } from '@/lib/receiptCodes';
+import { isCompatCut, COMPAT_MIN_TEXT_FEED_LINES } from './cutPrefs';
 
 const ESC = 0x1b;
 const GS = 0x1d;
@@ -273,11 +274,19 @@ export class EscposDoc {
    * the user wants to save paper — compact mode saves paper in the body, not
    * in the clearance the blade needs.
    */
-  cut(feedLines = MIN_CUT_FEED_LINES) {
+  cut(feedLines = MIN_CUT_FEED_LINES, compat: boolean = isCompatCut()) {
     this.left().size(1, 1).bold(false);
     // Back to 24-dot lines so the feed below is a known physical distance.
     this.defaultLineSpacing();
     const lines = Math.max(MIN_CUT_FEED_LINES, Math.min(12, Math.round(feedLines) || MIN_CUT_FEED_LINES));
+    if (compat) {
+      // Compatibility cut (cutPrefs.ts): plain LF bytes — the feed every printer
+      // understands, where ESC d is ignored or clamped by some — and more of
+      // them, then the cut.
+      const feeds = Math.max(COMPAT_MIN_TEXT_FEED_LINES, lines + 2);
+      for (let i = 0; i < feeds; i++) this.raw(0x0a);
+      return this.raw(GS, 0x56, 0x00);
+    }
     // ESC d n — feed exactly n lines, independent of buffered content.
     this.raw(ESC, 0x64, lines);
     return this.raw(GS, 0x56, 0x00);

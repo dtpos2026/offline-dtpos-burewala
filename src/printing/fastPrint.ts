@@ -19,6 +19,7 @@ import type { PaperSize } from './printConfig';
 import { effectivePrintQuality } from '@/lib/printQuality';
 import { loadPrintMargins } from '@/lib/printMargins';
 import { resolveReceiptLayout, layoutCss, type ReceiptLayout } from './receiptLayout';
+import { isCompatCut, COMPAT_PAD_MM, COMPAT_DRIVER_EXTRA_MM } from './cutPrefs';
 
 function api(): any {
   return (window as any).electronAPI;
@@ -91,10 +92,20 @@ export interface FastPrintArgs {
    * clearance and to the raster path's feed lines. Negative values ignored.
    */
   extraFeedMm?: number;
+  /**
+   * Compatibility cut ("feed, then cut", see cutPrefs.ts): for a printer that
+   * cuts through the last line. Unset = this computer's setting.
+   */
+  compatCut?: boolean;
 }
 
 /** Default cutter clearance on the Windows-driver path — see buildDocument. */
 export const DRIVER_CUT_CLEARANCE_MM = 18;
+
+/** Compatibility cut on or off for this slip: the caller's choice, else this computer's setting. */
+function compatOf(args: Pick<FastPrintArgs, 'compatCut'>): boolean {
+  return typeof args.compatCut === 'boolean' ? args.compatCut : isCompatCut();
+}
 
 /** The printer's extra feed (mm), bounded; 0 when unset or negative. */
 function extraFeed(args: Pick<FastPrintArgs, 'extraFeedMm'>): number {
@@ -243,7 +254,7 @@ function buildDocument(args: FastPrintArgs, mode: DocumentMode): string {
   // Lahore report. Blank space alone is trimmed away too, so the clearance
   // ends in a single dot the driver has to print. The raster path feeds its
   // own exact clearance before the cut and gets none of this.
-  const clearanceMm = Math.max(0, Math.min(40, Number(args.cutClearanceMm ?? DRIVER_CUT_CLEARANCE_MM) + extraFeed(args)));
+  const clearanceMm = Math.max(0, Math.min(48, Number(args.cutClearanceMm ?? DRIVER_CUT_CLEARANCE_MM) + extraFeed(args) + (compatOf(args) ? COMPAT_DRIVER_EXTRA_MM : 0)));
   // Nested one level: the direct children of .dt-fast-root are forced to
   // height:auto (see the head), which would collapse a plain spacer.
   const spacer = mode === 'html' && args.autoCut !== false && clearanceMm > 0
@@ -335,6 +346,10 @@ export async function fastPrintHtml(args: FastPrintArgs): Promise<FastPrintResul
       // printer's own extra feed in ~4 mm lines. It does not alter or
       // truncate the selected receipt template.
       bottomFeedLines: 6 + Math.ceil(extraFeed(args) / 4),
+      // Compatibility cut: the raster stage prints this much blank paper as
+      // dot rows, then a few plain line feeds, then cuts (cutPrefs.ts).
+      compatCut: compatOf(args),
+      compatPadMm: COMPAT_PAD_MM + extraFeed(args),
     };
     // 'Windows driver only' skips the raster stage but keeps the worker, so
     // the job never touches the POS window.

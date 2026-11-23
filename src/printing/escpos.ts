@@ -7,6 +7,8 @@
 // don't come out as a blank slip (Phase-4 fix v1.0.4).
 // ============================================================
 
+import { isCompatCut, COMPAT_MIN_TEXT_FEED_LINES } from './cutPrefs';
+
 const ESC = 0x1b;
 const GS = 0x1d;
 const LF = 0x0a;
@@ -20,6 +22,8 @@ export interface EscposOptions {
   beep?: boolean;
   topFeedLines?: number;
   bottomFeedLines?: number;
+  /** Compatibility cut (cutPrefs.ts): more plain line feeds before the cut. Unset = this computer's setting. */
+  compatCut?: boolean;
 }
 
 /** Convert HTML to a clean text representation for ESC/POS. */
@@ -88,8 +92,11 @@ export function buildEscposFromText(text: string, opts: EscposOptions = {}): num
   }
   out.push(LF);
 
-  // Bottom feed
-  for (let i = 0; i < (opts.bottomFeedLines || 3); i++) out.push(LF);
+  // Bottom feed. Compatibility cut: at least COMPAT_MIN_TEXT_FEED_LINES plain
+  // line feeds, so a printer that cuts early still has the footer past the blade.
+  const compat = typeof opts.compatCut === 'boolean' ? opts.compatCut : isCompatCut();
+  const feeds = Math.max(opts.bottomFeedLines || 3, compat ? COMPAT_MIN_TEXT_FEED_LINES : 0);
+  for (let i = 0; i < feeds; i++) out.push(LF);
 
   // Beep
   if (opts.beep) out.push(...bytes(ESC, 0x42, 0x02, 0x02));

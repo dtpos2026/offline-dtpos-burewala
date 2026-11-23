@@ -27,6 +27,7 @@ import PrintAlignmentTestCard from '@/components/PrintAlignmentTestCard';
 import SlipMarginsCard from '@/components/SlipMarginsCard';
 import FastBillingModeCard from '@/components/FastBillingModeCard';
 import PrintQualityCard from '@/components/PrintQualityCard';
+import CompatCutCard from '@/components/CompatCutToggle';
 import TestPrintCard from '@/components/TestPrintCard';
 import TokenSettingsCard from '@/components/TokenSettingsCard';
 import TokenRulesCard from '@/components/TokenRulesCard';
@@ -109,9 +110,14 @@ const MODULES: Module[] = [
   {
     id: 'quality',
     label: 'Print quality',
-    blurb: 'Darkness, boldness and how much paper each slip uses.',
+    blurb: 'Darkness, boldness, how much paper each slip uses, and the cut.',
     icon: Sliders,
-    render: () => <PrintQualityCard />,
+    render: () => (
+      <>
+        <PrintQualityCard />
+        <CompatCutCard />
+      </>
+    ),
   },
   {
     id: 'calibration',

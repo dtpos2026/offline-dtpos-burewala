@@ -673,7 +673,7 @@ Open from the sidebar. Sections on its left: **Status · Printers · Role mappin
 | Role mapping | Which slip prints where: receipt · kitchen · token · rider · backup |
 | Print mode & speed | `raw` ESC/POS (fastest), `driver` (the Windows driver) or `auto` — decided per printer; speed test |
 | Receipt design | The 52-design gallery with live preview, per-template customization (5.3) |
-| Margins · Alignment test · Print quality · Calibration | Per-slip margins, test pattern, text weight/darkness presets, per-printer calibration |
+| Margins · Alignment test · Print quality · Calibration | Per-slip margins, test pattern, text weight/darkness presets, per-printer calibration. *Print quality* also holds **Compatibility cut (feed, then cut)** (v1.21.1) for a printer that cuts through the last line |
 | Tokens | Token design, options, rules, department stubs (section 7) |
 | Test print, Diagnostics & setup | Test slips, machine setup, diagnostic center |
 

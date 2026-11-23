@@ -5,6 +5,7 @@
 // the general Settings screen, which is a different thing from Printer Center —
 // that one owns the devices, their roles and their calibration.
 // ============================================================
+import { CompatCutToggle } from '@/components/CompatCutToggle';
 import React from 'react';
 import { toast } from 'sonner';
 import { RestaurantSettings, DiningTable, Floor, Kitchen, Waiter, Rider, ReceiptTextStyle } from '@/lib/types';
@@ -389,6 +390,9 @@ export default function PrinterSettingsTab({ settings, setSettings, onSave, prin
                   ))}
                 </div>
               </div>
+
+              {/* Cut through the last line? Device-local, so it is not part of the shop's settings. */}
+              <CompatCutToggle />
 
               {/* Auto Kitchen Print - moved to KOT Settings tab */}
             </div>

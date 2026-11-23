@@ -408,6 +408,8 @@ for (const slip of slips) {
     marginLeftMm: built.marginLeftMm,
     marginRightMm: built.marginRightMm,
     bottomFeedLines: undefined,
+    // SIM_COMPAT=1 — Printer Center → Print quality → Compatibility cut (feed, then cut).
+    compatCut: process.env.SIM_COMPAT === '1',
     exactRegions: process.env.SIM_NO_EXACT === '1' ? undefined : toCaptureRegions(codeBoxes, zoom),
   });
   // Decode the bytes back the way the printer's firmware would.

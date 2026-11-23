@@ -230,6 +230,14 @@ function inkCoverage(packed, contentDots) {
  */
 const RASTER_BAND_ROWS = 128;
 
+// ===== Compatibility cut ("feed, then cut") — mirrors src/printing/cutPrefs.ts =====
+/** Thermal heads print 8 dot rows per mm (203 DPI). */
+const DOTS_PER_MM = 8;
+/** Blank paper printed as dot rows before the cut. */
+const COMPAT_PAD_MM = 20;
+/** Plain line feeds after that padding. */
+const COMPAT_FEED_LINES = 3;
+
 /** True when at least one dot of the packed slip carries ink. */
 function hasInk(packed) {
   const { data } = packed || {};
@@ -283,6 +291,33 @@ function wrapRasterCommands(packed, autoCut = true, opts = {}) {
   // models and the last line looked prematurely cut. ESC d feeds exact blank
   // lines, then one (and only one) cut command is sent.
   const bottomFeedLines = Math.max(3, Math.min(12, Math.round(Number(opts.bottomFeedLines) || 6)));
+  if (autoCut && opts.compatCut === true) {
+    // ===== COMPATIBILITY CUT (feed, then cut) =====
+    // For a printer that cuts as soon as the last row is printed, whatever
+    // feed it was told: the clearance is printed as BLANK DOT ROWS inside the
+    // image, so the paper moves because rows are being printed and not because
+    // a feed command was honoured; then plain line feeds (every printer
+    // knows LF) and the cut. See src/printing/cutPrefs.ts.
+    const padMm = Math.max(8, Math.min(60, finite(opts.compatPadMm, COMPAT_PAD_MM)));
+    let padRows = Math.round(padMm * DOTS_PER_MM);
+    while (padRows > 0) {
+      const rows = Math.min(bandRows, padRows);
+      bands.push(Buffer.from([
+        0x1d, 0x76, 0x30, 0x00,
+        rowBytes & 0xff, (rowBytes >> 8) & 0xff,
+        rows & 0xff, (rows >> 8) & 0xff,
+      ]));
+      bands.push(Buffer.alloc(rowBytes * rows, 0)); // 0 = no ink
+      padRows -= rows;
+    }
+    const feeds = Math.max(2, Math.min(12, Math.round(finite(opts.compatFeedLines, COMPAT_FEED_LINES))));
+    const compatTail = Buffer.concat([
+      Buffer.from([0x1b, 0x32]),          // ESC 2  default line spacing, so LF is a known distance
+      Buffer.alloc(feeds, 0x0a),          // LF x n
+      Buffer.from([0x1d, 0x56, 0x00]),    // GS V 0 cut
+    ]);
+    return Buffer.concat([init, ...bands, compatTail]);
+  }
   const tail = autoCut
     ? Buffer.from([0x1b, 0x64, bottomFeedLines, 0x1d, 0x56, 0x00])
     : Buffer.from([0x1b, 0x64, 1]);
@@ -593,6 +628,8 @@ function escposRasterBytes(image, paperLabel, autoCut = true, opts = {}) {
 
 module.exports = {
   RASTER_BAND_ROWS,
+  COMPAT_PAD_MM,
+  COMPAT_FEED_LINES,
   hasInk,
   inkColumns,
   findMeasureRule,

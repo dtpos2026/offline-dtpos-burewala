@@ -1160,6 +1160,8 @@ ipcMain.handle('print-html-escpos', async (_event, options = {}) => {
           marginLeftMm,
           marginRightMm,
           bottomFeedLines: options.bottomFeedLines,
+          compatCut: options.compatCut === true,
+          compatPadMm: options.compatPadMm,
           exactRegions: toCaptureRegions(codeBoxes, zoom),
         });
       } catch (e) {
